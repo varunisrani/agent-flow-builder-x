@@ -347,9 +347,10 @@ function generateCustomAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): st
   let code = `import openai
 import json
 from typing import Dict, List, Any, Optional
+import os
 
-# Set your OpenAI API key
-openai.api_key = "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"
+# Get API key from environment variable
+openai.api_key = os.environ.get("OPENAI_API_KEY", "")
 
 `;
   

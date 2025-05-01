@@ -71,3 +71,55 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+
+# Agent Flow Builder X
+
+A visual no-code/low-code builder for AI agent workflows.
+
+## Features
+
+- Visual flow builder for AI agents
+- Natural language to flow conversion
+- Multiple agent frameworks support
+- Code generation for different agent frameworks
+- Syntax highlighting
+
+## Installation
+
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/agent-flow-builder-x.git
+cd agent-flow-builder-x
+```
+
+2. Install dependencies:
+```bash
+npm install
+```
+
+3. Set up environment variables:
+```bash
+cp .env.example .env
+```
+
+4. Add your OpenAI API key to the `.env` file:
+```
+NEXT_PUBLIC_OPENAI_API_KEY=your_openai_api_key_here
+```
+
+5. Start the development server:
+```bash
+npm run dev
+```
+
+## Usage
+
+1. Open the application in your browser at `http://localhost:3000`
+2. Use the node palette to add agents, tools, and models to your workflow
+3. Connect the nodes to create a flowchart
+4. Alternatively, use the natural language builder to generate a flow from text
+5. Generate code for your workflow in different agent frameworks
+
+## License
+
+MIT
