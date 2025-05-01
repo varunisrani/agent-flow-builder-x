@@ -18,6 +18,7 @@ import {
   OnNodesChange,
   OnEdgesChange,
   OnConnect,
+  NodeProps
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { PlusCircle, Zap } from 'lucide-react';
@@ -25,7 +26,7 @@ import { PlusCircle, Zap } from 'lucide-react';
 import { BaseNode, BaseNodeData } from './nodes/BaseNode';
 
 const nodeTypes: NodeTypes = {
-  baseNode: BaseNode
+  baseNode: BaseNode as React.ComponentType<NodeProps>
 };
 
 interface FlowEditorProps {
@@ -115,7 +116,10 @@ export function FlowEditor({ onNodeSelect }: FlowEditorProps) {
       setNodes((nds) =>
         nds.map((node) => {
           if (node.id === id) {
-            return { ...node, data: { ...node.data, ...data } };
+            return { 
+              ...node, 
+              data: { ...node.data, ...data } 
+            };
           }
           return node;
         })

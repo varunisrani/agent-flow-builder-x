@@ -17,13 +17,12 @@ export const BaseNode = memo(({
   selected,
   id 
 }: NodeProps<BaseNodeData>) => {
-  // Provide default values if data is undefined or properties are missing
-  const { 
-    label = 'Unnamed Node', 
-    icon, 
-    type = 'input', 
-    description = '' 
-  } = data || {};
+  // If data is completely missing, provide a default object
+  const safeData: BaseNodeData = data || {
+    label: 'Unnamed Node',
+    type: 'input',
+    description: ''
+  };
   
   const nodeStyles = {
     agent: 'border-purple-500/30 bg-purple-500/10',
@@ -38,7 +37,7 @@ export const BaseNode = memo(({
     <div 
       className={cn(
         "px-4 py-3 rounded-md border min-w-48 backdrop-blur-md",
-        nodeStyles[type],
+        nodeStyles[safeData.type],
         selected && "ring-2 ring-primary"
       )}
     >
@@ -49,12 +48,12 @@ export const BaseNode = memo(({
       />
       
       <div className="flex items-center space-x-2">
-        {icon && <div className="text-lg text-primary">{icon}</div>}
-        <div className="text-sm font-medium">{label}</div>
+        {safeData.icon && <div className="text-lg text-primary">{safeData.icon}</div>}
+        <div className="text-sm font-medium">{safeData.label}</div>
       </div>
       
-      {description && (
-        <div className="mt-1 text-xs text-muted-foreground">{description}</div>
+      {safeData.description && (
+        <div className="mt-1 text-xs text-muted-foreground">{safeData.description}</div>
       )}
       
       <Handle 
