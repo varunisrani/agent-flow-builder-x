@@ -1,21 +1,29 @@
 
 import { Handle, Position, NodeProps } from '@xyflow/react';
 import { cn } from '@/lib/utils';
+import { memo } from 'react';
 
 export interface BaseNodeData {
   label: string;
   icon?: React.ReactNode;
   type: 'agent' | 'model' | 'tool' | 'function' | 'input' | 'output';
   description?: string;
-  [key: string]: unknown; // Add index signature to satisfy Record<string, unknown>
+  [key: string]: unknown;
 }
 
-export function BaseNode({ 
+// Use memo to optimize rendering performance for nodes
+export const BaseNode = memo(({ 
   data, 
   selected,
   id 
-}: NodeProps<BaseNodeData>) {
-  const { label, icon, type, description } = data || { label: '', type: 'input' };
+}: NodeProps<BaseNodeData>) => {
+  // Provide default values if data is undefined or properties are missing
+  const { 
+    label = 'Unnamed Node', 
+    icon, 
+    type = 'input', 
+    description = '' 
+  } = data || {};
   
   const nodeStyles = {
     agent: 'border-purple-500/30 bg-purple-500/10',
@@ -56,4 +64,6 @@ export function BaseNode({
       />
     </div>
   );
-}
+});
+
+BaseNode.displayName = 'BaseNode';

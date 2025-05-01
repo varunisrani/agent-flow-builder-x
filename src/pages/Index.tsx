@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import { Bot, MessageSquare } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -30,10 +30,17 @@ const Index = () => {
     });
   };
   
-  const handleUpdateNode = (id: string, data: Partial<BaseNodeData>) => {
-    // This function will be implemented in FlowEditor component
-    // and passed down to the properties panel
-  };
+  const handleUpdateNode = useCallback((id: string, data: Partial<BaseNodeData>) => {
+    setSelectedNode(prevNode => {
+      if (prevNode && prevNode.id === id) {
+        return {
+          ...prevNode,
+          data: { ...prevNode.data, ...data }
+        };
+      }
+      return prevNode;
+    });
+  }, []);
 
   return (
     <div className="h-screen flex flex-col bg-background text-foreground overflow-hidden">

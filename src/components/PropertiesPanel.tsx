@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { Node } from '@xyflow/react';
 import { BaseNodeData } from './nodes/BaseNode';
@@ -12,8 +12,16 @@ interface PropertiesPanelProps {
 }
 
 export function PropertiesPanel({ selectedNode, onClose, onUpdateNode }: PropertiesPanelProps) {
-  const [nodeName, setNodeName] = useState(selectedNode?.data.label || '');
-  const [nodeDescription, setNodeDescription] = useState(selectedNode?.data.description || '');
+  const [nodeName, setNodeName] = useState('');
+  const [nodeDescription, setNodeDescription] = useState('');
+  
+  // Update local state when the selected node changes
+  useEffect(() => {
+    if (selectedNode?.data) {
+      setNodeName(selectedNode.data.label || '');
+      setNodeDescription(selectedNode.data.description || '');
+    }
+  }, [selectedNode]);
   
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setNodeName(e.target.value);
@@ -41,11 +49,13 @@ export function PropertiesPanel({ selectedNode, onClose, onUpdateNode }: Propert
       output: 'Output Properties'
     };
     
-    return typeLabels[selectedNode.data.type];
+    return selectedNode.data.type && typeLabels[selectedNode.data.type] 
+      ? typeLabels[selectedNode.data.type] 
+      : 'Properties';
   };
   
   const getTypeSpecificFields = () => {
-    if (!selectedNode) return null;
+    if (!selectedNode || !selectedNode.data) return null;
     
     switch (selectedNode.data.type) {
       case 'model':

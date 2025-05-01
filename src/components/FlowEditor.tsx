@@ -14,7 +14,10 @@ import {
   Connection,
   Panel,
   useReactFlow,
-  BackgroundVariant
+  BackgroundVariant,
+  OnNodesChange,
+  OnEdgesChange,
+  OnConnect,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { PlusCircle, Zap } from 'lucide-react';
@@ -47,12 +50,12 @@ const initialEdges: Edge[] = [];
 
 export function FlowEditor({ onNodeSelect }: FlowEditorProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const [nodes, setNodes, onNodesChange] = useNodesState<BaseNodeData>(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const reactFlowInstance = useReactFlow();
   
-  const onConnect = useCallback(
-    (connection: Connection) => setEdges((eds) => addEdge(connection, eds)),
+  const onConnect = useCallback<OnConnect>(
+    (connection) => setEdges((eds) => addEdge(connection, eds)),
     [setEdges]
   );
   
@@ -82,17 +85,17 @@ export function FlowEditor({ onNodeSelect }: FlowEditorProps) {
         y: event.clientY - reactFlowBounds.top,
       });
       
-      const newNode = {
+      const newNode: Node<BaseNodeData> = {
         id: `node_${Date.now()}`,
         type: 'baseNode',
         position,
-        draggable: true,
         data: {
           label: `New ${type.charAt(0).toUpperCase() + type.slice(1)}`,
           type: type as BaseNodeData['type'],
           description: ''
         },
-      } as Node<BaseNodeData>;
+        draggable: true,
+      };
 
       setNodes((nds) => [...nds, newNode]);
     },
@@ -112,7 +115,7 @@ export function FlowEditor({ onNodeSelect }: FlowEditorProps) {
       setNodes((nds) =>
         nds.map((node) => {
           if (node.id === id) {
-            return { ...node, data: { ...node.data, ...data } as BaseNodeData };
+            return { ...node, data: { ...node.data, ...data } };
           }
           return node;
         })
@@ -135,6 +138,8 @@ export function FlowEditor({ onNodeSelect }: FlowEditorProps) {
         onNodeClick={handleNodeClick}
         onPaneClick={handlePaneClick}
         draggable={true}
+        elementsSelectable={true}
+        nodesDraggable={true}
         fitView
       >
         <Controls />
