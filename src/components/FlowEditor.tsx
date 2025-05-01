@@ -77,7 +77,7 @@ export function FlowEditor({ onNodeSelect }: FlowEditorProps) {
         return;
       }
 
-      const position = reactFlowInstance.project({
+      const position = reactFlowInstance.screenToFlowPosition({
         x: event.clientX - reactFlowBounds.left,
         y: event.clientY - reactFlowBounds.top,
       });

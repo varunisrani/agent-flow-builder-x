@@ -1,5 +1,5 @@
 
-import { Handle, NodeProps, Position } from '@xyflow/react';
+import { Handle, Position, NodeProps } from '@xyflow/react';
 import { cn } from '@/lib/utils';
 
 export interface BaseNodeData {
@@ -15,7 +15,7 @@ export function BaseNode({
   selected,
   id 
 }: NodeProps<BaseNodeData>) {
-  const { label, icon, type, description } = data;
+  const { label, icon, type, description } = data || { label: '', type: 'input' };
   
   const nodeStyles = {
     agent: 'border-purple-500/30 bg-purple-500/10',
