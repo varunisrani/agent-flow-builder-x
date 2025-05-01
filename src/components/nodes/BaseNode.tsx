@@ -7,6 +7,7 @@ export interface BaseNodeData {
   icon?: React.ReactNode;
   type: 'agent' | 'model' | 'tool' | 'function' | 'input' | 'output';
   description?: string;
+  [key: string]: unknown; // Add index signature to satisfy Record<string, unknown>
 }
 
 export function BaseNode({ 

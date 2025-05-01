@@ -1,6 +1,7 @@
 
 import { useCallback, useState, useRef } from 'react';
-import ReactFlow, {
+import {
+  ReactFlow,
   Controls,
   Background,
   MiniMap,
@@ -47,7 +48,7 @@ export function FlowEditor({ onNodeSelect }: FlowEditorProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
-  const { project } = useReactFlow();
+  const reactFlowInstance = useReactFlow();
   
   const onConnect = useCallback(
     (connection: Connection) => setEdges((eds) => addEdge(connection, eds)),
@@ -75,12 +76,12 @@ export function FlowEditor({ onNodeSelect }: FlowEditorProps) {
         return;
       }
 
-      const position = project({
+      const position = reactFlowInstance.project({
         x: event.clientX - reactFlowBounds.left,
         y: event.clientY - reactFlowBounds.top,
       });
       
-      const newNode: Node<BaseNodeData> = {
+      const newNode = {
         id: `node_${Date.now()}`,
         type: 'baseNode',
         position,
@@ -89,11 +90,11 @@ export function FlowEditor({ onNodeSelect }: FlowEditorProps) {
           type: type as BaseNodeData['type'],
           description: ''
         },
-      };
+      } as Node<BaseNodeData>;
 
-      setNodes((nds) => nds.concat(newNode));
+      setNodes((nds) => [...nds, newNode]);
     },
-    [project, setNodes]
+    [reactFlowInstance, setNodes]
   );
   
   const handleNodeClick = (event: React.MouseEvent, node: Node) => {
@@ -109,7 +110,7 @@ export function FlowEditor({ onNodeSelect }: FlowEditorProps) {
       setNodes((nds) =>
         nds.map((node) => {
           if (node.id === id) {
-            return { ...node, data: { ...node.data, ...data } };
+            return { ...node, data: { ...node.data, ...data } as BaseNodeData };
           }
           return node;
         })

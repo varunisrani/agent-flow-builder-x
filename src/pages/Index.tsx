@@ -31,8 +31,8 @@ const Index = () => {
   };
   
   const handleUpdateNode = (id: string, data: Partial<BaseNodeData>) => {
-    // This function will be passed down to the properties panel
-    // and implemented in FlowEditor component
+    // This function will be implemented in FlowEditor component
+    // and passed down to the properties panel
   };
 
   return (
