@@ -21,9 +21,12 @@ import {
   NodeProps
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { PlusCircle, Zap } from 'lucide-react';
+import { PlusCircle, Zap, Code } from 'lucide-react';
+import { Button } from './ui/button';
+import { toast } from '@/hooks/use-toast';
 
 import { BaseNode, BaseNodeData } from './nodes/BaseNode';
+import { CodeGenerationModal } from './CodeGenerationModal';
 
 const nodeTypes: NodeTypes = {
   baseNode: BaseNode as React.ComponentType<NodeProps>
@@ -52,9 +55,9 @@ const initialEdges: Edge[] = [];
 
 export function FlowEditor({ onNodeSelect }: FlowEditorProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  // Use the correct type - Node<BaseNodeData>[] - for node states
-  const [nodes, setNodes, onNodesChange] = useNodesState<BaseNodeData>(initialNodes);
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const [codeModalOpen, setCodeModalOpen] = useState(false);
   const reactFlowInstance = useReactFlow();
   
   const onConnect = useCallback<OnConnect>(
@@ -97,38 +100,24 @@ export function FlowEditor({ onNodeSelect }: FlowEditorProps) {
           type: type as BaseNodeData['type'],
           description: ''
         },
-        draggable: true,
       };
 
-      setNodes((nds) => [...nds, newNode]);
+      setNodes((nds) => nds.concat(newNode));
     },
     [reactFlowInstance, setNodes]
   );
   
-  const handleNodeClick = (event: React.MouseEvent, node: Node) => {
-    onNodeSelect(node as Node<BaseNodeData>);
+  const handleNodeClick = (event: React.MouseEvent, node: Node<BaseNodeData>) => {
+    onNodeSelect(node);
   };
   
   const handlePaneClick = () => {
     onNodeSelect(null);
   };
-
-  const handleUpdateNode = useCallback(
-    (id: string, data: Partial<BaseNodeData>) => {
-      setNodes((nds) =>
-        nds.map((node) => {
-          if (node.id === id) {
-            return { 
-              ...node, 
-              data: { ...node.data, ...data } 
-            };
-          }
-          return node;
-        })
-      );
-    },
-    [setNodes]
-  );
+  
+  const handleGenerateCode = () => {
+    setCodeModalOpen(true);
+  };
 
   return (
     <div className="h-full" ref={reactFlowWrapper}>
@@ -143,9 +132,6 @@ export function FlowEditor({ onNodeSelect }: FlowEditorProps) {
         nodeTypes={nodeTypes}
         onNodeClick={handleNodeClick}
         onPaneClick={handlePaneClick}
-        draggable={true}
-        elementsSelectable={true}
-        nodesDraggable={true}
         fitView
       >
         <Controls />
@@ -159,6 +145,17 @@ export function FlowEditor({ onNodeSelect }: FlowEditorProps) {
           </div>
         </Panel>
         
+        <Panel position="bottom-right" className="glass rounded-md p-2 m-4">
+          <Button 
+            onClick={handleGenerateCode} 
+            className="flex items-center gap-2"
+            variant="secondary"
+          >
+            <Code className="w-4 h-4" />
+            <span>Generate Code</span>
+          </Button>
+        </Panel>
+        
         <Panel position="bottom-left" className="glass rounded-md p-2 m-4">
           <div className="flex items-center gap-2">
             <Zap className="w-4 h-4 text-primary" />
@@ -166,6 +163,13 @@ export function FlowEditor({ onNodeSelect }: FlowEditorProps) {
           </div>
         </Panel>
       </ReactFlow>
+      
+      <CodeGenerationModal 
+        open={codeModalOpen} 
+        onOpenChange={setCodeModalOpen} 
+        nodes={nodes} 
+        edges={edges} 
+      />
     </div>
   );
 }

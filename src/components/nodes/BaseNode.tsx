@@ -9,6 +9,9 @@ export interface BaseNodeData {
   icon?: React.ReactNode;
   type: 'agent' | 'model' | 'tool' | 'function' | 'input' | 'output';
   description?: string;
+  modelType?: string;
+  instruction?: string;
+  toolConfig?: any;
   [key: string]: unknown;
 }
 

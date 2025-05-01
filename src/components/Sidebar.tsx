@@ -11,9 +11,9 @@ const nodeTypes = [
 ];
 
 const templates = [
-  { id: 'cs-agent', name: 'Customer Service', description: 'Handle customer inquiries and support requests' },
-  { id: 'research', name: 'Research Assistant', description: 'Help with research tasks and information gathering' },
-  { id: 'coding', name: 'Coding Assistant', description: 'Assist with code generation and programming tasks' },
+  { id: 'llm-agent', name: 'LLM Agent', description: 'Simple LLM-based agent with Google Search' },
+  { id: 'weather-agent', name: 'Weather Agent', description: 'Agent with weather and time tools' },
+  { id: 'multimodal', name: 'Multi-Modal Agent', description: 'Agent that can process images and text' },
 ];
 
 interface SidebarProps {
@@ -36,9 +36,9 @@ export function Sidebar({ expanded, onToggle }: SidebarProps) {
     )}>
       <div className="p-4 border-b border-white/10 flex items-center justify-between">
         {expanded ? (
-          <h2 className="text-lg font-medium text-gradient">AgentFlow</h2>
+          <h2 className="text-lg font-medium text-gradient">Google ADK Builder</h2>
         ) : (
-          <span className="text-lg mx-auto text-gradient">AF</span>
+          <span className="text-lg mx-auto text-gradient">ADK</span>
         )}
         <button 
           onClick={onToggle} 

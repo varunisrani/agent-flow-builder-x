@@ -14,12 +14,16 @@ interface PropertiesPanelProps {
 export function PropertiesPanel({ selectedNode, onClose, onUpdateNode }: PropertiesPanelProps) {
   const [nodeName, setNodeName] = useState('');
   const [nodeDescription, setNodeDescription] = useState('');
+  const [nodeInstruction, setNodeInstruction] = useState('');
+  const [modelType, setModelType] = useState('');
   
   // Update local state when the selected node changes
   useEffect(() => {
     if (selectedNode?.data) {
       setNodeName(selectedNode.data.label || '');
       setNodeDescription(selectedNode.data.description || '');
+      setNodeInstruction(selectedNode.data.instruction || '');
+      setModelType(selectedNode.data.modelType || '');
     }
   }, [selectedNode]);
   
@@ -34,6 +38,20 @@ export function PropertiesPanel({ selectedNode, onClose, onUpdateNode }: Propert
     setNodeDescription(e.target.value);
     if (selectedNode) {
       onUpdateNode(selectedNode.id, { description: e.target.value });
+    }
+  };
+  
+  const handleInstructionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setNodeInstruction(e.target.value);
+    if (selectedNode) {
+      onUpdateNode(selectedNode.id, { instruction: e.target.value });
+    }
+  };
+  
+  const handleModelTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setModelType(e.target.value);
+    if (selectedNode) {
+      onUpdateNode(selectedNode.id, { modelType: e.target.value });
     }
   };
   
@@ -64,11 +82,16 @@ export function PropertiesPanel({ selectedNode, onClose, onUpdateNode }: Propert
             <label className="block text-xs text-muted-foreground mb-1">
               Model Type
             </label>
-            <select className="w-full bg-background rounded-md border border-border p-2 text-sm">
+            <select 
+              className="w-full bg-background rounded-md border border-border p-2 text-sm"
+              value={modelType}
+              onChange={handleModelTypeChange}
+            >
+              <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+              <option value="gemini-2.0-pro">Gemini 2.0 Pro</option>
+              <option value="claude-3-5-sonnet">Claude 3.5 Sonnet</option>
               <option value="gpt-4o">GPT-4o</option>
-              <option value="claude-3">Claude 3</option>
-              <option value="gemini">Gemini</option>
-              <option value="llama">Llama 3</option>
+              <option value="llama-3-70b">Llama 3 70B</option>
             </select>
             
             <label className="block text-xs text-muted-foreground mb-1 mt-2">
@@ -92,9 +115,9 @@ export function PropertiesPanel({ selectedNode, onClose, onUpdateNode }: Propert
               Tool Type
             </label>
             <select className="w-full bg-background rounded-md border border-border p-2 text-sm">
-              <option value="search">Web Search</option>
+              <option value="google_search">Google Search</option>
               <option value="calculator">Calculator</option>
-              <option value="weather">Weather</option>
+              <option value="weather_api">Weather API</option>
               <option value="custom">Custom</option>
             </select>
             
@@ -127,10 +150,12 @@ export function PropertiesPanel({ selectedNode, onClose, onUpdateNode }: Propert
         return (
           <div className="space-y-2">
             <label className="block text-xs text-muted-foreground mb-1">
-              System Prompt
+              System Instruction
             </label>
             <textarea
               rows={4}
+              value={nodeInstruction}
+              onChange={handleInstructionChange}
               className="w-full bg-background rounded-md border border-border p-2 text-sm"
               placeholder="You are a helpful assistant that..."
             />
@@ -139,9 +164,10 @@ export function PropertiesPanel({ selectedNode, onClose, onUpdateNode }: Propert
               Agent Type
             </label>
             <select className="w-full bg-background rounded-md border border-border p-2 text-sm">
-              <option value="chat">Chat Agent</option>
-              <option value="reasoning">Reasoning Agent</option>
-              <option value="specialized">Specialized Agent</option>
+              <option value="LlmAgent">LLM Agent</option>
+              <option value="Agent">Standard Agent</option>
+              <option value="MultiModalAgent">Multi-Modal Agent</option>
+              <option value="ReActAgent">ReAct Agent</option>
             </select>
           </div>
         );
