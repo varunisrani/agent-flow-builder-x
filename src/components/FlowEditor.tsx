@@ -38,7 +38,8 @@ const initialNodes: Node<BaseNodeData>[] = [
       type: 'input',
       description: 'Initial input for your agent flow'
     },
-    position: { x: 250, y: 5 }
+    position: { x: 250, y: 5 },
+    draggable: true
   }
 ];
 
@@ -85,6 +86,7 @@ export function FlowEditor({ onNodeSelect }: FlowEditorProps) {
         id: `node_${Date.now()}`,
         type: 'baseNode',
         position,
+        draggable: true,
         data: {
           label: `New ${type.charAt(0).toUpperCase() + type.slice(1)}`,
           type: type as BaseNodeData['type'],
@@ -132,6 +134,7 @@ export function FlowEditor({ onNodeSelect }: FlowEditorProps) {
         nodeTypes={nodeTypes}
         onNodeClick={handleNodeClick}
         onPaneClick={handlePaneClick}
+        draggable={true}
         fitView
       >
         <Controls />
