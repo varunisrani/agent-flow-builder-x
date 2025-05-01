@@ -1,6 +1,5 @@
-
 import { useState, useCallback } from 'react';
-import { ReactFlowProvider, Node } from '@xyflow/react';
+import { ReactFlowProvider, Node, Edge } from '@xyflow/react';
 import { Bot, MessageSquare } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -18,14 +17,22 @@ const Index = () => {
   const [nlInputExpanded, setNlInputExpanded] = useState(false);
   const [testPanelVisible, setTestPanelVisible] = useState(false);
   const [selectedNode, setSelectedNode] = useState<Node<BaseNodeData> | null>(null);
+  const [nodes, setNodes] = useState<Node<BaseNodeData>[]>([]);
+  const [edges, setEdges] = useState<Edge[]>([]);
   const { toast } = useToast();
   
-  const handleGenerateFromPrompt = (prompt: string) => {
-    // In a real implementation, this would call an API to generate a flow
+  const handleGenerateFromPrompt = (prompt: string, generatedNodes: Node<BaseNodeData>[], generatedEdges: Edge[]) => {
+    // Update flow with generated nodes and edges
+    setNodes(generatedNodes);
+    setEdges(generatedEdges);
+    
+    // Close NL input after generation
+    setNlInputExpanded(false);
+    
     toast({
-      title: "Flow Generation Started",
-      description: `Generating agent flow from: "${prompt.substring(0, 50)}${prompt.length > 50 ? '...' : ''}"`,
-      duration: 5000,
+      title: "Flow Generated Successfully",
+      description: `Created flow from: "${prompt.substring(0, 50)}${prompt.length > 50 ? '...' : ''}"`,
+      duration: 3000,
     });
   };
   
@@ -39,6 +46,15 @@ const Index = () => {
       }
       return prevNode;
     });
+    
+    // Also update the node in the nodes array
+    setNodes(prevNodes => 
+      prevNodes.map(node => 
+        node.id === id 
+          ? { ...node, data: { ...node.data, ...data } }
+          : node
+      )
+    );
   }, []);
 
   return (
@@ -53,7 +69,13 @@ const Index = () => {
         
         <div className="flex-1 relative">
           <ReactFlowProvider>
-            <FlowEditor onNodeSelect={setSelectedNode} />
+            <FlowEditor 
+              onNodeSelect={setSelectedNode} 
+              initialNodes={nodes}
+              initialEdges={edges}
+              onNodesChange={setNodes}
+              onEdgesChange={setEdges}
+            />
           </ReactFlowProvider>
           
           <div className="absolute top-4 right-4 flex space-x-2">

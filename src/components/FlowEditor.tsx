@@ -1,5 +1,4 @@
-
-import { useCallback, useState, useRef } from 'react';
+import { useCallback, useState, useRef, useEffect } from 'react';
 import {
   ReactFlow,
   Controls,
@@ -15,10 +14,12 @@ import {
   Panel,
   useReactFlow,
   BackgroundVariant,
-  OnNodesChange,
-  OnEdgesChange,
   OnConnect,
-  NodeProps
+  NodeProps,
+  applyNodeChanges,
+  applyEdgeChanges,
+  NodeChange,
+  EdgeChange
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { PlusCircle, Zap, Code } from 'lucide-react';
@@ -34,10 +35,14 @@ const nodeTypes: NodeTypes = {
 
 interface FlowEditorProps {
   onNodeSelect: (node: Node<BaseNodeData> | null) => void;
+  initialNodes?: Node<BaseNodeData>[];
+  initialEdges?: Edge[];
+  onNodesChange?: (nodes: Node<BaseNodeData>[]) => void;
+  onEdgesChange?: (edges: Edge[]) => void;
 }
 
-// Define the correct node type with BaseNodeData
-const initialNodes: Node<BaseNodeData>[] = [
+// Define the default initial node if no nodes are provided
+const defaultInitialNodes: Node<BaseNodeData>[] = [
   {
     id: '1',
     type: 'baseNode',
@@ -51,18 +56,67 @@ const initialNodes: Node<BaseNodeData>[] = [
   }
 ];
 
-const initialEdges: Edge[] = [];
+const defaultInitialEdges: Edge[] = [];
 
-export function FlowEditor({ onNodeSelect }: FlowEditorProps) {
+export function FlowEditor({ 
+  onNodeSelect, 
+  initialNodes = defaultInitialNodes,
+  initialEdges = defaultInitialEdges,
+  onNodesChange: externalOnNodesChange,
+  onEdgesChange: externalOnEdgesChange
+}: FlowEditorProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const [nodes, setNodes] = useState<Node<BaseNodeData>[]>(initialNodes);
+  const [edges, setEdges] = useState<Edge[]>(initialEdges);
   const [codeModalOpen, setCodeModalOpen] = useState(false);
   const reactFlowInstance = useReactFlow();
+
+  // Update internal state when external props change
+  useEffect(() => {
+    if (initialNodes?.length) {
+      setNodes(initialNodes);
+    }
+  }, [initialNodes]);
+
+  useEffect(() => {
+    if (initialEdges?.length) {
+      setEdges(initialEdges);
+    }
+  }, [initialEdges]);
+
+  // Handle node changes
+  const handleNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      const updatedNodes = applyNodeChanges(changes, nodes) as Node<BaseNodeData>[];
+      setNodes(updatedNodes);
+      if (externalOnNodesChange) {
+        externalOnNodesChange(updatedNodes);
+      }
+    },
+    [nodes, externalOnNodesChange]
+  );
+
+  // Handle edge changes
+  const handleEdgesChange = useCallback(
+    (changes: EdgeChange[]) => {
+      const updatedEdges = applyEdgeChanges(changes, edges);
+      setEdges(updatedEdges);
+      if (externalOnEdgesChange) {
+        externalOnEdgesChange(updatedEdges);
+      }
+    },
+    [edges, externalOnEdgesChange]
+  );
   
   const onConnect = useCallback<OnConnect>(
-    (connection) => setEdges((eds) => addEdge(connection, eds)),
-    [setEdges]
+    (connection) => {
+      const newEdges = addEdge(connection, edges);
+      setEdges(newEdges);
+      if (externalOnEdgesChange) {
+        externalOnEdgesChange(newEdges);
+      }
+    },
+    [edges, externalOnEdgesChange]
   );
   
   const onDragOver = useCallback((event: React.DragEvent) => {
@@ -102,9 +156,14 @@ export function FlowEditor({ onNodeSelect }: FlowEditorProps) {
         },
       };
 
-      setNodes((nds) => nds.concat(newNode));
+      const updatedNodes = [...nodes, newNode];
+      setNodes(updatedNodes);
+      
+      if (externalOnNodesChange) {
+        externalOnNodesChange(updatedNodes);
+      }
     },
-    [reactFlowInstance, setNodes]
+    [reactFlowInstance, nodes, externalOnNodesChange]
   );
   
   const handleNodeClick = (event: React.MouseEvent, node: Node<BaseNodeData>) => {
@@ -124,8 +183,8 @@ export function FlowEditor({ onNodeSelect }: FlowEditorProps) {
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
+        onNodesChange={handleNodesChange}
+        onEdgesChange={handleEdgesChange}
         onConnect={onConnect}
         onDrop={onDrop}
         onDragOver={onDragOver}
