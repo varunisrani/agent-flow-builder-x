@@ -33,6 +33,7 @@ interface FlowEditorProps {
   onNodeSelect: (node: Node<BaseNodeData> | null) => void;
 }
 
+// Define the correct node type with BaseNodeData
 const initialNodes: Node<BaseNodeData>[] = [
   {
     id: '1',
@@ -51,6 +52,7 @@ const initialEdges: Edge[] = [];
 
 export function FlowEditor({ onNodeSelect }: FlowEditorProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
+  // Use the correct type - Node<BaseNodeData>[] - for node states
   const [nodes, setNodes, onNodesChange] = useNodesState<BaseNodeData>(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const reactFlowInstance = useReactFlow();

@@ -1,6 +1,6 @@
 
 import { useState, useCallback } from 'react';
-import { ReactFlowProvider } from '@xyflow/react';
+import { ReactFlowProvider, Node } from '@xyflow/react';
 import { Bot, MessageSquare } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -12,7 +12,6 @@ import { NaturalLanguageInput } from '@/components/NaturalLanguageInput';
 import { TestPanel } from '@/components/TestPanel';
 import { WelcomeModal } from '@/components/WelcomeModal';
 import { BaseNodeData } from '@/components/nodes/BaseNode';
-import { Node } from '@xyflow/react';
 
 const Index = () => {
   const [sidebarExpanded, setSidebarExpanded] = useState(true);

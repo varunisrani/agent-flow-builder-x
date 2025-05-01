@@ -3,6 +3,7 @@ import { Handle, Position, NodeProps } from '@xyflow/react';
 import { cn } from '@/lib/utils';
 import { memo } from 'react';
 
+// Define the shape of a node's data properties
 export interface BaseNodeData {
   label: string;
   icon?: React.ReactNode;
