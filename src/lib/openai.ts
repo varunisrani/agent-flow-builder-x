@@ -2,9 +2,10 @@ import OpenAI from 'openai';
 import { Node, Edge } from '@xyflow/react';
 import { BaseNodeData } from '@/components/nodes/BaseNode';
 
-// Use environment variable for API key
+// Use environment variable for API key with dangerouslyAllowBrowser flag
 const openai = new OpenAI({
   apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY || '',
+  dangerouslyAllowBrowser: true, // Enable browser usage (not recommended for production)
 });
 
 // Helper function to generate a unique ID
