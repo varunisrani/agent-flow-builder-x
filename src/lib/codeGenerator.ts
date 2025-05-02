@@ -4,7 +4,7 @@ import { BaseNodeData } from '@/components/nodes/BaseNode';
 
 // Use environment variable for API key with dangerouslyAllowBrowser flag
 const openai = new OpenAI({
-  apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY || '',
+  apiKey: import.meta.env.VITE_OPENAI_API_KEY || '',
   dangerouslyAllowBrowser: true, // Enable browser usage (not recommended for production)
 });
 

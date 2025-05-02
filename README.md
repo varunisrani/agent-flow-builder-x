@@ -104,7 +104,7 @@ cp .env.example .env
 
 4. Add your OpenAI API key to the `.env` file:
 ```
-NEXT_PUBLIC_OPENAI_API_KEY=your_openai_api_key_here
+VITE_OPENAI_API_KEY=your_openai_api_key_here
 ```
 
 5. Start the development server:

@@ -4,7 +4,7 @@ import { BaseNodeData } from '@/components/nodes/BaseNode';
 
 // Use environment variable for API key with dangerouslyAllowBrowser flag
 const openai = new OpenAI({
-  apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY || '',
+  apiKey: import.meta.env.VITE_OPENAI_API_KEY || '',
   dangerouslyAllowBrowser: true, // Enable browser usage (not recommended for production)
 });
 
@@ -30,6 +30,16 @@ const calculateNodePositions = (nodes: Node<BaseNodeData>[]) => {
   });
 };
 
+// Define the shape of node data returned from the API
+interface APINodeResponse {
+  id: string;
+  type: string;
+  label: string;
+  description?: string;
+  position?: { x: number; y: number };
+  data?: Record<string, unknown>;
+}
+
 // Main function to generate a flow from a natural language prompt
 export async function generateFlow(prompt: string): Promise<{ nodes: Node<BaseNodeData>[]; edges: Edge[] }> {
   try {
@@ -43,7 +53,6 @@ export async function generateFlow(prompt: string): Promise<{ nodes: Node<BaseNo
       - type (one of: "agent", "tool", "model", "function", "datasource")
       - label (short display name)
       - description (longer description of what it does)
-      - position (x and y coordinates)
       - data (an object with any additional properties relevant to the node type)
       
       The node types are:
@@ -86,8 +95,21 @@ export async function generateFlow(prompt: string): Promise<{ nodes: Node<BaseNo
     const responseContent = response.choices[0].message.content || '{"nodes":[], "edges":[]}';
     const parsedResponse = JSON.parse(responseContent);
 
+    // Convert nodes to the proper format with baseNode type
+    const formattedNodes = parsedResponse.nodes.map((node: APINodeResponse) => ({
+      id: node.id,
+      type: 'baseNode', // Always use baseNode as the type for React Flow
+      position: node.position || { x: 0, y: 0 },
+      data: {
+        label: node.label,
+        type: node.type as BaseNodeData['type'], // Store the semantic type (agent, tool, etc.) in the data object
+        description: node.description || '',
+        ...(node.data || {}),
+      } as BaseNodeData,
+    }));
+
     // Apply better node positioning
-    const positionedNodes = calculateNodePositions(parsedResponse.nodes);
+    const positionedNodes = calculateNodePositions(formattedNodes);
 
     return {
       nodes: positionedNodes,

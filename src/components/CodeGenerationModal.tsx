@@ -14,52 +14,24 @@ import { BaseNodeData } from './nodes/BaseNode';
 import { Copy, AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { generateCode } from '@/lib/codeGenerator';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
-// Add the CodeBlock component for syntax highlighting
+// CodeBlock component using react-syntax-highlighter
 const CodeBlock = ({ code }: { code: string }) => {
-  // Create syntax highlighted version by adding span elements with appropriate classes
-  // This is a simple implementation - in a real app you might use a library like highlight.js or prism
-  const highlightedCode = code
-    // Highlight keywords
-    .replace(
-      /\b(import|from|def|class|if|else|try|except|return|for|in|as|with|print|self|None|True|False|and|or|not|while|break|continue|pass|raise|finally|assert|yield|lambda)\b/g,
-      '<span class="text-purple-500">$1</span>'
-    )
-    // Highlight strings
-    .replace(
-      /(".*?"|'.*?')/g,
-      '<span class="text-amber-500">$1</span>'
-    )
-    // Highlight comments
-    .replace(
-      /(#.*)/g,
-      '<span class="text-gray-500">$1</span>'
-    )
-    // Highlight function calls
-    .replace(
-      /(\w+)(\()/g,
-      '<span class="text-blue-500">$1</span>$2'
-    )
-    // Highlight special Python decorators
-    .replace(
-      /(@\w+)/g,
-      '<span class="text-green-500">$1</span>'
-    )
-    // Highlight constants (UPPERCASE_VARIABLES)
-    .replace(
-      /\b([A-Z_]{2,})\b/g,
-      '<span class="text-cyan-500">$1</span>'
-    )
-    // Highlight numbers
-    .replace(
-      /\b(\d+)\b/g,
-      '<span class="text-red-400">$1</span>'
-    );
-
   return (
-    <pre className="p-4 bg-gray-900 text-gray-100 rounded-md overflow-auto max-h-96 font-mono text-sm">
-      <code dangerouslySetInnerHTML={{ __html: highlightedCode }} />
-    </pre>
+    <SyntaxHighlighter
+      language="python"
+      style={vscDarkPlus}
+      customStyle={{
+        borderRadius: '0.375rem',
+        fontSize: '0.875rem',
+        maxHeight: '24rem',
+        backgroundColor: '#111827',
+      }}
+    >
+      {code}
+    </SyntaxHighlighter>
   );
 };
 
@@ -86,6 +58,12 @@ export function CodeGenerationModal({
     async function fetchCode() {
       if (!open) return;
       
+      console.log('CodeGenerationModal: Generating code with:', { 
+        framework: activeTab, 
+        nodeCount: nodes.length, 
+        edgeCount: edges.length 
+      });
+      
       setLoading(true);
       setError(null);
       
@@ -95,10 +73,12 @@ export function CodeGenerationModal({
         
         // Use OpenAI to generate code based on the nodes and edges
         const code = await generateCode(nodes, edges, framework);
+        console.log('CodeGenerationModal: Code generated successfully');
         setGeneratedCode(code);
       } catch (error) {
         console.error('Error generating code:', error);
         setError(error instanceof Error ? error.message : 'An error occurred generating code');
+        console.log('CodeGenerationModal: Falling back to local code generation');
         // Fallback to the local code generation
         setGeneratedCode(getLocallyGeneratedCode(nodes, edges, activeTab));
       } finally {
@@ -110,6 +90,7 @@ export function CodeGenerationModal({
   }, [open, nodes, edges, activeTab]);
 
   const handleCopyCode = () => {
+    console.log('CodeGenerationModal: Copying code to clipboard');
     navigator.clipboard.writeText(generatedCode);
     toast({
       title: "Code copied!",
@@ -132,7 +113,10 @@ export function CodeGenerationModal({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(newOpen) => {
+      console.log('CodeGenerationModal: Dialog state changing to', newOpen);
+      onOpenChange(newOpen);
+    }}>
       <DialogContent className="sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle>Generated Agent Code</DialogTitle>
@@ -196,11 +180,13 @@ export function CodeGenerationModal({
             <Button 
               disabled={loading} 
               onClick={() => {
+                console.log('CodeGenerationModal: Regenerating code');
                 setLoading(true);
                 setError(null);
                 
                 generateCode(nodes, edges, activeTab as 'adk' | 'vertex' | 'custom')
                   .then(code => {
+                    console.log('CodeGenerationModal: Code regenerated successfully');
                     setGeneratedCode(code);
                     toast({
                       title: "Code regenerated",
@@ -228,7 +214,12 @@ export function CodeGenerationModal({
 }
 
 // Code generation functions
-function generateAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[], type: string = 'adk'): string {
+function generateAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
+  console.log('generateAgentCode: Generating ADK code for', { 
+    nodeCount: nodes.length, 
+    edgeCount: edges.length 
+  });
+  
   // Find agent nodes
   const agentNodes = nodes.filter(node => node.data.type === 'agent');
   const modelNodes = nodes.filter(node => node.data.type === 'model');
@@ -303,6 +294,11 @@ function generateAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[], type: str
 }
 
 function generateVertexCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
+  console.log('generateVertexCode: Generating Vertex AI code for', { 
+    nodeCount: nodes.length, 
+    edgeCount: edges.length 
+  });
+  
   // Generate Vertex AI code
   let code = `from google.cloud import aiplatform\n\n`;
   code += `# Initialize the Vertex AI SDK\n`;
@@ -339,6 +335,11 @@ function generateVertexCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string 
 }
 
 function generateCustomAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
+  console.log('generateCustomAgentCode: Generating custom agent code for', { 
+    nodeCount: nodes.length, 
+    edgeCount: edges.length 
+  });
+  
   // Generate code for a custom agent using tools
   const functionNodes = nodes.filter(node => node.data.type === 'function' || node.data.type === 'tool');
   const agentNodes = nodes.filter(node => node.data.type === 'agent');

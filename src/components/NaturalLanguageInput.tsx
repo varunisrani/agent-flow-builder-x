@@ -21,6 +21,7 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
   // Focus the textarea when expanded
   useEffect(() => {
     if (expanded && textAreaRef.current) {
+      console.log('NaturalLanguageInput: Component expanded, focusing textarea');
       textAreaRef.current.focus();
     }
   }, [expanded]);
@@ -28,11 +29,13 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
   // Clear error when prompt changes
   useEffect(() => {
     if (error) {
+      console.log('NaturalLanguageInput: Clearing error as prompt changed');
       setError(null);
     }
   }, [prompt, error]);
   
   const handleSubmit = (e: React.FormEvent) => {
+    console.log('NaturalLanguageInput: Form submitted');
     e.preventDefault();
     if (prompt.trim()) {
       handleGenerate();
@@ -42,6 +45,7 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
     
+    console.log('NaturalLanguageInput: Starting flow generation with prompt:', prompt.substring(0, 50) + (prompt.length > 50 ? '...' : ''));
     setIsGenerating(true);
     setError(null);
     
@@ -53,13 +57,20 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
       });
       
       // Call the OpenAI service to generate the flow
+      console.log('NaturalLanguageInput: Calling OpenAI service');
       const { nodes, edges } = await generateFlow(prompt);
+      
+      console.log('NaturalLanguageInput: Flow generated successfully:', { 
+        nodeCount: nodes.length, 
+        edgeCount: edges.length 
+      });
       
       if (nodes.length === 0) {
         throw new Error("No nodes were generated. Please try a more detailed description.");
       }
       
       // Call the parent callback with the generated flow
+      console.log('NaturalLanguageInput: Calling onGenerate callback');
       onGenerate(prompt, nodes, edges);
       
       toast({
@@ -75,6 +86,7 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
       
       // Set error message for display in the UI
       const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
+      console.log('NaturalLanguageInput: Error in generation', errorMessage);
       setError(errorMessage);
       
       toast({
@@ -84,6 +96,7 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
         duration: 5000,
       });
     } finally {
+      console.log('NaturalLanguageInput: Generation process completed');
       setIsGenerating(false);
     }
   };
@@ -95,7 +108,10 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
     )}>
       <div 
         className="flex items-center justify-between p-3 border-b border-white/10 cursor-pointer"
-        onClick={onToggle}
+        onClick={() => {
+          console.log('NaturalLanguageInput: Toggle clicked, current state:', expanded);
+          onToggle();
+        }}
       >
         <div className="flex items-center gap-2">
           <PanelTop className="w-4 h-4 text-primary" />
@@ -115,7 +131,10 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
               <textarea
                 ref={textAreaRef}
                 value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
+                onChange={(e) => {
+                  console.log('NaturalLanguageInput: Prompt updated, length:', e.target.value.length);
+                  setPrompt(e.target.value);
+                }}
                 placeholder="Create an agent that searches the web for information, analyzes the results with GPT-4, and returns a summary..."
                 className={cn(
                   "w-full h-24 bg-background rounded-md border p-3 text-sm resize-none",
@@ -127,7 +146,10 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
               {prompt && !isGenerating && (
                 <button
                   type="button"
-                  onClick={() => setPrompt('')}
+                  onClick={() => {
+                    console.log('NaturalLanguageInput: Clear prompt button clicked');
+                    setPrompt('');
+                  }}
                   className="absolute top-2 right-2 text-muted-foreground hover:text-foreground"
                 >
                   <XCircle className="w-4 h-4" />
