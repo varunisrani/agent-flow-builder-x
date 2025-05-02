@@ -1,3 +1,4 @@
+
 import { useCallback, useState, useRef, useEffect } from 'react';
 import {
   ReactFlow,
@@ -8,8 +9,6 @@ import {
   NodeTypes,
   Edge,
   addEdge,
-  useNodesState,
-  useEdgesState,
   Connection,
   Panel,
   useReactFlow,
@@ -28,9 +27,10 @@ import { toast } from '@/hooks/use-toast';
 
 import { BaseNode, BaseNodeData } from './nodes/BaseNode';
 import { CodeGenerationModal } from './CodeGenerationModal';
+import { saveProjectNodesAndEdges } from '@/services/projectService';
 
 const nodeTypes: NodeTypes = {
-  baseNode: BaseNode as React.ComponentType<NodeProps>
+  baseNode: BaseNode as React.ComponentType<NodeProps<BaseNodeData>>
 };
 
 interface FlowEditorProps {
@@ -39,6 +39,7 @@ interface FlowEditorProps {
   initialEdges?: Edge[];
   onNodesChange?: (nodes: Node<BaseNodeData>[]) => void;
   onEdgesChange?: (edges: Edge[]) => void;
+  projectId?: string;
 }
 
 // Define the default initial node if no nodes are provided
@@ -63,12 +64,14 @@ export function FlowEditor({
   initialNodes = defaultInitialNodes,
   initialEdges = defaultInitialEdges,
   onNodesChange: externalOnNodesChange,
-  onEdgesChange: externalOnEdgesChange
+  onEdgesChange: externalOnEdgesChange,
+  projectId
 }: FlowEditorProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [nodes, setNodes] = useState<Node<BaseNodeData>[]>(initialNodes);
   const [edges, setEdges] = useState<Edge[]>(initialEdges);
   const [codeModalOpen, setCodeModalOpen] = useState(false);
+  const [codeOutput, setCodeOutput] = useState<string>('');
   const reactFlowInstance = useReactFlow();
 
   // Update internal state when external props change
@@ -162,8 +165,13 @@ export function FlowEditor({
       if (externalOnNodesChange) {
         externalOnNodesChange(updatedNodes);
       }
+      
+      // Save to project if projectId is provided
+      if (projectId) {
+        saveProjectNodesAndEdges(projectId, updatedNodes, edges);
+      }
     },
-    [reactFlowInstance, nodes, externalOnNodesChange]
+    [reactFlowInstance, nodes, edges, externalOnNodesChange, projectId]
   );
   
   const handleNodeClick = (event: React.MouseEvent, node: Node<BaseNodeData>) => {
@@ -175,7 +183,91 @@ export function FlowEditor({
   };
   
   const handleGenerateCode = () => {
+    // Generate Google ADK Python code
+    const adkCode = generateADKCode(nodes, edges);
+    setCodeOutput(adkCode);
     setCodeModalOpen(true);
+  };
+  
+  // Function to generate Google ADK Python code
+  const generateADKCode = (nodes: Node<BaseNodeData>[], edges: Edge[]): string => {
+    let imports: string[] = [
+      'from google.adk.agents import Agent, LlmAgent',
+      'from google.adk.tools import google_search'
+    ];
+    
+    let code = '';
+    let agentVars: string[] = [];
+    
+    // Process each node
+    nodes.forEach(node => {
+      if (!node.data) return;
+      
+      const { type, label, description, instruction, modelType } = node.data;
+      const varName = label.toLowerCase().replace(/\s+/g, '_');
+      
+      if (type === 'agent') {
+        imports.push('from google.adk.models.lite_llm import LiteLlm');
+        
+        let tools = 'None';
+        
+        // Find connected tools
+        const connectedTools = edges
+          .filter(edge => edge.source === node.id)
+          .map(edge => {
+            const targetNode = nodes.find(n => n.id === edge.target);
+            return targetNode?.data?.label?.toLowerCase().replace(/\s+/g, '_') || '';
+          })
+          .filter(Boolean);
+          
+        if (connectedTools.length) {
+          tools = `[${connectedTools.join(', ')}]`;
+        }
+        
+        code += `\n# ${label} - ${description || 'Agent'}\n`;
+        code += `${varName} = Agent(\n`;
+        code += `    name="${varName}",\n`;
+        code += `    model="gemini-2.0-flash",\n`;
+        code += `    description="${description || ''}",\n`;
+        code += `    instruction="${instruction || 'Respond to user queries.'}",\n`;
+        code += `    tools=${tools}\n`;
+        code += `)\n`;
+        
+        agentVars.push(varName);
+      } 
+      else if (type === 'tool') {
+        code += `\n# ${label} Tool\n`;
+        code += `def ${varName}(query: str) -> dict:\n`;
+        code += `    """${description || 'Tool function'}\n`;
+        code += `    \n`;
+        code += `    Args:\n`;
+        code += `        query: The user query\n`;
+        code += `    \n`;
+        code += `    Returns:\n`;
+        code += `        dict: The result\n`;
+        code += `    """\n`;
+        code += `    # TODO: Implement ${label} functionality\n`;
+        code += `    return {"status": "success", "result": f"Results for {query}"}\n`;
+      }
+      else if (type === 'model') {
+        code += `\n# ${label} - ${description || 'LLM'}\n`;
+        code += `${varName} = LiteLlm("${modelType || 'gemini-2.0-flash'}")\n`;
+      }
+    });
+    
+    // If we have agents, add example usage
+    if (agentVars.length) {
+      const primaryAgent = agentVars[0];
+      
+      code += `\n# Example usage\ndef main():\n`;
+      code += `    # Initialize the agent\n`;
+      code += `    result = ${primaryAgent}.invoke("What can you help me with?")\n`;
+      code += `    print(result)\n\n`;
+      code += `if __name__ == "__main__":\n`;
+      code += `    main()\n`;
+    }
+    
+    return imports.join('\n') + '\n' + code;
   };
 
   return (
@@ -211,7 +303,7 @@ export function FlowEditor({
             variant="secondary"
           >
             <Code className="w-4 h-4" />
-            <span>Generate Code</span>
+            <span>Generate Google ADK Code</span>
           </Button>
         </Panel>
         
@@ -228,6 +320,7 @@ export function FlowEditor({
         onOpenChange={setCodeModalOpen} 
         nodes={nodes} 
         edges={edges} 
+        customCode={codeOutput}
       />
     </div>
   );

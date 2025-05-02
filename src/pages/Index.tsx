@@ -1,7 +1,9 @@
-import { useState, useCallback } from 'react';
+
+import { useState, useCallback, useEffect } from 'react';
 import { ReactFlowProvider, Node, Edge } from '@xyflow/react';
-import { Bot, MessageSquare } from 'lucide-react';
+import { Bot, MessageSquare, PanelLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
 
 import { Navbar } from '@/components/Navbar';
 import { Sidebar } from '@/components/Sidebar';
@@ -10,7 +12,9 @@ import { PropertiesPanel } from '@/components/PropertiesPanel';
 import { NaturalLanguageInput } from '@/components/NaturalLanguageInput';
 import { TestPanel } from '@/components/TestPanel';
 import { WelcomeModal } from '@/components/WelcomeModal';
+import { Button } from '@/components/ui/button';
 import { BaseNodeData } from '@/components/nodes/BaseNode';
+import { getCurrentProject, saveProjectNodesAndEdges } from '@/services/projectService';
 
 const Index = () => {
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
@@ -19,12 +23,48 @@ const Index = () => {
   const [selectedNode, setSelectedNode] = useState<Node<BaseNodeData> | null>(null);
   const [nodes, setNodes] = useState<Node<BaseNodeData>[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
+  const [currentProject, setCurrentProject] = useState<any>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
+  
+  // Load the current project on mount
+  useEffect(() => {
+    const project = getCurrentProject();
+    
+    if (!project) {
+      // If no project is selected, redirect to projects page
+      navigate('/projects');
+      return;
+    }
+    
+    setCurrentProject(project);
+    
+    // Set nodes and edges from the project
+    if (project.nodes && project.nodes.length > 0) {
+      setNodes(project.nodes);
+    }
+    
+    if (project.edges && project.edges.length > 0) {
+      setEdges(project.edges);
+    }
+  }, [navigate]);
+  
+  // Save nodes and edges to the current project whenever they change
+  useEffect(() => {
+    if (currentProject?.id && (nodes.length > 0 || edges.length > 0)) {
+      saveProjectNodesAndEdges(currentProject.id, nodes, edges);
+    }
+  }, [nodes, edges, currentProject]);
   
   const handleGenerateFromPrompt = (prompt: string, generatedNodes: Node<BaseNodeData>[], generatedEdges: Edge[]) => {
     // Update flow with generated nodes and edges
     setNodes(generatedNodes);
     setEdges(generatedEdges);
+    
+    // Save to the current project
+    if (currentProject?.id) {
+      saveProjectNodesAndEdges(currentProject.id, generatedNodes, generatedEdges);
+    }
     
     // Close NL input after generation
     setNlInputExpanded(false);
@@ -57,9 +97,17 @@ const Index = () => {
     );
   }, []);
 
+  const handleSwitchProject = () => {
+    navigate('/projects');
+  };
+
+  if (!currentProject) {
+    return null; // Will redirect in the useEffect
+  }
+
   return (
     <div className="h-screen flex flex-col bg-background text-foreground overflow-hidden">
-      <Navbar />
+      <Navbar projectName={currentProject.name} onSwitchProject={handleSwitchProject} />
       
       <div className="flex-1 flex">
         <Sidebar 
@@ -75,17 +123,20 @@ const Index = () => {
               initialEdges={edges}
               onNodesChange={setNodes}
               onEdgesChange={setEdges}
+              projectId={currentProject.id}
             />
           </ReactFlowProvider>
           
           <div className="absolute top-4 right-4 flex space-x-2">
-            <button 
+            <Button 
               className="glass-card p-2 hover:border-primary/50 transition-colors"
               onClick={() => setTestPanelVisible(!testPanelVisible)}
               title="Test Agent"
+              variant="ghost"
+              size="icon"
             >
               <MessageSquare className="w-5 h-5 text-primary" />
-            </button>
+            </Button>
           </div>
         </div>
         
@@ -106,8 +157,6 @@ const Index = () => {
         onToggle={() => setNlInputExpanded(!nlInputExpanded)}
         onGenerate={handleGenerateFromPrompt}
       />
-      
-      <WelcomeModal />
     </div>
   );
 };
