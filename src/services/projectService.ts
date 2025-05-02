@@ -11,10 +11,11 @@ export interface Project {
   starred: boolean;
   nodes: Node<BaseNodeData>[];
   edges: Edge[];
+  userId?: string;
 }
 
 // Create a new project
-export const createProject = (name: string, description: string = ''): Project => {
+export const createProject = (name: string, description: string = '', userId?: string): Project => {
   const newProject: Project = {
     id: `project_${Date.now()}`,
     name: name.trim(),
@@ -23,7 +24,8 @@ export const createProject = (name: string, description: string = ''): Project =
     updatedAt: new Date().toISOString(),
     starred: false,
     nodes: [],
-    edges: []
+    edges: [],
+    userId
   };
   
   return newProject;

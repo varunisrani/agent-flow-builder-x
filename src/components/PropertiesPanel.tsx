@@ -62,13 +62,12 @@ export function PropertiesPanel({ selectedNode, onClose, onUpdateNode }: Propert
       agent: 'Agent Properties',
       model: 'Model Properties',
       tool: 'Tool Properties',
-      function: 'Function Properties',
       input: 'Input Properties',
       output: 'Output Properties'
     };
     
-    return selectedNode.data.type && typeLabels[selectedNode.data.type] 
-      ? typeLabels[selectedNode.data.type] 
+    return selectedNode.data.type && typeLabels[selectedNode.data.type as keyof typeof typeLabels] 
+      ? typeLabels[selectedNode.data.type as keyof typeof typeLabels] 
       : 'Properties';
   };
   
@@ -128,20 +127,6 @@ export function PropertiesPanel({ selectedNode, onClose, onUpdateNode }: Propert
               type="password"
               className="w-full bg-background rounded-md border border-border p-2 text-sm" 
               placeholder="Enter API key..."
-            />
-          </div>
-        );
-        
-      case 'function':
-        return (
-          <div className="space-y-2">
-            <label className="block text-xs text-muted-foreground mb-1">
-              Function Code
-            </label>
-            <textarea
-              rows={6}
-              className="w-full bg-background rounded-md border border-border p-2 text-sm font-mono"
-              placeholder="def my_function(input):\n  # Your code here\n  return result"
             />
           </div>
         );

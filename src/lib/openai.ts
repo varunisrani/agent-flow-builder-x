@@ -1,3 +1,4 @@
+
 import OpenAI from 'openai';
 import { Node, Edge } from '@xyflow/react';
 import { BaseNodeData } from '@/components/nodes/BaseNode';
@@ -50,7 +51,7 @@ export async function generateFlow(prompt: string): Promise<{ nodes: Node<BaseNo
       
       For each node, include:
       - id (string)
-      - type (one of: "agent", "tool", "model", "function", "datasource")
+      - type (one of: "agent", "tool", "model", "input", "output")
       - label (short display name)
       - description (longer description of what it does)
       - data (an object with any additional properties relevant to the node type)
@@ -59,8 +60,8 @@ export async function generateFlow(prompt: string): Promise<{ nodes: Node<BaseNo
       - agent: An autonomous agent that can use tools and models
       - tool: A capability an agent can use (e.g., web search, calculator)
       - model: An AI model (e.g., GPT-4, Claude, etc.)
-      - function: A custom function that performs a specific task
-      - datasource: A source of data the agent can access
+      - input: An input source to the flow
+      - output: An output from the flow
       
       For edges, include:
       - id (string)
@@ -105,7 +106,7 @@ export async function generateFlow(prompt: string): Promise<{ nodes: Node<BaseNo
         type: node.type as BaseNodeData['type'], // Store the semantic type (agent, tool, etc.) in the data object
         description: node.description || '',
         ...(node.data || {}),
-      } as BaseNodeData,
+      } as any,
     }));
 
     // Apply better node positioning

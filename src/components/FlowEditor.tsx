@@ -24,13 +24,13 @@ import { Button } from './ui/button';
 import { toast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 
-import { BaseNode, BaseNodeData } from './nodes/BaseNode';
+import BaseNode, { BaseNodeData } from './nodes/BaseNode';
 import { CodeGenerationModal } from './CodeGenerationModal';
 import { saveProjectNodesAndEdges } from '@/services/projectService';
 
 // Fix the NodeTypes type
 const nodeTypes: NodeTypes = {
-  baseNode: BaseNode as any // Using "any" to bypass the TS error for now
+  baseNode: BaseNode
 };
 
 interface FlowEditorProps {
@@ -91,7 +91,8 @@ export function FlowEditor({
   // Handle node changes
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      const updatedNodes = applyNodeChanges(changes, nodes) as Node<BaseNodeData>[];
+      // Need to cast the result of applyNodeChanges to fix type issues
+      const updatedNodes = applyNodeChanges(changes, nodes) as unknown as Node<BaseNodeData>[];
       setNodes(updatedNodes);
       if (externalOnNodesChange) {
         externalOnNodesChange(updatedNodes);
@@ -294,7 +295,7 @@ export function FlowEditor({
   return (
     <div className="h-full" ref={reactFlowWrapper}>
       <ReactFlow
-        nodes={nodes}
+        nodes={nodes as Node[]}
         edges={edges}
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
@@ -302,7 +303,7 @@ export function FlowEditor({
         onDrop={onDrop}
         onDragOver={onDragOver}
         nodeTypes={nodeTypes}
-        onNodeClick={handleNodeClick}
+        onNodeClick={handleNodeClick as any} // This cast is needed to fix type issues
         onPaneClick={handlePaneClick}
         fitView
       >

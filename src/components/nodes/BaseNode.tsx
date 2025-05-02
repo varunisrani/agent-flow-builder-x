@@ -5,8 +5,8 @@ import { Card } from '../ui/card';
 import { Settings, Trash } from 'lucide-react';
 import { Button } from '../ui/button';
 
-// Define the base node data interface correctly
-export interface BaseNodeData {
+// Modify the interface to extend Record<string, unknown>
+export interface BaseNodeData extends Record<string, unknown> {
   label: string;
   type: 'agent' | 'tool' | 'input' | 'output' | 'model';
   description?: string;
@@ -81,4 +81,5 @@ const BaseNode = ({ id, data, selected }: BaseNodeProps) => {
   );
 };
 
+// Export the component as default
 export default memo(BaseNode);

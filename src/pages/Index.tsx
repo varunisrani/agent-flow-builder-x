@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect } from 'react';
 import { ReactFlowProvider, Node, Edge } from '@xyflow/react';
 import { Bot, MessageSquare, PanelLeft, ArrowLeft } from 'lucide-react';
