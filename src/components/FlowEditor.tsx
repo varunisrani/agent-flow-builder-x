@@ -73,6 +73,9 @@ const toolbarButtons = [
   { icon: <FlaskConical />, label: "Test", action: "test" },
 ];
 
+// Define proper PanelPosition type to match what ReactFlow expects
+type PanelPosition = 'top-left' | 'top-center' | 'top-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
+
 export function FlowEditor({ 
   onNodeSelect, 
   initialNodes = defaultInitialNodes,
@@ -388,7 +391,7 @@ export function FlowEditor({
         <Background variant={BackgroundVariant.Dots} gap={16} size={1} color="rgba(155, 135, 245, 0.2)" />
         
         {/* Back button */}
-        <Panel position={Position.TopLeft} className="premium-glass rounded-md p-2 m-4">
+        <Panel position="top-left" className="premium-glass rounded-md p-2 m-4">
           <Button 
             className="flex items-center gap-2 bg-transparent hover:bg-white/10"
             variant="ghost"
@@ -400,7 +403,7 @@ export function FlowEditor({
         </Panel>
         
         {/* Main toolbar */}
-        <Panel position={Position.Top} className="m-4 flex justify-center">
+        <Panel position="top-center" className="m-4 flex justify-center">
           <motion.div 
             className="premium-glass rounded-full backdrop-blur-lg flex items-center px-2 border border-white/10"
             initial={{ y: -50, opacity: 0 }}
@@ -448,7 +451,7 @@ export function FlowEditor({
           </motion.div>
         </Panel>
       
-        <Panel position={Position.BottomLeft} className="premium-glass rounded-md p-2 m-4">
+        <Panel position="bottom-left" className="premium-glass rounded-md p-2 m-4">
           <div className="flex items-center gap-2">
             <div className="p-1 rounded-full bg-premium/20 flex items-center justify-center">
               <Zap className="w-4 h-4 text-premium-light" />
@@ -458,7 +461,7 @@ export function FlowEditor({
         </Panel>
         
         {/* Node palette */}
-        <Panel position={Position.Right} className="m-4">
+        <Panel position="top-right" className="m-4">
           <motion.div 
             className="premium-glass rounded-lg p-4 border border-white/10 flex flex-col items-center gap-4"
             initial={{ opacity: 0, x: 50 }}

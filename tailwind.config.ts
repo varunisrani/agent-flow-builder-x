@@ -150,6 +150,14 @@ export default {
           '100%': { 
             transform: 'rotate(360deg)' 
           }
+        },
+        'spin-reverse': {
+          '0%': { 
+            transform: 'rotate(0deg)' 
+          },
+          '100%': { 
+            transform: 'rotate(-360deg)' 
+          }
         }
       },
       animation: {
@@ -160,7 +168,13 @@ export default {
         'float': 'float 6s ease-in-out infinite',
         'glow': 'glow 3s ease-in-out infinite',
         'pulse-premium': 'pulse-premium 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'spin': 'spin 15s linear infinite'
+        'spin': 'spin 15s linear infinite',
+        'spin-slow': 'spin 200s linear infinite',
+        'spin-medium': 'spin 25s linear infinite',
+        'spin-fast': 'spin 15s linear infinite',
+        'spin-reverse': 'spin-reverse 150s linear infinite',
+        'spin-medium-reverse': 'spin-reverse 20s linear infinite',
+        'spin-fast-reverse': 'spin-reverse 15s linear infinite'
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',

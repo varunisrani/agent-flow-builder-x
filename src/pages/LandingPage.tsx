@@ -35,13 +35,6 @@ const item = {
   show: { opacity: 1, y: 0 }
 };
 
-const orbit = {
-  animate: {
-    rotate: 360,
-    transition: { duration: 30, repeat: Infinity, ease: "linear" }
-  }
-};
-
 const LandingPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -62,17 +55,9 @@ const LandingPage = () => {
         <div className="absolute top-20 right-20 w-[500px] h-[500px] bg-gradient-radial from-premium/20 to-transparent rounded-full"></div>
         <div className="absolute bottom-20 left-20 w-[400px] h-[400px] bg-gradient-radial from-futuristic-blue/20 to-transparent rounded-full"></div>
         
-        <motion.div 
-          animate={{ rotate: 360 }}
-          transition={{ duration: 200, repeat: Infinity, ease: "linear" }}
-          className="absolute top-1/4 left-1/4 w-[800px] h-[800px] border border-premium/10 rounded-full opacity-20"
-        ></motion.div>
-        
-        <motion.div 
-          animate={{ rotate: -360 }}
-          transition={{ duration: 150, repeat: Infinity, ease: "linear" }}
-          className="absolute top-1/4 left-1/4 w-[600px] h-[600px] border border-futuristic-blue/10 rounded-full opacity-20"
-        ></motion.div>
+        {/* Use Tailwind CSS animations instead of Framer Motion for these orbital elements */}
+        <div className="absolute top-1/4 left-1/4 w-[800px] h-[800px] border border-premium/10 rounded-full opacity-20 animate-spin-slow"></div>
+        <div className="absolute top-1/4 left-1/4 w-[600px] h-[600px] border border-futuristic-blue/10 rounded-full opacity-20 animate-spin-reverse"></div>
       </div>
 
       {/* Navigation */}
@@ -365,7 +350,7 @@ agent = LlmAgent(
               viewport={{ once: true }}
               className="md:w-1/2 relative"
             >
-              {/* Orbit Animation */}
+              {/* Orbit Animation - replace with CSS animations */}
               <div className="relative aspect-square w-full max-w-md mx-auto">
                 {/* Center Circle */}
                 <div className="absolute inset-1/4 bg-gradient-radial from-premium/10 to-transparent rounded-full backdrop-blur-sm border border-premium/20"></div>
@@ -377,26 +362,26 @@ agent = LlmAgent(
                   </div>
                 </div>
                 
-                {/* Orbiting Elements - Fixed the animation */}
-                <div className="absolute inset-0 animate-[spin_30s_linear_infinite]">
+                {/* Orbiting Elements - using CSS animations */}
+                <div className="absolute inset-0 animate-spin-slow">
                   <div className="absolute top-0 left-1/2 -translate-x-1/2 p-3 rounded-full bg-futuristic-blue/10 backdrop-blur-sm border border-futuristic-blue/20">
                     <Workflow className="w-6 h-6 text-futuristic-blue" />
                   </div>
                 </div>
                 
-                <div className="absolute inset-0 animate-[spin_20s_linear_infinite_reverse]">
+                <div className="absolute inset-0 animate-spin-medium-reverse">
                   <div className="absolute bottom-0 left-1/2 -translate-x-1/2 p-3 rounded-full bg-premium/10 backdrop-blur-sm border border-premium/20">
                     <Braces className="w-6 h-6 text-premium-light" />
                   </div>
                 </div>
                 
-                <div className="absolute inset-0 animate-[spin_25s_linear_infinite]">
+                <div className="absolute inset-0 animate-spin-medium">
                   <div className="absolute left-0 top-1/2 -translate-y-1/2 p-3 rounded-full bg-futuristic-blue/10 backdrop-blur-sm border border-futuristic-blue/20">
                     <Sparkles className="w-6 h-6 text-futuristic-blue" />
                   </div>
                 </div>
                 
-                <div className="absolute inset-0 animate-[spin_15s_linear_infinite_reverse]">
+                <div className="absolute inset-0 animate-spin-fast-reverse">
                   <div className="absolute right-0 top-1/2 -translate-y-1/2 p-3 rounded-full bg-premium/10 backdrop-blur-sm border border-premium/20">
                     <Zap className="w-6 h-6 text-premium-light" />
                   </div>
