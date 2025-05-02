@@ -1,7 +1,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { ReactFlowProvider, Node, Edge } from '@xyflow/react';
-import { Bot, MessageSquare, PanelLeft } from 'lucide-react';
+import { Bot, MessageSquare, PanelLeft, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 

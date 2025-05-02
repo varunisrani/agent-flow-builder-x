@@ -29,6 +29,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
+import { UserMenu } from '@/components/UserMenu';
 
 interface Project {
   id: string;
@@ -39,6 +41,7 @@ interface Project {
   starred: boolean;
   nodes?: any[];
   edges?: any[];
+  userId?: string;
 }
 
 const Projects = () => {
@@ -49,17 +52,38 @@ const Projects = () => {
   const [viewType, setViewType] = useState<'grid' | 'list'>('grid');
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
-    // Load projects from local storage
-    const savedProjects = localStorage.getItem('agent-flow-projects');
-    if (savedProjects) {
-      setProjects(JSON.parse(savedProjects));
+    if (user) {
+      // Load projects from local storage
+      const savedProjects = localStorage.getItem('agent-flow-projects');
+      if (savedProjects) {
+        const allProjects = JSON.parse(savedProjects);
+        // Filter projects for the current user
+        const userProjects = allProjects.filter((project: Project) => 
+          !project.userId || project.userId === user.id
+        );
+        setProjects(userProjects);
+      }
     }
-  }, []);
+  }, [user]);
 
   const saveProjects = (updatedProjects: Project[]) => {
-    localStorage.setItem('agent-flow-projects', JSON.stringify(updatedProjects));
+    // Get all existing projects
+    const savedProjects = localStorage.getItem('agent-flow-projects');
+    let allProjects: Project[] = [];
+    
+    if (savedProjects) {
+      allProjects = JSON.parse(savedProjects);
+      // Replace user projects with updated ones
+      allProjects = allProjects.filter(p => p.userId !== user?.id);
+    }
+    
+    // Add the updated user projects
+    allProjects = [...allProjects, ...updatedProjects];
+    
+    localStorage.setItem('agent-flow-projects', JSON.stringify(allProjects));
     setProjects(updatedProjects);
   };
 
@@ -81,7 +105,8 @@ const Projects = () => {
       updatedAt: new Date().toISOString(),
       starred: false,
       nodes: [],
-      edges: []
+      edges: [],
+      userId: user?.id // Associate project with user
     };
 
     const updatedProjects = [...projects, newProjectData];
@@ -110,7 +135,7 @@ const Projects = () => {
   const handleOpenProject = (id: string) => {
     // Save current project ID to local storage
     localStorage.setItem('current-project-id', id);
-    navigate('/');
+    navigate('/editor');
   };
 
   const handleToggleStar = (id: string) => {
@@ -125,6 +150,10 @@ const Projects = () => {
     project.description.toLowerCase().includes(filterValue.toLowerCase())
   );
 
+  const handleBackHome = () => {
+    navigate('/');
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-background/90 text-foreground">
       {/* Header */}
@@ -134,7 +163,7 @@ const Projects = () => {
             variant="ghost" 
             size="icon" 
             className="rounded-full"
-            onClick={() => navigate('/')}
+            onClick={handleBackHome}
           >
             <ChevronLeft className="h-5 w-5" />
           </Button>
@@ -151,6 +180,7 @@ const Projects = () => {
               onChange={(e) => setFilterValue(e.target.value)}
             />
           </div>
+          <UserMenu />
         </div>
       </header>
 

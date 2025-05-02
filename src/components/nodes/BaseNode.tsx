@@ -1,72 +1,84 @@
 
-import { Handle, Position, NodeProps } from '@xyflow/react';
-import { cn } from '@/lib/utils';
-import { memo } from 'react';
+import React, { memo } from 'react';
+import { Handle, Position, NodeToolbar } from '@xyflow/react';
+import { Card } from '../ui/card';
+import { Settings, Trash } from 'lucide-react';
+import { Button } from '../ui/button';
 
-// Define the shape of a node's data properties
+// Define the base node data interface correctly
 export interface BaseNodeData {
   label: string;
-  icon?: React.ReactNode;
-  type: 'agent' | 'model' | 'tool' | 'function' | 'input' | 'output';
+  type: 'agent' | 'tool' | 'input' | 'output' | 'model';
   description?: string;
-  modelType?: string;
   instruction?: string;
-  toolConfig?: any;
-  [key: string]: unknown;
+  modelType?: string;
 }
 
-// Use memo to optimize rendering performance for nodes
-export const BaseNode = memo(({ 
-  data, 
-  selected,
-  id 
-}: NodeProps<BaseNodeData>) => {
-  // If data is completely missing, provide a default object
-  const safeData: BaseNodeData = data || {
-    label: 'Unnamed Node',
-    type: 'input',
-    description: ''
-  };
+export interface BaseNodeProps {
+  id: string;
+  data: BaseNodeData;
+  selected: boolean;
+}
+
+const BaseNode = ({ id, data, selected }: BaseNodeProps) => {
+  const { label, type, description } = data;
   
-  const nodeStyles = {
-    agent: 'border-purple-500/30 bg-purple-500/10',
-    model: 'border-blue-500/30 bg-blue-500/10',
-    tool: 'border-green-500/30 bg-green-500/10',
-    function: 'border-yellow-500/30 bg-yellow-500/10',
-    input: 'border-gray-500/30 bg-gray-500/10',
-    output: 'border-gray-500/30 bg-gray-500/10'
+  // Define node colors based on type
+  const getNodeColor = () => {
+    switch (type) {
+      case 'agent':
+        return 'bg-primary/20 border-primary/40';
+      case 'tool':
+        return 'bg-blue-500/20 border-blue-500/40';
+      case 'model':
+        return 'bg-purple-500/20 border-purple-500/40';
+      case 'input':
+        return 'bg-green-500/20 border-green-500/40';
+      case 'output':
+        return 'bg-orange-500/20 border-orange-500/40';
+      default:
+        return 'bg-secondary/20 border-secondary/40';
+    }
   };
   
   return (
-    <div 
-      className={cn(
-        "px-4 py-3 rounded-md border min-w-48 backdrop-blur-md",
-        nodeStyles[safeData.type],
-        selected && "ring-2 ring-primary"
-      )}
-    >
-      <Handle 
-        type="target" 
-        position={Position.Top} 
-        className="w-3 h-3 bg-primary border-2 border-background" 
-      />
-      
-      <div className="flex items-center space-x-2">
-        {safeData.icon && <div className="text-lg text-primary">{safeData.icon}</div>}
-        <div className="text-sm font-medium">{safeData.label}</div>
-      </div>
-      
-      {safeData.description && (
-        <div className="mt-1 text-xs text-muted-foreground">{safeData.description}</div>
+    <div className="relative">
+      {selected && (
+        <NodeToolbar className="absolute -top-10 glass-card rounded-md p-1 border border-white/10">
+          <Button size="icon" variant="ghost" className="h-7 w-7">
+            <Settings className="h-4 w-4" />
+          </Button>
+          <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500">
+            <Trash className="h-4 w-4" />
+          </Button>
+        </NodeToolbar>
       )}
       
+      <Card className={`w-48 p-3 shadow-md ${getNodeColor()}`}>
+        <div className="text-sm font-medium">{label}</div>
+        {description && (
+          <div className="text-xs text-muted-foreground mt-1">{description}</div>
+        )}
+        <div className="text-xs text-muted-foreground mt-2 py-0.5 px-1.5 bg-background/40 rounded inline-block">
+          {type}
+        </div>
+      </Card>
+      
+      {/* Add the right handle for source */}
       <Handle 
         type="source" 
-        position={Position.Bottom} 
-        className="w-3 h-3 bg-accent border-2 border-background" 
+        position={Position.Right} 
+        className="w-3 h-3 bg-background border-2 border-foreground/40" 
+      />
+      
+      {/* Add the left handle for target */}
+      <Handle 
+        type="target" 
+        position={Position.Left} 
+        className="w-3 h-3 bg-background border-2 border-foreground/40" 
       />
     </div>
   );
-});
+};
 
-BaseNode.displayName = 'BaseNode';
+export default memo(BaseNode);

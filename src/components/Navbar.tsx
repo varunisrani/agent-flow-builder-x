@@ -1,6 +1,8 @@
 
-import { Save, Play, Info, HelpCircle, Folders } from 'lucide-react';
+import { Save, Play, Info, HelpCircle, Folders, ArrowLeft } from 'lucide-react';
 import { Button } from './ui/button';
+import { useNavigate } from 'react-router-dom';
+import { UserMenu } from './UserMenu';
 
 interface NavbarProps {
   projectName?: string;
@@ -8,6 +10,8 @@ interface NavbarProps {
 }
 
 export function Navbar({ projectName, onSwitchProject }: NavbarProps) {
+  const navigate = useNavigate();
+
   return (
     <div className="h-14 glass border-b border-white/10 flex items-center justify-between px-4">
       <div className="flex items-center space-x-4">
@@ -60,6 +64,8 @@ export function Navbar({ projectName, onSwitchProject }: NavbarProps) {
         >
           <HelpCircle className="w-4 h-4" />
         </Button>
+        
+        <UserMenu />
       </div>
     </div>
   );

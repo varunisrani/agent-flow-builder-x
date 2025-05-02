@@ -1,5 +1,4 @@
-
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -12,16 +11,42 @@ import {
   Zap,
   Check
 } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { UserMenu } from '@/components/UserMenu';
 
 const LandingPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   
   const handleGetStarted = () => {
-    navigate('/projects');
+    if (user) {
+      navigate('/projects');
+    } else {
+      navigate('/auth');
+    }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-background/90 text-foreground">
+      {/* Navigation */}
+      <header className="h-16 flex items-center justify-between px-4 md:px-8">
+        <h1 className="text-xl font-bold text-gradient">Agent Flow Builder</h1>
+        <div className="flex items-center gap-4">
+          {user ? (
+            <UserMenu />
+          ) : (
+            <>
+              <Button variant="ghost" onClick={() => navigate('/auth')}>
+                Sign In
+              </Button>
+              <Button onClick={() => navigate('/auth')}>
+                Sign Up
+              </Button>
+            </>
+          )}
+        </div>
+      </header>
+      
       {/* Hero Section */}
       <section className="relative flex flex-col items-center pt-24 pb-32 px-4 md:px-6 lg:px-8 overflow-hidden">
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_center,rgba(var(--accent-foreground),0.15),transparent_50%)]"></div>
