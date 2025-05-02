@@ -1,6 +1,6 @@
-
 import { useState, useEffect } from 'react';
 import { X, ArrowRight } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface WelcomeStep {
   title: string;
@@ -10,7 +10,7 @@ interface WelcomeStep {
 
 const steps: WelcomeStep[] = [
   {
-    title: "Welcome to Agent Flow Builder",
+    title: "Welcome to CogentX",
     description: "Create powerful AI agents without writing code. This quick tour will show you the basics."
   },
   {
@@ -34,13 +34,14 @@ const steps: WelcomeStep[] = [
 export function WelcomeModal() {
   const [isOpen, setIsOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
+  const { toast } = useToast();
   
   useEffect(() => {
     // Check if first-time user
-    const hasSeenWelcome = localStorage.getItem('hasSeenWelcome');
+    const hasSeenWelcome = localStorage.getItem('cogentx-welcome-shown');
     if (!hasSeenWelcome) {
       setIsOpen(true);
-      localStorage.setItem('hasSeenWelcome', 'true');
+      localStorage.setItem('cogentx-welcome-shown', 'true');
     }
   }, []);
   
@@ -56,6 +57,16 @@ export function WelcomeModal() {
     if (currentStep > 0) {
       setCurrentStep(currentStep - 1);
     }
+  };
+  
+  const handleSkip = () => {
+    localStorage.setItem('cogentx-welcome-shown', 'true');
+    setIsOpen(false);
+    
+    toast({
+      title: "Welcome to CogentX",
+      description: "You can access the tutorial again from the help menu.",
+    });
   };
   
   if (!isOpen) return null;

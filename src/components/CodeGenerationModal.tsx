@@ -86,7 +86,7 @@ export const CodeGenerationModal: React.FC<CodeGenerationModalProps> = ({
         console.log('Cleaning up Pyodide instance');
         setPyodideInstance(null);
       }, 0);
-    }
+      }
   }, [open, pyodideInstance]);
 
   const handleCopyCode = () => {
@@ -238,28 +238,28 @@ export const CodeGenerationModal: React.FC<CodeGenerationModalProps> = ({
       // Prepare Python code with proper indentation
       const pythonCode = 
 `import io
-import sys
-import traceback
-
-# Capture print output
-output_buffer = io.StringIO()
-sys.stdout = output_buffer
-
-try:
-  ${generatedCode}
-  
-  # Execute main function if present
-  if 'main' in globals():
-      main()
-      
-  output = output_buffer.getvalue()
-  if not output:
-      output = "Code executed successfully with no output."
-      
-  output += "\\n\\n--- SIMULATION NOTICE ---\\nThis is a simulated environment. For full ADK functionality, run this code in a proper Python environment."
-except Exception:
-  output = "Error executing code:\\n" + traceback.format_exc()
-
+        import sys
+        import traceback
+        
+        # Capture print output
+        output_buffer = io.StringIO()
+        sys.stdout = output_buffer
+        
+        try:
+          ${generatedCode}
+          
+          # Execute main function if present
+          if 'main' in globals():
+              main()
+              
+          output = output_buffer.getvalue()
+          if not output:
+              output = "Code executed successfully with no output."
+              
+          output += "\\n\\n--- SIMULATION NOTICE ---\\nThis is a simulated environment. For full ADK functionality, run this code in a proper Python environment."
+        except Exception:
+          output = "Error executing code:\\n" + traceback.format_exc()
+        
 output`;
       const pythonRunner = dedent(pythonCode);
       
@@ -290,8 +290,8 @@ output`;
     } finally {
       if (isMounted.current) {
         console.log('Code execution finished, clearing loading state');
-        setIsRunning(false);
-        setPyodideLoading(false);
+      setIsRunning(false);
+      setPyodideLoading(false);
       }
     }
   };

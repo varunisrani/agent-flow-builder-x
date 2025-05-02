@@ -164,7 +164,7 @@ export default function Auth() {
       >
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold bg-gradient-to-br from-white via-white/90 to-primary/70 bg-clip-text text-transparent">
-            Agent Flow Builder
+            CogentX
           </h1>
           <p className="text-muted-foreground mt-2">
             {activeTab === 'login' ? 'Sign in to continue to your projects' : 'Create an account to get started'}

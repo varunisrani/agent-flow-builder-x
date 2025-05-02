@@ -1,4 +1,3 @@
-
 import { Save, Play, Info, HelpCircle, Folders, ArrowLeft } from 'lucide-react';
 import { Button } from './ui/button';
 import { useNavigate } from 'react-router-dom';
@@ -15,12 +14,22 @@ export function Navbar({ projectName, onSwitchProject }: NavbarProps) {
   return (
     <div className="h-14 glass border-b border-white/10 flex items-center justify-between px-4">
       <div className="flex items-center space-x-4">
-        <h1 className="text-lg font-bold text-gradient">Agent Flow Builder</h1>
-        {projectName && (
-          <div className="flex items-center">
+        {projectName ? (
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="rounded-full" 
+              onClick={onSwitchProject}
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <h1 className="text-lg font-bold text-gradient">CogentX</h1>
             <span className="text-muted-foreground">/</span>
-            <span className="ml-2 text-sm font-medium">{projectName}</span>
+            <span>{projectName}</span>
           </div>
+        ) : (
+          <h1 className="text-lg font-bold text-gradient">CogentX</h1>
         )}
         <span className="glass px-2 py-0.5 rounded text-xs text-white/70">Beta</span>
       </div>

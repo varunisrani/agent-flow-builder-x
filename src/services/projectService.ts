@@ -1,4 +1,3 @@
-
 import { Node, Edge } from '@xyflow/react';
 import { BaseNodeData } from '@/components/nodes/BaseNode';
 
@@ -33,7 +32,7 @@ export const createProject = (name: string, description: string = '', userId?: s
 
 // Get all projects
 export const getAllProjects = (): Project[] => {
-  const projects = localStorage.getItem('agent-flow-projects');
+  const projects = localStorage.getItem('cogentx-projects');
   return projects ? JSON.parse(projects) : [];
 };
 
@@ -45,7 +44,7 @@ export const getProjectById = (id: string): Project | null => {
 
 // Get current project
 export const getCurrentProject = (): Project | null => {
-  const currentProjectId = localStorage.getItem('current-project-id');
+  const currentProjectId = localStorage.getItem('cogentx-current-project-id');
   return currentProjectId ? getProjectById(currentProjectId) : null;
 };
 
@@ -68,12 +67,12 @@ export const saveProjectNodesAndEdges = (
     return project;
   });
   
-  localStorage.setItem('agent-flow-projects', JSON.stringify(updatedProjects));
+  localStorage.setItem('cogentx-projects', JSON.stringify(updatedProjects));
 };
 
 // Save all projects
 export const saveProjects = (projects: Project[]): void => {
-  localStorage.setItem('agent-flow-projects', JSON.stringify(projects));
+  localStorage.setItem('cogentx-projects', JSON.stringify(projects));
 };
 
 // Delete project
@@ -83,8 +82,8 @@ export const deleteProject = (id: string): void => {
   saveProjects(updatedProjects);
   
   // If the deleted project was the current one, clear the current project
-  const currentProjectId = localStorage.getItem('current-project-id');
+  const currentProjectId = localStorage.getItem('cogentx-current-project-id');
   if (currentProjectId === id) {
-    localStorage.removeItem('current-project-id');
+    localStorage.removeItem('cogentx-current-project-id');
   }
 };
