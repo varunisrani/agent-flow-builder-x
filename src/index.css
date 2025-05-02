@@ -174,5 +174,5 @@
 
 /* Edge styling */
 .react-flow__edge-path {
-  @apply stroke-futuristic-blue stroke-opacity-70;
+  @apply stroke-futuristic-blue opacity-70;
 }

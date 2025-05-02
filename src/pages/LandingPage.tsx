@@ -1,4 +1,3 @@
-
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -378,49 +377,30 @@ agent = LlmAgent(
                   </div>
                 </div>
                 
-                {/* Orbiting Elements */}
-                <motion.div 
-                  className="absolute inset-0" 
-                  variants={orbit} 
-                  animate="animate"
-                >
+                {/* Orbiting Elements - Fixed the animation */}
+                <div className="absolute inset-0 animate-[spin_30s_linear_infinite]">
                   <div className="absolute top-0 left-1/2 -translate-x-1/2 p-3 rounded-full bg-futuristic-blue/10 backdrop-blur-sm border border-futuristic-blue/20">
                     <Workflow className="w-6 h-6 text-futuristic-blue" />
                   </div>
-                </motion.div>
+                </div>
                 
-                <motion.div 
-                  className="absolute inset-0" 
-                  variants={orbit} 
-                  animate="animate"
-                  style={{ animationDelay: "-10s" }}
-                >
+                <div className="absolute inset-0 animate-[spin_20s_linear_infinite_reverse]">
                   <div className="absolute bottom-0 left-1/2 -translate-x-1/2 p-3 rounded-full bg-premium/10 backdrop-blur-sm border border-premium/20">
                     <Braces className="w-6 h-6 text-premium-light" />
                   </div>
-                </motion.div>
+                </div>
                 
-                <motion.div 
-                  className="absolute inset-0" 
-                  variants={orbit} 
-                  animate="animate"
-                  style={{ animationDelay: "-20s" }}
-                >
+                <div className="absolute inset-0 animate-[spin_25s_linear_infinite]">
                   <div className="absolute left-0 top-1/2 -translate-y-1/2 p-3 rounded-full bg-futuristic-blue/10 backdrop-blur-sm border border-futuristic-blue/20">
                     <Sparkles className="w-6 h-6 text-futuristic-blue" />
                   </div>
-                </motion.div>
+                </div>
                 
-                <motion.div 
-                  className="absolute inset-0" 
-                  variants={orbit} 
-                  animate="animate"
-                  style={{ animationDelay: "-5s" }}
-                >
+                <div className="absolute inset-0 animate-[spin_15s_linear_infinite_reverse]">
                   <div className="absolute right-0 top-1/2 -translate-y-1/2 p-3 rounded-full bg-premium/10 backdrop-blur-sm border border-premium/20">
                     <Zap className="w-6 h-6 text-premium-light" />
                   </div>
-                </motion.div>
+                </div>
                 
                 {/* Orbit Paths */}
                 <div className="absolute inset-0 rounded-full border border-white/5 animate-pulse"></div>

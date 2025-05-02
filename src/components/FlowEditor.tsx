@@ -17,7 +17,8 @@ import {
   applyNodeChanges,
   applyEdgeChanges,
   NodeChange,
-  EdgeChange
+  EdgeChange,
+  Position
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { PlusCircle, Zap, Code, Save, ArrowLeft, Download, Share, Play, FlaskConical, Grid, Layers, X } from 'lucide-react';
@@ -26,7 +27,8 @@ import { toast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
-import BaseNode, { BaseNodeData } from './nodes/BaseNode';
+import BaseNode from './nodes/BaseNode';
+import type { BaseNodeData } from './nodes/BaseNode';
 import { CodeGenerationModal } from './CodeGenerationModal';
 import { saveProjectNodesAndEdges } from '@/services/projectService';
 
@@ -368,7 +370,7 @@ export function FlowEditor({
       </div>
       
       <ReactFlow
-        nodes={nodes as Node[]}
+        nodes={nodes}
         edges={edges}
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
@@ -386,7 +388,7 @@ export function FlowEditor({
         <Background variant={BackgroundVariant.Dots} gap={16} size={1} color="rgba(155, 135, 245, 0.2)" />
         
         {/* Back button */}
-        <Panel position="top-left" className="premium-glass rounded-md p-2 m-4">
+        <Panel position={Position.TopLeft} className="premium-glass rounded-md p-2 m-4">
           <Button 
             className="flex items-center gap-2 bg-transparent hover:bg-white/10"
             variant="ghost"
@@ -398,7 +400,7 @@ export function FlowEditor({
         </Panel>
         
         {/* Main toolbar */}
-        <Panel position="top" className="m-4 flex justify-center">
+        <Panel position={Position.Top} className="m-4 flex justify-center">
           <motion.div 
             className="premium-glass rounded-full backdrop-blur-lg flex items-center px-2 border border-white/10"
             initial={{ y: -50, opacity: 0 }}
@@ -446,7 +448,7 @@ export function FlowEditor({
           </motion.div>
         </Panel>
       
-        <Panel position="bottom-left" className="premium-glass rounded-md p-2 m-4">
+        <Panel position={Position.BottomLeft} className="premium-glass rounded-md p-2 m-4">
           <div className="flex items-center gap-2">
             <div className="p-1 rounded-full bg-premium/20 flex items-center justify-center">
               <Zap className="w-4 h-4 text-premium-light" />
@@ -456,7 +458,7 @@ export function FlowEditor({
         </Panel>
         
         {/* Node palette */}
-        <Panel position="right" className="m-4">
+        <Panel position={Position.Right} className="m-4">
           <motion.div 
             className="premium-glass rounded-lg p-4 border border-white/10 flex flex-col items-center gap-4"
             initial={{ opacity: 0, x: 50 }}
