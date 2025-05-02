@@ -1,3 +1,4 @@
+
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -350,7 +351,7 @@ agent = LlmAgent(
               viewport={{ once: true }}
               className="md:w-1/2 relative"
             >
-              {/* Orbit Animation - replace with CSS animations */}
+              {/* Orbit Animation - using CSS animations instead of problematic motion variants */}
               <div className="relative aspect-square w-full max-w-md mx-auto">
                 {/* Center Circle */}
                 <div className="absolute inset-1/4 bg-gradient-radial from-premium/10 to-transparent rounded-full backdrop-blur-sm border border-premium/20"></div>
