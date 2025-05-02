@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Node, Edge } from '@xyflow/react';
@@ -7,6 +6,12 @@ import { BaseNodeData } from './nodes/BaseNode';
 import { Copy, Download, Play } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
+
+// Define PyodideInterface type for better type safety
+interface PyodideInterface {
+  runPythonAsync: (code: string) => Promise<string>;
+  globals: Record<string, unknown>;
+}
 
 export interface CodeGenerationModalProps {
   open: boolean;
@@ -16,6 +21,28 @@ export interface CodeGenerationModalProps {
   customCode?: string;
 }
 
+// Helper function to remove common leading whitespace (dedent)
+function dedent(str: string): string {
+  const lines = str.split('\n');
+  let minIndent = Infinity;
+  
+  // Find minimum indentation level
+  lines.forEach(line => {
+    // Ignore empty lines
+    if (line.trim() === '') return;
+    
+    const indent = line.match(/^\s*/)?.[0].length || 0;
+    minIndent = Math.min(minIndent, indent);
+  });
+  
+  // Remove common indent from all lines
+  if (minIndent !== Infinity) {
+    return lines.map(line => line.slice(minIndent)).join('\n');
+  }
+  
+  return str;
+}
+
 export const CodeGenerationModal: React.FC<CodeGenerationModalProps> = ({ 
   open, 
   onOpenChange,
@@ -23,26 +50,47 @@ export const CodeGenerationModal: React.FC<CodeGenerationModalProps> = ({
   edges,
   customCode
 }) => {
+  console.log('CodeGenerationModal rendered', { nodeCount: nodes.length, edgeCount: edges.length });
+  
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<string>('code');
   const [isRunning, setIsRunning] = useState(false);
   const [output, setOutput] = useState<string | null>(null);
-  const [pyodideInstance, setPyodideInstance] = useState<any>(null);
+  const [pyodideInstance, setPyodideInstance] = useState<PyodideInterface | null>(null);
   const [pyodideLoading, setPyodideLoading] = useState(false);
+  
+  // Use ref to track if component is mounted to prevent state updates after unmount
+  const isMounted = useRef(true);
   
   const generatedCode = customCode || generateADKCode(nodes, edges);
 
+  // Set up mount/unmount lifecycle
+  useEffect(() => {
+    isMounted.current = true;
+    
+    return () => {
+      console.log('Component unmounting, cleaning up');
+      isMounted.current = false;
+    };
+  }, []);
+
   // Clean up Pyodide when modal closes
   useEffect(() => {
-    return () => {
-      if (pyodideInstance) {
-        // Reset Pyodide state when modal closes
+    console.log('Modal open state changed:', open);
+    
+    if (!open && pyodideInstance) {
+      console.log('Modal closed, preparing to reset Pyodide');
+      // Schedule reset for next tick to avoid conflicts with ongoing operations
+      setTimeout(() => {
+        if (!isMounted.current) return;
+        console.log('Cleaning up Pyodide instance');
         setPyodideInstance(null);
-      }
-    };
+      }, 0);
+    }
   }, [open, pyodideInstance]);
 
   const handleCopyCode = () => {
+    console.log('Copying code to clipboard');
     navigator.clipboard.writeText(generatedCode);
     toast({
       title: "Code copied",
@@ -51,6 +99,7 @@ export const CodeGenerationModal: React.FC<CodeGenerationModalProps> = ({
   };
 
   const handleExportCode = () => {
+    console.log('Exporting code as Python file');
     const blob = new Blob([generatedCode], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -70,27 +119,42 @@ export const CodeGenerationModal: React.FC<CodeGenerationModalProps> = ({
   const handleRunCode = async () => {
     if (isRunning) return;
     
+    console.log('Run code button clicked');
+    
     try {
       setIsRunning(true);
       setActiveTab('output');
       
-      if (!pyodideInstance) {
+      let pyodide = pyodideInstance;
+      if (!pyodide) {
+        console.log('Pyodide not loaded, initializing...');
         setPyodideLoading(true);
         setOutput("Loading Python environment (this may take a minute)...");
         
         try {
           // Dynamic import to reduce initial load time
-          const { loadPyodide } = await import("pyodide");
+          console.log('Importing Pyodide dynamically');
+          const pyodideModule = await import("pyodide");
+          const { loadPyodide } = pyodideModule;
           
-          const pyodide = await loadPyodide({
+          console.log('Loading Pyodide instance');
+          pyodide = await loadPyodide({
             indexURL: "https://cdn.jsdelivr.net/pyodide/v0.24.1/full/",
-          });
+          }) as PyodideInterface;
           
+          // Check if component is still mounted before updating state
+          if (!isMounted.current) {
+            console.log('Component unmounted during Pyodide load, aborting');
+            return;
+          }
+          
+          console.log('Pyodide loaded successfully, instance:', pyodide);
           setPyodideInstance(pyodide);
           setOutput("Setting up ADK simulation environment...");
           
           // Create mock ADK environment
-          await pyodide.runPythonAsync(`
+          console.log('Setting up mock ADK environment');
+          await pyodide.runPythonAsync(dedent(`
             # Mock implementation of Google ADK
             class Agent:
                 def __init__(self, name="", model="", description="", instruction="", tools=None):
@@ -133,10 +197,13 @@ export const CodeGenerationModal: React.FC<CodeGenerationModalProps> = ({
             sys.modules['google.adk.agents'] = MockModule()
             sys.modules['google.adk.tools'] = MockModule()
             sys.modules['google.adk.models.lite_llm'] = MockModule()
-          `);
+          `));
           
-        } catch (error: any) {
-          setOutput(`Failed to initialize Python environment: ${error.message}`);
+          console.log('Mock ADK environment setup complete');
+          
+        } catch (error: unknown) {
+          console.error('Failed to initialize Python environment:', error);
+          setOutput(`Failed to initialize Python environment: ${error instanceof Error ? error.message : String(error)}`);
           toast({
             title: "Setup failed",
             description: "Could not load Python environment in the browser.",
@@ -148,36 +215,60 @@ export const CodeGenerationModal: React.FC<CodeGenerationModalProps> = ({
         }
       }
       
+      // Verify that pyodide is still available
+      if (!pyodide) {
+        console.error('Pyodide instance is null after setup');
+        setOutput("Error: Python environment was not properly initialized.");
+        toast({
+          title: "Execution failed",
+          description: "Python environment was not properly initialized.",
+          variant: "destructive"
+        });
+        setIsRunning(false);
+        setPyodideLoading(false);
+        return;
+      }
+      
+      console.log('Running code in Pyodide, instance available:', !!pyodide);
       setOutput("Running your agent code in simulation mode...");
       
       // Execute the code with output capturing
-      const result = await pyodideInstance.runPythonAsync(`
-        import io
-        import sys
-        import traceback
-        
-        # Capture print output
-        output_buffer = io.StringIO()
-        sys.stdout = output_buffer
-        
-        try:
-          ${generatedCode}
-          
-          # Execute main function if present
-          if 'main' in globals():
-              main()
-              
-          output = output_buffer.getvalue()
-          if not output:
-              output = "Code executed successfully with no output."
-              
-          output += "\\n\\n--- SIMULATION NOTICE ---\\nThis is a simulated environment. For full ADK functionality, run this code in a proper Python environment."
-        except Exception:
-          output = "Error executing code:\\n" + traceback.format_exc()
-        
-        output
-      `);
+      console.log('Code length:', generatedCode.length, 'First 100 chars:', generatedCode.substring(0, 100));
       
+      // Prepare Python code with proper indentation
+      const pythonCode = 
+`import io
+import sys
+import traceback
+
+# Capture print output
+output_buffer = io.StringIO()
+sys.stdout = output_buffer
+
+try:
+  ${generatedCode}
+  
+  # Execute main function if present
+  if 'main' in globals():
+      main()
+      
+  output = output_buffer.getvalue()
+  if not output:
+      output = "Code executed successfully with no output."
+      
+  output += "\\n\\n--- SIMULATION NOTICE ---\\nThis is a simulated environment. For full ADK functionality, run this code in a proper Python environment."
+except Exception:
+  output = "Error executing code:\\n" + traceback.format_exc()
+
+output`;
+      const pythonRunner = dedent(pythonCode);
+      
+      console.log('Running Python code with dedented structure');
+      const result = await pyodide.runPythonAsync(pythonRunner);
+      
+      if (!isMounted.current) return;
+      
+      console.log('Code execution complete, result length:', result.length);
       setOutput(result);
       
       toast({
@@ -185,16 +276,23 @@ export const CodeGenerationModal: React.FC<CodeGenerationModalProps> = ({
         description: "Your code ran in the browser simulation environment.",
       });
       
-    } catch (error: any) {
-      setOutput(`Error: ${error.message}`);
+    } catch (error: unknown) {
+      if (!isMounted.current) return;
+      
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Error running code:', error);
+      setOutput(`Error: ${errorMessage}`);
       toast({
         title: "Execution failed",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {
-      setIsRunning(false);
-      setPyodideLoading(false);
+      if (isMounted.current) {
+        console.log('Code execution finished, clearing loading state');
+        setIsRunning(false);
+        setPyodideLoading(false);
+      }
     }
   };
 
@@ -237,9 +335,9 @@ export const CodeGenerationModal: React.FC<CodeGenerationModalProps> = ({
           </div>
           
           <div className="flex-1 overflow-hidden">
-            <TabsContent value="code" className="h-full">
-              <div className="relative h-full">
-                <pre className="bg-black p-4 rounded-md text-sm overflow-auto h-full">
+            <TabsContent value="code" className="h-full overflow-hidden">
+              <div className="relative h-full overflow-hidden">
+                <pre className="bg-black p-4 rounded-md text-sm overflow-auto h-full max-h-[60vh]">
                   <code className="text-green-400">{generatedCode}</code>
                 </pre>
               </div>
@@ -257,8 +355,8 @@ export const CodeGenerationModal: React.FC<CodeGenerationModalProps> = ({
               </div>
             </TabsContent>
             
-            <TabsContent value="install" className="h-full">
-              <div className="p-4 space-y-4 overflow-auto h-full">
+            <TabsContent value="install" className="h-full overflow-hidden">
+              <div className="p-4 space-y-4 overflow-auto h-full max-h-[60vh]">
                 <h3 className="text-lg font-medium">Running Your Agent Code Locally</h3>
                 
                 <div className="space-y-2">
@@ -281,6 +379,13 @@ export const CodeGenerationModal: React.FC<CodeGenerationModalProps> = ({
                   <h4 className="font-medium">Step 4: Run Your Agent</h4>
                   <p className="text-sm">Navigate to the directory where you saved your code and run:</p>
                   <pre className="bg-gray-900 p-3 rounded text-sm text-white">python agent_code.py</pre>
+                </div>
+                
+                <div className="space-y-2">
+                  <h4 className="font-medium">Step 5: Use the ADK Web Interface</h4>
+                  <p className="text-sm">You can also use the Google ADK web interface to test and run your agent:</p>
+                  <pre className="bg-gray-900 p-3 rounded text-sm text-white">adk web</pre>
+                  <p className="text-sm">This will start the ADK web interface where you can interact with your agent through a browser.</p>
                 </div>
                 
                 <div className="mt-6 p-3 bg-blue-50 text-blue-800 rounded-md">
@@ -331,13 +436,15 @@ export const CodeGenerationModal: React.FC<CodeGenerationModalProps> = ({
 
 // Function to generate Google ADK Python code
 const generateADKCode = (nodes: Node<BaseNodeData>[], edges: Edge[]): string => {
-  let imports: string[] = [
+  console.log('Generating ADK code for', nodes.length, 'nodes and', edges.length, 'edges');
+  
+  const imports: string[] = [
     'from google.adk.agents import Agent, LlmAgent',
     'from google.adk.tools import google_search'
   ];
   
   let code = '';
-  let agentVars: string[] = [];
+  const agentVars: string[] = [];
   
   // Process each node
   nodes.forEach(node => {
@@ -345,6 +452,8 @@ const generateADKCode = (nodes: Node<BaseNodeData>[], edges: Edge[]): string => 
     
     const { type, label, description, instruction, modelType } = node.data;
     const varName = label.toLowerCase().replace(/\s+/g, '_');
+    
+    console.log('Processing node:', { type, label });
     
     if (type === 'agent') {
       imports.push('from google.adk.models.lite_llm import LiteLlm');
@@ -362,6 +471,7 @@ const generateADKCode = (nodes: Node<BaseNodeData>[], edges: Edge[]): string => 
         
       if (connectedTools.length) {
         tools = `[${connectedTools.join(', ')}]`;
+        console.log('Agent connected to tools:', connectedTools);
       }
       
       code += `\n# ${label} - ${description || 'Agent'}\n`;
@@ -407,5 +517,6 @@ const generateADKCode = (nodes: Node<BaseNodeData>[], edges: Edge[]): string => 
     code += `    main()\n`;
   }
   
+  console.log('Code generation complete, total size:', imports.join('\n').length + code.length);
   return imports.join('\n') + '\n' + code;
 };
