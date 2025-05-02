@@ -69,6 +69,14 @@
     @apply backdrop-blur-2xl bg-black/40 border border-white/10;
   }
 
+  .premium-glass {
+    @apply backdrop-blur-xl bg-white/5 border border-premium-light/20 shadow-premium;
+  }
+
+  .premium-card {
+    @apply rounded-lg border border-premium/10 bg-gradient-to-b from-secondary to-secondary/70 backdrop-blur-md hover:shadow-premium transition-all duration-300;
+  }
+
   .glass-card {
     @apply glass rounded-lg;
   }
@@ -76,6 +84,49 @@
   .text-gradient {
     @apply bg-gradient-to-br from-primary via-primary/90 to-accent bg-clip-text text-transparent;
   }
+
+  .premium-text-gradient {
+    @apply bg-gradient-to-r from-premium-light via-futuristic-blue to-premium bg-clip-text text-transparent;
+  }
+
+  .futuristic-border {
+    @apply border border-white/10 relative after:absolute after:inset-0 after:p-[1px] after:bg-gradient-to-r after:from-premium/50 after:via-futuristic-blue/50 after:to-premium/50 after:-z-10 after:rounded-lg;
+  }
+
+  .premium-shadow {
+    @apply shadow-[0_0_15px_rgba(155,135,245,0.3)];
+  }
+}
+
+/* Animated background grid */
+.animated-grid {
+  background-size: 50px 50px;
+  background-image: 
+    linear-gradient(to right, rgba(155, 135, 245, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(155, 135, 245, 0.05) 1px, transparent 1px);
+  animation: grid-movement 20s linear infinite;
+}
+
+@keyframes grid-movement {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 50px 50px;
+  }
+}
+
+/* Premium node styles */
+.premium-node {
+  @apply bg-futuristic-black border border-futuristic-purple/30 shadow-premium rounded-lg transition-all duration-300;
+}
+
+.premium-node:hover {
+  @apply shadow-premium-hover border-futuristic-purple/60;
+}
+
+.premium-handle {
+  @apply bg-futuristic-blue border-2 border-background shadow-md;
 }
 
 /* React Flow specific styles */
@@ -98,7 +149,7 @@
 .react-flow__node-default,
 .react-flow__node-input,
 .react-flow__node-output {
-  @apply glass-card p-0 border-none;
+  @apply premium-node p-0 border-none;
 }
 
 .react-flow__attribution {
@@ -114,9 +165,14 @@
 }
 
 .react-flow__node.selectable:hover {
-  @apply ring-1 ring-primary ring-opacity-70;
+  @apply ring-1 ring-futuristic-blue ring-opacity-70;
 }
 
 .react-flow__node.selectable.selected {
-  @apply ring-2 ring-primary;
+  @apply ring-2 ring-futuristic-purple;
+}
+
+/* Edge styling */
+.react-flow__edge-path {
+  @apply stroke-futuristic-blue stroke-opacity-70;
 }

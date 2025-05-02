@@ -1,3 +1,4 @@
+
 import { useCallback, useState, useRef, useEffect } from 'react';
 import {
   ReactFlow,
@@ -19,10 +20,11 @@ import {
   EdgeChange
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { PlusCircle, Zap, Code, Save, ArrowLeft } from 'lucide-react';
+import { PlusCircle, Zap, Code, Save, ArrowLeft, Download, Share, Play, FlaskConical, Grid, Layers, X } from 'lucide-react';
 import { Button } from './ui/button';
 import { toast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 
 import BaseNode, { BaseNodeData } from './nodes/BaseNode';
 import { CodeGenerationModal } from './CodeGenerationModal';
@@ -59,6 +61,16 @@ const defaultInitialNodes: Node<BaseNodeData>[] = [
 
 const defaultInitialEdges: Edge[] = [];
 
+// Toolbar buttons configuration
+const toolbarButtons = [
+  { icon: <Save />, label: "Save", action: "save" },
+  { icon: <Code />, label: "Generate Code", action: "generate" },
+  { icon: <Share />, label: "Share", action: "share" },
+  { icon: <Download />, label: "Export", action: "export" },
+  { icon: <Play />, label: "Run", action: "run" },
+  { icon: <FlaskConical />, label: "Test", action: "test" },
+];
+
 export function FlowEditor({ 
   onNodeSelect, 
   initialNodes = defaultInitialNodes,
@@ -72,6 +84,7 @@ export function FlowEditor({
   const [edges, setEdges] = useState<Edge[]>(initialEdges);
   const [codeModalOpen, setCodeModalOpen] = useState(false);
   const [codeOutput, setCodeOutput] = useState<string>('');
+  const [toolbarExpanded, setToolbarExpanded] = useState(false);
   const reactFlowInstance = useReactFlow();
   const navigate = useNavigate();
 
@@ -210,6 +223,50 @@ export function FlowEditor({
       });
     }
   };
+
+  const handleToolbarAction = (action: string) => {
+    switch (action) {
+      case 'save':
+        handleSaveWorkflow();
+        break;
+      case 'generate':
+        handleGenerateCode();
+        break;
+      case 'share':
+        toast({
+          title: "Share feature",
+          description: "Coming soon! You'll be able to share your workflows with others.",
+        });
+        break;
+      case 'export':
+        const jsonData = JSON.stringify({ nodes, edges }, null, 2);
+        const blob = new Blob([jsonData], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.download = 'agent-flow.json';
+        link.href = url;
+        link.click();
+        toast({
+          title: "Exported successfully",
+          description: "Your workflow has been exported as JSON.",
+        });
+        break;
+      case 'run':
+        toast({
+          title: "Run feature",
+          description: "Coming soon! You'll be able to run your agent directly from the editor.",
+        });
+        break;
+      case 'test':
+        toast({
+          title: "Test feature",
+          description: "Coming soon! You'll be able to test your agent with sample inputs.",
+        });
+        break;
+      default:
+        break;
+    }
+  };
   
   // Function to generate Google ADK Python code
   const generateADKCode = (nodes: Node<BaseNodeData>[], edges: Edge[]): string => {
@@ -293,7 +350,23 @@ export function FlowEditor({
   };
 
   return (
-    <div className="h-full" ref={reactFlowWrapper}>
+    <div className="h-full relative" ref={reactFlowWrapper}>
+      {/* Floating particles in background */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        {[...Array(8)].map((_, i) => (
+          <div
+            key={i}
+            className="absolute w-1 h-1 bg-premium-light rounded-full"
+            style={{ 
+              left: `${Math.random() * 100}%`, 
+              top: `${Math.random() * 100}%`,
+              opacity: Math.random() * 0.5 + 0.3,
+              animation: `float ${Math.random() * 10 + 20}s infinite alternate ease-in-out`
+            }}
+          />
+        ))}
+      </div>
+      
       <ReactFlow
         nodes={nodes as Node[]}
         edges={edges}
@@ -306,15 +379,17 @@ export function FlowEditor({
         onNodeClick={handleNodeClick as any} // This cast is needed to fix type issues
         onPaneClick={handlePaneClick}
         fitView
+        className="flow-canvas"
       >
-        <Controls />
-        <MiniMap />
-        <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
+        <Controls className="premium-glass !bg-transparent" />
+        <MiniMap className="premium-glass !bg-transparent" />
+        <Background variant={BackgroundVariant.Dots} gap={16} size={1} color="rgba(155, 135, 245, 0.2)" />
         
-        <Panel position="top-left" className="glass rounded-md p-2 m-4">
+        {/* Back button */}
+        <Panel position="top-left" className="premium-glass rounded-md p-2 m-4">
           <Button 
-            className="flex items-center gap-2"
-            variant="outline"
+            className="flex items-center gap-2 bg-transparent hover:bg-white/10"
+            variant="ghost"
             onClick={handleBackToProjects}
           >
             <ArrowLeft className="w-4 h-4" />
@@ -322,33 +397,93 @@ export function FlowEditor({
           </Button>
         </Panel>
         
-        <Panel position="top-right" className="glass rounded-md p-2 m-4">
-          <Button 
-            className="flex items-center gap-2"
-            variant="outline"
-            onClick={handleSaveWorkflow}
+        {/* Main toolbar */}
+        <Panel position="top" className="m-4 flex justify-center">
+          <motion.div 
+            className="premium-glass rounded-full backdrop-blur-lg flex items-center px-2 border border-white/10"
+            initial={{ y: -50, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.3 }}
           >
-            <Save className="w-4 h-4" />
-            <span>Save Workflow</span>
-          </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={`rounded-full p-2 hover:bg-white/10 ${toolbarExpanded ? 'bg-white/10' : ''}`}
+              onClick={() => setToolbarExpanded(!toolbarExpanded)}
+            >
+              {toolbarExpanded ? <X className="h-4 w-4" /> : <Layers className="h-4 w-4" />}
+            </Button>
+            
+            <AnimatePresence>
+              {toolbarExpanded && (
+                <motion.div 
+                  className="flex items-center"
+                  initial={{ width: 0, opacity: 0 }}
+                  animate={{ width: 'auto', opacity: 1 }}
+                  exit={{ width: 0, opacity: 0 }}
+                >
+                  {toolbarButtons.map((btn, index) => (
+                    <motion.div
+                      key={btn.action}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                    >
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="flex items-center gap-2 mx-1 hover:bg-white/10"
+                        onClick={() => handleToolbarAction(btn.action)}
+                      >
+                        {btn.icon}
+                        <span className="text-xs">{btn.label}</span>
+                      </Button>
+                    </motion.div>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
         </Panel>
-        
-        <Panel position="bottom-right" className="glass rounded-md p-2 m-4">
-          <Button 
-            onClick={handleGenerateCode} 
-            className="flex items-center gap-2"
-            variant="secondary"
-          >
-            <Code className="w-4 w-4" />
-            <span>Generate Google ADK Code</span>
-          </Button>
-        </Panel>
-        
-        <Panel position="bottom-left" className="glass rounded-md p-2 m-4">
+      
+        <Panel position="bottom-left" className="premium-glass rounded-md p-2 m-4">
           <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4 text-primary" />
+            <div className="p-1 rounded-full bg-premium/20 flex items-center justify-center">
+              <Zap className="w-4 h-4 text-premium-light" />
+            </div>
             <span className="text-xs">Use natural language builder for quick setup</span>
           </div>
+        </Panel>
+        
+        {/* Node palette */}
+        <Panel position="right" className="m-4">
+          <motion.div 
+            className="premium-glass rounded-lg p-4 border border-white/10 flex flex-col items-center gap-4"
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.5 }}
+          >
+            <div className="text-xs font-medium mb-1">Add Nodes</div>
+            {[
+              { type: 'agent', label: 'Agent', color: 'bg-premium-light/20 text-premium-light' },
+              { type: 'tool', label: 'Tool', color: 'bg-futuristic-blue/20 text-futuristic-blue' },
+              { type: 'model', label: 'Model', color: 'bg-green-500/20 text-green-500' },
+              { type: 'input', label: 'Input', color: 'bg-yellow-500/20 text-yellow-500' },
+              { type: 'output', label: 'Output', color: 'bg-red-500/20 text-red-500' }
+            ].map((nodeType) => (
+              <div
+                key={nodeType.type}
+                className={`p-2 ${nodeType.color} rounded-md cursor-grab w-24 text-center text-sm hover:shadow-premium transition-all`}
+                onDragStart={(event) => {
+                  event.dataTransfer.setData('application/reactflow', nodeType.type);
+                  event.dataTransfer.effectAllowed = 'move';
+                }}
+                draggable
+              >
+                {nodeType.label}
+              </div>
+            ))}
+          </motion.div>
         </Panel>
       </ReactFlow>
       
