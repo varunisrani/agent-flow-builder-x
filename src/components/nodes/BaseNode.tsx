@@ -1,3 +1,4 @@
+
 import React, { memo } from 'react';
 import { Handle, Position, NodeToolbar } from '@xyflow/react';
 import { Card } from '../ui/card';
@@ -81,4 +82,4 @@ const BaseNode = ({ id, data, selected }: BaseNodeProps) => {
 };
 
 // Export the component as default
-export default memo(BaseNode);
+export default BaseNode;
