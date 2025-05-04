@@ -48,7 +48,6 @@ const Projects = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [newProject, setNewProject] = useState({ name: '', description: '' });
   const [filterValue, setFilterValue] = useState('');
-  const [viewType, setViewType] = useState<'grid' | 'list'>('grid');
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -176,7 +175,7 @@ const Projects = () => {
               placeholder="Search projects..." 
               className="pl-10 bg-secondary/50"
               value={filterValue}
-              onChange={(e) => setFilterValue(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFilterValue(e.target.value)}
             />
           </div>
           <UserMenu />
@@ -222,7 +221,7 @@ const Projects = () => {
                     id="name"
                     placeholder="Enter project name"
                     value={newProject.name}
-                    onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewProject({ ...newProject, name: e.target.value })}
                     className="bg-secondary/50"
                     autoFocus
                   />
@@ -235,7 +234,7 @@ const Projects = () => {
                     id="description"
                     placeholder="Enter project description"
                     value={newProject.description}
-                    onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewProject({ ...newProject, description: e.target.value })}
                     className="bg-secondary/50"
                   />
                 </div>
@@ -286,13 +285,13 @@ const Projects = () => {
                   <CardHeader className="relative">
                     <div className="absolute right-4 top-4">
                       <DropdownMenu>
-                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenuTrigger asChild onClick={(e: React.MouseEvent<HTMLButtonElement>) => e.stopPropagation()}>
                           <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="glass">
-                          <DropdownMenuItem onClick={(e) => {
+                          <DropdownMenuItem onClick={(e: React.MouseEvent<HTMLDivElement>) => {
                             e.stopPropagation();
                             // Implement edit functionality
                           }}>
@@ -301,7 +300,7 @@ const Projects = () => {
                           </DropdownMenuItem>
                           <DropdownMenuItem 
                             className="text-red-500"
-                            onClick={(e) => {
+                            onClick={(e: React.MouseEvent<HTMLDivElement>) => {
                               e.stopPropagation();
                               handleDeleteProject(project.id);
                             }}
@@ -316,7 +315,7 @@ const Projects = () => {
                       variant="ghost" 
                       size="icon" 
                       className={`absolute left-4 top-4 h-8 w-8 ${project.starred ? 'text-yellow-400' : 'text-muted-foreground opacity-0 group-hover:opacity-100'} transition-opacity`}
-                      onClick={(e) => {
+                      onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                         e.stopPropagation();
                         handleToggleStar(project.id);
                       }}

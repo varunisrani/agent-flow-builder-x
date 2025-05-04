@@ -1,7 +1,7 @@
 // No longer need toast import
 // import { toast } from '@/hooks/use-toast';
 
-import axios, { AxiosError } from 'axios';
+import axios from 'axios';
 
 // Base API URL - hardcoded for browser environment
 const API_BASE_URL = 'http://localhost:3001/api';

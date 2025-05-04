@@ -1,5 +1,12 @@
 import { Node, Edge } from '@xyflow/react';
-import { BaseNodeData } from '@/components/nodes/BaseNode';
+
+// Define the BaseNodeData type locally since the import is failing
+export interface BaseNodeData {
+  id: string;
+  type: string;
+  label: string;
+  [key: string]: any;
+}
 
 export interface Project {
   id: string;

@@ -1,4 +1,15 @@
-import { NextApiRequest, NextApiResponse } from 'next';
+// Define types for Next.js API request and response
+interface NextApiRequest {
+  method: string;
+  query: Record<string, string | string[]>;
+  body: any;
+}
+
+interface NextApiResponse {
+  status(code: number): NextApiResponse;
+  json(data: any): void;
+}
+
 import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
