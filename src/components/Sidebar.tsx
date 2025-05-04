@@ -1,6 +1,5 @@
-
 import { useState } from 'react';
-import { Bot, BrainCircuit, Code, WrenchIcon, ArrowRight } from 'lucide-react';
+import { Bot, BrainCircuit, Code, WrenchIcon, ArrowRight, Network, Server, Plug } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const nodeTypes = [
@@ -8,6 +7,9 @@ const nodeTypes = [
   { type: 'model', label: 'Model', icon: <BrainCircuit className="w-4 h-4" /> },
   { type: 'tool', label: 'Tool', icon: <WrenchIcon className="w-4 h-4" /> },
   { type: 'function', label: 'Function', icon: <Code className="w-4 h-4" /> },
+  { type: 'mcp-client', label: 'MCP Client', icon: <Network className="w-4 h-4" /> },
+  { type: 'mcp-server', label: 'MCP Server', icon: <Server className="w-4 h-4" /> },
+  { type: 'mcp-tool', label: 'MCP Tool', icon: <Plug className="w-4 h-4" /> },
 ];
 
 const templates = [

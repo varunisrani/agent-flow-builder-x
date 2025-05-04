@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { Node } from '@xyflow/react';
@@ -16,6 +15,8 @@ export function PropertiesPanel({ selectedNode, onClose, onUpdateNode }: Propert
   const [nodeDescription, setNodeDescription] = useState('');
   const [nodeInstruction, setNodeInstruction] = useState('');
   const [modelType, setModelType] = useState('');
+  const [mcpUrl, setMcpUrl] = useState('');
+  const [mcpToolId, setMcpToolId] = useState('');
   
   // Update local state when the selected node changes
   useEffect(() => {
@@ -24,6 +25,8 @@ export function PropertiesPanel({ selectedNode, onClose, onUpdateNode }: Propert
       setNodeDescription(selectedNode.data.description || '');
       setNodeInstruction(selectedNode.data.instruction || '');
       setModelType(selectedNode.data.modelType || '');
+      setMcpUrl(selectedNode.data.mcpUrl || '');
+      setMcpToolId(selectedNode.data.mcpToolId || '');
     }
   }, [selectedNode]);
   
@@ -55,6 +58,20 @@ export function PropertiesPanel({ selectedNode, onClose, onUpdateNode }: Propert
     }
   };
   
+  const handleMcpUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setMcpUrl(e.target.value);
+    if (selectedNode) {
+      onUpdateNode(selectedNode.id, { mcpUrl: e.target.value });
+    }
+  };
+  
+  const handleMcpToolIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setMcpToolId(e.target.value);
+    if (selectedNode) {
+      onUpdateNode(selectedNode.id, { mcpToolId: e.target.value });
+    }
+  };
+  
   const getPanelTitle = () => {
     if (!selectedNode) return 'Properties';
     
@@ -63,7 +80,10 @@ export function PropertiesPanel({ selectedNode, onClose, onUpdateNode }: Propert
       model: 'Model Properties',
       tool: 'Tool Properties',
       input: 'Input Properties',
-      output: 'Output Properties'
+      output: 'Output Properties',
+      'mcp-client': 'MCP Client Properties',
+      'mcp-server': 'MCP Server Properties',
+      'mcp-tool': 'MCP Tool Properties'
     };
     
     return selectedNode.data.type && typeLabels[selectedNode.data.type as keyof typeof typeLabels] 
@@ -154,6 +174,67 @@ export function PropertiesPanel({ selectedNode, onClose, onUpdateNode }: Propert
               <option value="MultiModalAgent">Multi-Modal Agent</option>
               <option value="ReActAgent">ReAct Agent</option>
             </select>
+          </div>
+        );
+      
+      case 'mcp-client':
+        return (
+          <div className="space-y-2">
+            <label className="block text-xs text-muted-foreground mb-1">
+              MCP Server URL
+            </label>
+            <input
+              type="text"
+              value={mcpUrl}
+              onChange={handleMcpUrlChange}
+              className="w-full bg-background rounded-md border border-border p-2 text-sm"
+              placeholder="http://localhost:8080"
+            />
+            
+            <div className="p-2 bg-blue-500/10 rounded mt-2 text-xs">
+              <p className="font-medium text-blue-400">MCP Client Info</p>
+              <p className="mt-1">This node will connect to an MCP server to use its tools.</p>
+            </div>
+          </div>
+        );
+        
+      case 'mcp-server':
+        return (
+          <div className="space-y-2">
+            <label className="block text-xs text-muted-foreground mb-1">
+              Port (optional)
+            </label>
+            <input
+              type="text"
+              placeholder="8080"
+              className="w-full bg-background rounded-md border border-border p-2 text-sm"
+            />
+            
+            <div className="p-2 bg-blue-500/10 rounded mt-2 text-xs">
+              <p className="font-medium text-blue-400">MCP Server Info</p>
+              <p className="mt-1">This node will expose your agent tools to other systems via MCP.</p>
+            </div>
+          </div>
+        );
+        
+      case 'mcp-tool':
+        return (
+          <div className="space-y-2">
+            <label className="block text-xs text-muted-foreground mb-1">
+              MCP Tool ID
+            </label>
+            <input
+              type="text"
+              value={mcpToolId}
+              onChange={handleMcpToolIdChange}
+              className="w-full bg-background rounded-md border border-border p-2 text-sm"
+              placeholder="tool_name"
+            />
+            
+            <div className="p-2 bg-amber-500/10 rounded mt-2 text-xs">
+              <p className="font-medium text-amber-400">MCP Tool Info</p>
+              <p className="mt-1">Connect this node to an MCP client to use it in your agent.</p>
+            </div>
           </div>
         );
         

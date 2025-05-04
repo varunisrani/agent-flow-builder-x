@@ -1,4 +1,3 @@
-
 import React, { memo } from 'react';
 import { Handle, Position, NodeToolbar } from '@xyflow/react';
 import { Card } from '../ui/card';
@@ -8,11 +7,15 @@ import { Button } from '../ui/button';
 // Modify the interface to extend Record<string, unknown>
 export interface BaseNodeData extends Record<string, unknown> {
   label: string;
-  type: 'agent' | 'tool' | 'input' | 'output' | 'model';
+  type: 'agent' | 'tool' | 'input' | 'output' | 'model' | 'mcp-client' | 'mcp-server' | 'mcp-tool';
   description?: string;
   instruction?: string;
   modelType?: string;
+  mcpUrl?: string;
+  mcpToolId?: string;
 }
+
+
 
 export interface BaseNodeProps {
   id: string;
@@ -36,6 +39,12 @@ const BaseNode = ({ id, data, selected }: BaseNodeProps) => {
         return 'bg-green-500/20 border-green-500/40';
       case 'output':
         return 'bg-orange-500/20 border-orange-500/40';
+      case 'mcp-client':
+        return 'bg-yellow-500/20 border-yellow-500/40';
+      case 'mcp-server':
+        return 'bg-red-500/20 border-red-500/40';
+      case 'mcp-tool':
+        return 'bg-indigo-500/20 border-indigo-500/40';
       default:
         return 'bg-secondary/20 border-secondary/40';
     }
@@ -82,4 +91,4 @@ const BaseNode = ({ id, data, selected }: BaseNodeProps) => {
 };
 
 // Export the component as default
-export default BaseNode;
+export default memo(BaseNode);

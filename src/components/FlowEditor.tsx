@@ -211,21 +211,29 @@ export function FlowEditor({
     }
   };
   
-  // Function to generate Google ADK Python code
+  // Function to generate Google ADK code
   const generateADKCode = (nodes: Node<BaseNodeData>[], edges: Edge[]): string => {
-    let imports: string[] = [
+    const imports: string[] = [
       'from google.adk.agents import Agent, LlmAgent',
       'from google.adk.tools import google_search'
     ];
     
+    // Add MCP imports if any MCP nodes are present
+    if (nodes.some(node => node.data?.type.startsWith('mcp-'))) {
+      imports.push('from google.adk.mcp.mcp_client import McpClient');
+      imports.push('from google.adk.mcp.mcp_server import McpServer');
+    }
+    
     let code = '';
-    let agentVars: string[] = [];
+    const agentVars: string[] = [];
+    const mcpClientVars: string[] = [];
+    const mcpServerVars: string[] = [];
     
     // Process each node
     nodes.forEach(node => {
       if (!node.data) return;
       
-      const { type, label, description, instruction, modelType } = node.data;
+      const { type, label, description, instruction, modelType, mcpUrl, mcpToolId } = node.data;
       const varName = label.toLowerCase().replace(/\s+/g, '_');
       
       if (type === 'agent') {
@@ -233,7 +241,7 @@ export function FlowEditor({
         
         let tools = 'None';
         
-        // Find connected tools
+        // Find connected tools (including MCP tools)
         const connectedTools = edges
           .filter(edge => edge.source === node.id)
           .map(edge => {
@@ -275,6 +283,44 @@ export function FlowEditor({
         code += `\n# ${label} - ${description || 'LLM'}\n`;
         code += `${varName} = LiteLlm("${modelType || 'gemini-2.0-flash'}")\n`;
       }
+      else if (type === 'mcp-client') {
+        code += `\n# ${label} - MCP Client\n`;
+        code += `${varName} = McpClient(\n`;
+        code += `    name="${varName}",\n`;
+        code += `    server_url="${mcpUrl || 'http://localhost:8080'}"\n`;
+        code += `)\n`;
+        
+        mcpClientVars.push(varName);
+      }
+      else if (type === 'mcp-server') {
+        code += `\n# ${label} - MCP Server\n`;
+        code += `${varName} = McpServer(\n`;
+        code += `    name="${varName}",\n`;
+        code += `    host="0.0.0.0",\n`;
+        code += `    port=8080\n`;
+        code += `)\n`;
+        
+        // Find connected tools to expose via MCP
+        const connectedTools = edges
+          .filter(edge => edge.source === node.id)
+          .map(edge => {
+            const targetNode = nodes.find(n => n.id === edge.target);
+            return targetNode?.data?.label?.toLowerCase().replace(/\s+/g, '_') || '';
+          })
+          .filter(Boolean);
+          
+        if (connectedTools.length) {
+          connectedTools.forEach(tool => {
+            code += `${varName}.register_tool(${tool})\n`;
+          });
+        }
+        
+        mcpServerVars.push(varName);
+      }
+      else if (type === 'mcp-tool') {
+        code += `\n# ${label} - MCP Tool\n`;
+        code += `${varName} = ${mcpClientVars[0] || 'mcp_client'}.get_tool("${mcpToolId || label}")\n`;
+      }
     });
     
     // If we have agents, add example usage
@@ -285,8 +331,18 @@ export function FlowEditor({
       code += `    # Initialize the agent\n`;
       code += `    result = ${primaryAgent}.invoke("What can you help me with?")\n`;
       code += `    print(result)\n\n`;
+      
+      // Add MCP server start if any exist
+      if (mcpServerVars.length) {
+        code += `    # Start MCP server\n`;
+        code += `    ${mcpServerVars[0]}.start()\n\n`;
+      }
+      
       code += `if __name__ == "__main__":\n`;
       code += `    main()\n`;
+      
+      // Export the primary agent as root_agent for __init__.py import
+      code += `\n# Export the primary agent as root_agent for __init__.py import\nroot_agent = ${primaryAgent}\n`;
     }
     
     return imports.join('\n') + '\n' + code;
