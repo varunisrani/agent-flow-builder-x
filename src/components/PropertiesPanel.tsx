@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { Node } from '@xyflow/react';
-import { BaseNodeData } from './nodes/BaseNode';
-import { cn } from '@/lib/utils';
+import { BaseNodeData } from './nodes/BaseNode.js';
+import { cn } from '@/lib/utils.js';
 
 interface PropertiesPanelProps {
   selectedNode: Node<BaseNodeData> | null;

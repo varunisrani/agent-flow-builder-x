@@ -1,11 +1,15 @@
 import { Node, Edge } from '@xyflow/react';
 
-// Define the BaseNodeData type locally since the import is failing
 export interface BaseNodeData {
   id: string;
-  type: string;
   label: string;
-  [key: string]: any;
+  type: 'agent' | 'tool' | 'input' | 'output' | 'model' | 'mcp-client' | 'mcp-server' | 'mcp-tool';
+  description?: string;
+  instruction?: string;
+  modelType?: string;
+  mcpUrl?: string;
+  mcpToolId?: string;
+  [key: string]: string | undefined;
 }
 
 export interface Project {

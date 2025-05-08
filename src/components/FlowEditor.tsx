@@ -16,17 +16,18 @@ import {
   applyNodeChanges,
   applyEdgeChanges,
   NodeChange,
-  EdgeChange
+  EdgeChange,
+  NodeMouseHandler
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { PlusCircle, Zap, Code, Save, ArrowLeft } from 'lucide-react';
-import { Button } from './ui/button';
-import { toast } from '@/hooks/use-toast';
+import { Button } from './ui/button.js';
+import { toast } from '../hooks/use-toast.js';
 import { useNavigate } from 'react-router-dom';
 
-import BaseNode, { BaseNodeData } from './nodes/BaseNode';
-import { CodeGenerationModal } from './CodeGenerationModal';
-import { saveProjectNodesAndEdges } from '@/services/projectService';
+import BaseNode, { BaseNodeData } from './nodes/BaseNode.js';
+import { CodeGenerationModal } from './CodeGenerationModal.js';
+import { saveProjectNodesAndEdges } from '@/services/projectService.js';
 
 // Fix the NodeTypes type
 const nodeTypes: NodeTypes = {
@@ -41,6 +42,14 @@ interface FlowEditorProps {
   onEdgesChange?: (edges: Edge[]) => void;
   projectId?: string;
 }
+
+// Add this helper function
+const transformNodesForSave = (nodes: Node<BaseNodeData>[]) => {
+  return nodes.map(node => ({
+    ...node,
+    data: { ...node.data, id: node.id }
+  }));
+};
 
 // Define the default initial node if no nodes are provided
 const defaultInitialNodes: Node<BaseNodeData>[] = [
@@ -170,7 +179,7 @@ export function FlowEditor({
       
       // Save to project if projectId is provided
       if (projectId) {
-        saveProjectNodesAndEdges(projectId, updatedNodes, edges);
+        saveProjectNodesAndEdges(projectId, transformNodesForSave(updatedNodes), edges);
       }
     },
     [reactFlowInstance, nodes, edges, externalOnNodesChange, projectId]
@@ -197,7 +206,7 @@ export function FlowEditor({
 
   const handleSaveWorkflow = () => {
     if (projectId) {
-      saveProjectNodesAndEdges(projectId, nodes, edges);
+      saveProjectNodesAndEdges(projectId, transformNodesForSave(nodes), edges);
       toast({
         title: "Workflow saved",
         description: "Your agent workflow has been saved successfully.",
@@ -349,7 +358,7 @@ export function FlowEditor({
   };
 
   return (
-    <div className="h-full" ref={reactFlowWrapper}>
+    <div className="h-full relative" ref={reactFlowWrapper}>
       <ReactFlow
         nodes={nodes as Node[]}
         edges={edges}
@@ -359,15 +368,35 @@ export function FlowEditor({
         onDrop={onDrop}
         onDragOver={onDragOver}
         nodeTypes={nodeTypes}
-        onNodeClick={handleNodeClick as any} // This cast is needed to fix type issues
+        onNodeClick={handleNodeClick as NodeMouseHandler}
         onPaneClick={handlePaneClick}
         fitView
+        fitViewOptions={{ padding: 0.2 }}
+        minZoom={0.1}
+        maxZoom={4}
+        defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+        className="bg-background"
       >
-        <Controls />
-        <MiniMap />
-        <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
+        <Controls 
+          className="bg-card border border-border rounded-lg shadow-lg"
+          position="bottom-right"
+          style={{ right: 120, bottom: 24 }}
+        />
+        <MiniMap 
+          className="bg-card border border-border rounded-lg shadow-lg !bottom-24 !right-4"
+          nodeColor="#aaa"
+          nodeStrokeWidth={3}
+          zoomable
+          pannable
+        />
+        <Background 
+          variant={BackgroundVariant.Dots} 
+          gap={16} 
+          size={1} 
+          color="#666"
+        />
         
-        <Panel position="top-left" className="glass rounded-md p-2 m-4">
+        <Panel position="top-left" className="glass rounded-md p-2 m-4 bg-card/80 backdrop-blur border border-border shadow-md">
           <Button 
             className="flex items-center gap-2"
             variant="outline"
@@ -378,7 +407,7 @@ export function FlowEditor({
           </Button>
         </Panel>
         
-        <Panel position="top-right" className="glass rounded-md p-2 m-4">
+        <Panel position="top-right" className="glass rounded-md p-2 m-4 bg-card/80 backdrop-blur border border-border shadow-md">
           <Button 
             className="flex items-center gap-2"
             variant="outline"
@@ -389,7 +418,7 @@ export function FlowEditor({
           </Button>
         </Panel>
         
-        <Panel position="bottom-right" className="glass rounded-md p-2 m-4">
+        <Panel position="bottom-right" className="glass rounded-md p-2 m-4 bg-card/80 backdrop-blur border border-border shadow-md" style={{ bottom: 100 }}>
           <Button 
             onClick={handleGenerateCode} 
             className="flex items-center gap-2"
@@ -400,7 +429,7 @@ export function FlowEditor({
           </Button>
         </Panel>
         
-        <Panel position="bottom-left" className="glass rounded-md p-2 m-4">
+        <Panel position="bottom-left" className="glass rounded-md p-2 m-4 bg-card/80 backdrop-blur border border-border shadow-md">
           <div className="flex items-center gap-2">
             <Zap className="w-4 h-4 text-primary" />
             <span className="text-xs">Use natural language builder for quick setup</span>
@@ -410,10 +439,9 @@ export function FlowEditor({
       
       <CodeGenerationModal 
         open={codeModalOpen} 
-        onOpenChange={setCodeModalOpen} 
+        onOpenChange={setCodeModalOpen}
         nodes={nodes} 
         edges={edges} 
-        customCode={codeOutput}
       />
     </div>
   );

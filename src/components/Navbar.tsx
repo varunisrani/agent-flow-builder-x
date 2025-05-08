@@ -1,7 +1,7 @@
 import { Save, Play, Info, HelpCircle, Folders, ArrowLeft } from 'lucide-react';
-import { Button } from './ui/button';
+import { Button } from './ui/button.js';
 import { useNavigate } from 'react-router-dom';
-import { UserMenu } from './UserMenu';
+import { UserMenu } from './UserMenu.js';
 
 interface NavbarProps {
   projectName?: string;

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Node, Edge } from '@xyflow/react';
+import { BaseNodeData } from '@/components/nodes/BaseNode.js';
 import { 
   PlusCircle, 
   Folder, 
@@ -12,24 +14,24 @@ import {
   Search
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/button.js';
 import {
   Card,
   CardContent,
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from "@/components/ui/card.js";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from '@/components/ui/input';
-import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/useAuth';
-import { UserMenu } from '@/components/UserMenu';
+} from "@/components/ui/dropdown-menu.js";
+import { Input } from '@/components/ui/input.js';
+import { useToast } from '@/hooks/use-toast.js';
+import { useAuth } from '@/hooks/useAuth.js';
+import { UserMenu } from '@/components/UserMenu.js';
 
 interface Project {
   id: string;
@@ -38,8 +40,8 @@ interface Project {
   createdAt: string;
   updatedAt: string;
   starred: boolean;
-  nodes?: any[];
-  edges?: any[];
+  nodes?: Node<BaseNodeData>[];
+  edges?: Edge[];
   userId?: string;
 }
 

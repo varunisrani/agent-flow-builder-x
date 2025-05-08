@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/button.js';
 import { 
   ArrowRight, 
   Sparkles, 
@@ -11,8 +11,8 @@ import {
   Zap,
   Check
 } from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
-import { UserMenu } from '@/components/UserMenu';
+import { useAuth } from '@/hooks/useAuth.js';
+import { UserMenu } from '@/components/UserMenu.js';
 
 const LandingPage = () => {
   const navigate = useNavigate();

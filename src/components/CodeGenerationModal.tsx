@@ -10,16 +10,16 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BaseNodeData } from './nodes/BaseNode';
+} from '@/components/ui/dialog.js';
+import { Button } from '@/components/ui/button.js';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.js';
+import { BaseNodeData } from './nodes/BaseNode.js';
 import { Copy, AlertCircle, Loader2 } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
-import { generateCode } from '@/lib/codeGenerator';
+import { toast } from '@/hooks/use-toast.js';
+import { generateCode } from '@/lib/codeGenerator.js';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { generateAgentCode as apiGenerateCode } from '@/services/agentService';
+import { generateAgentCode as apiGenerateCode } from '@/services/agentService.js';
 
 // Define proper type for newOpen parameter
 function useModalState(initialState = false): [boolean, (newOpen: boolean) => void] {
@@ -113,17 +113,23 @@ export function CodeGenerationModal({
               mcpEnabled: mcpEnabled
             });
             
-            if (response.success) {
+            if (response?.success) {
               setGeneratedCode(response.code);
               console.log('CodeGenerationModal: Code generated successfully via API');
             } else {
-              throw new Error(response.error || 'API returned unsuccessful status');
+              throw new Error(response?.error || 'API returned unsuccessful status');
             }
           } catch (apiError) {
             console.error('API error generating code:', apiError);
             console.log('CodeGenerationModal: Falling back to local code generation');
             // Fallback to local generation
-            setGeneratedCode(getLocallyGeneratedCode(nodes, edges, activeTab));
+            const localCode = getLocallyGeneratedCode(nodes, edges, activeTab);
+            setGeneratedCode(localCode);
+            toast({
+              title: "Using Local Generation",
+              description: "API server not available. Using local code generation instead.",
+              variant: "default"
+            });
           }
         } else {
           // For other frameworks, use the local generation
@@ -135,9 +141,14 @@ export function CodeGenerationModal({
       } catch (error) {
         console.error('Error generating code:', error);
         setError(error instanceof Error ? error.message : 'An error occurred generating code');
-        console.log('CodeGenerationModal: Falling back to local code generation');
-        // Fallback to the local code generation
-        setGeneratedCode(getLocallyGeneratedCode(nodes, edges, activeTab));
+        // Fallback to local generation
+        const localCode = getLocallyGeneratedCode(nodes, edges, activeTab);
+        setGeneratedCode(localCode);
+        toast({
+          title: "Using Local Generation",
+          description: "Error occurred. Using local code generation instead.",
+          variant: "default"
+        });
       } finally {
         setLoading(false);
       }
@@ -309,21 +320,26 @@ export function CodeGenerationModal({
                     mcpEnabled: mcpEnabled
                   })
                     .then(response => {
-                      if (response.success) {
+                      if (response?.success) {
                         setGeneratedCode(response.code);
                         toast({
                           title: "Code regenerated",
                           description: "The code has been regenerated with the latest AI model."
                         });
                       } else {
-                        throw new Error(response.error || 'API returned unsuccessful status');
+                        throw new Error(response?.error || 'API returned unsuccessful status');
                       }
                     })
                     .catch(err => {
                       console.error('Error regenerating code:', err);
-                      setError(err instanceof Error ? err.message : 'Failed to regenerate code');
                       // Fall back to local generation
-                      setGeneratedCode(getLocallyGeneratedCode(nodes, edges, activeTab));
+                      const localCode = getLocallyGeneratedCode(nodes, edges, activeTab);
+                      setGeneratedCode(localCode);
+                      toast({
+                        title: "Using Local Generation",
+                        description: "API server not available. Using local code generation instead.",
+                        variant: "default"
+                      });
                     })
                     .finally(() => setLoading(false));
                 } else {
@@ -341,7 +357,8 @@ export function CodeGenerationModal({
                       console.error('Error regenerating code:', err);
                       setError(err instanceof Error ? err.message : 'Failed to regenerate code');
                       // Fall back to local generation
-                      setGeneratedCode(getLocallyGeneratedCode(nodes, edges, activeTab));
+                      const localCode = getLocallyGeneratedCode(nodes, edges, activeTab);
+                      setGeneratedCode(localCode);
                     })
                     .finally(() => setLoading(false));
                 }
@@ -371,7 +388,7 @@ function generateAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
   const agentNodes = nodes.filter(node => node.data.type === 'agent');
   const modelNodes = nodes.filter(node => node.data.type === 'model');
   const toolNodes = nodes.filter(node => node.data.type === 'tool');
-  const functionNodes = nodes.filter(node => node.data.type === 'function');
+  const functionNodes = nodes.filter(node => node.data.type === 'input');
   const mcpClientNodes = nodes.filter(node => node.data.type === 'mcp-client');
   const mcpServerNodes = nodes.filter(node => node.data.type === 'mcp-server');
   const mcpToolNodes = nodes.filter(node => node.data.type === 'mcp-tool');
@@ -417,7 +434,7 @@ function generateAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
         .map(edge => {
           const targetId = edge.source === node.id ? edge.target : edge.source;
           const targetNode = nodes.find(n => n.id === targetId);
-          return targetNode?.data?.type === 'tool' || targetNode?.data?.type === 'function' 
+          return targetNode?.data?.type === 'tool' || targetNode?.data?.type === 'input' 
             ? targetNode.data.label.toLowerCase().replace(/\s+/g, '_') 
             : null;
         })
@@ -447,9 +464,7 @@ function generateAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
   if (mcpToolNodes.length > 0) {
     code += `\n# MCP Tools\n`;
     mcpToolNodes.forEach(node => {
-      const varName = node.data.label.toLowerCase().replace(/\s+/g, '_');
-      // Find the connected MCP client
-      let clientNode;
+      let clientNode: Node<BaseNodeData> | undefined;
       edges.forEach(edge => {
         if (edge.source === node.id || edge.target === node.id) {
           const connectedId = edge.source === node.id ? edge.target : edge.source;
@@ -462,7 +477,7 @@ function generateAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
         ? clientNode.data.label.toLowerCase().replace(/\s+/g, '_')
         : 'mcp_client';
       
-      code += `${varName} = ${clientVarName}.get_tool("${node.data.mcpToolId || node.data.label}")\n`;
+      code += `${node.data.label.toLowerCase().replace(/\s+/g, '_')} = ${clientVarName}.get_tool("${node.data.mcpToolId || node.data.label}")\n`;
     });
   }
   
@@ -481,7 +496,7 @@ function generateAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
     
     const connectedTools = connectedToolIds
       .map(id => nodes.find(node => node.id === id))
-      .filter(node => node && (node.data.type === 'tool' || node.data.type === 'function' || node.data.type === 'mcp-tool'));
+      .filter(node => node && (node.data.type === 'tool' || node.data.type === 'input' || node.data.type === 'mcp-tool'));
     
     const toolList = connectedTools.length > 0 
       ? `[${connectedTools.map(tool => tool?.data.label.toLowerCase().replace(/\s+/g, '_')).join(', ')}]` 
@@ -575,7 +590,7 @@ function generateCustomAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): st
   });
   
   // Generate code for a custom agent using tools
-  const functionNodes = nodes.filter(node => node.data.type === 'function' || node.data.type === 'tool');
+  const functionNodes = nodes.filter(node => node.data.type === 'input' || node.data.type === 'tool');
   const agentNodes = nodes.filter(node => node.data.type === 'agent');
   const modelNodes = nodes.filter(node => node.data.type === 'model');
   const mcpNodes = nodes.filter(node => 
@@ -669,7 +684,7 @@ from model_context_protocol.server import MCP_Server
           .map(edge => {
             const targetId = edge.source === node.id ? edge.target : edge.source;
             const targetNode = nodes.find(n => n.id === targetId);
-            return targetNode?.data?.type === 'tool' || targetNode?.data?.type === 'function' 
+            return targetNode?.data?.type === 'tool' || targetNode?.data?.type === 'input' 
               ? targetNode.data.label.toLowerCase().replace(/\s+/g, '_') 
               : null;
           })
@@ -906,7 +921,7 @@ from model_context_protocol.server import MCP_Server
         const tool = nodes.find(n => n.id === toolId);
         
         if (tool) {
-          if (tool.data.type === 'tool' || tool.data.type === 'function') {
+          if (tool.data.type === 'tool' || tool.data.type === 'input') {
             toolNames.push(tool.data.label.toLowerCase().replace(/\s+/g, '_'));
           } else if (tool.data.type === 'mcp-tool') {
             // For MCP tools, we need to find the connected client

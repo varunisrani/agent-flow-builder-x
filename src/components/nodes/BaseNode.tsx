@@ -1,8 +1,8 @@
 import React, { memo } from 'react';
 import { Handle, Position, NodeToolbar } from '@xyflow/react';
-import { Card } from '../ui/card';
+import { Card } from '../ui/card.js';
 import { Settings, Trash } from 'lucide-react';
-import { Button } from '../ui/button';
+import { Button } from '../ui/button.js';
 
 // Modify the interface to extend Record<string, unknown>
 export interface BaseNodeData extends Record<string, unknown> {

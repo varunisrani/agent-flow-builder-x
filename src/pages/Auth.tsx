@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { Button } from '@/components/ui/button.js';
+import { Input } from '@/components/ui/input.js';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.js';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card.js';
+import { useToast } from '@/hooks/use-toast.js';
+import { supabase } from '@/integrations/supabase/client.js';
 import { Eye, EyeOff, Mail, Lock, ArrowLeft, Github, Twitter } from 'lucide-react';
-import { Separator } from '@/components/ui/separator';
-import { useAuth } from '@/hooks/useAuth';
+import { Separator } from '@/components/ui/separator.js';
+import { useAuth } from '@/hooks/useAuth.js';
+import { AuthError } from '@supabase/supabase-js';
 
 export default function Auth() {
   const [email, setEmail] = useState('');
@@ -56,10 +57,11 @@ export default function Auth() {
       });
       
       navigate('/projects');
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const authError = error as AuthError;
       toast({
         title: "Login failed",
-        description: error.error_description || error.message || "Failed to log in. Please try again.",
+        description: authError.message || "Failed to log in. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -102,10 +104,11 @@ export default function Auth() {
         title: "Signup successful",
         description: "Please check your email for a confirmation link.",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const authError = error as AuthError;
       toast({
         title: "Signup failed",
-        description: error.error_description || error.message || "Failed to sign up. Please try again.",
+        description: authError.message || "Failed to sign up. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -120,10 +123,11 @@ export default function Auth() {
       });
       
       if (error) throw error;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const authError = error as AuthError;
       toast({
         title: "Login failed",
-        description: error.error_description || error.message || "Failed to log in with Google. Please try again.",
+        description: authError.message || "Failed to log in with Google. Please try again.",
         variant: "destructive",
       });
     }
@@ -136,10 +140,11 @@ export default function Auth() {
       });
       
       if (error) throw error;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const authError = error as AuthError;
       toast({
         title: "Login failed",
-        description: error.error_description || error.message || "Failed to log in with GitHub. Please try again.",
+        description: authError.message || "Failed to log in with GitHub. Please try again.",
         variant: "destructive",
       });
     }

@@ -1,19 +1,26 @@
 import { useState, useCallback, useEffect } from 'react';
 import { ReactFlowProvider, Node, Edge } from '@xyflow/react';
 import { Bot, MessageSquare, PanelLeft, ArrowLeft } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/use-toast.js';
 import { useNavigate } from 'react-router-dom';
 
-import { Navbar } from '@/components/Navbar';
-import { Sidebar } from '@/components/Sidebar';
-import { FlowEditor } from '@/components/FlowEditor';
-import { PropertiesPanel } from '@/components/PropertiesPanel';
-import { NaturalLanguageInput } from '@/components/NaturalLanguageInput';
-import { TestPanel } from '@/components/TestPanel';
-import { WelcomeModal } from '@/components/WelcomeModal';
-import { Button } from '@/components/ui/button';
-import { BaseNodeData } from '@/components/nodes/BaseNode';
-import { getCurrentProject, saveProjectNodesAndEdges } from '@/services/projectService';
+import { Navbar } from '@/components/Navbar.js';
+import { Sidebar } from '@/components/Sidebar.js';
+import { FlowEditor } from '@/components/FlowEditor.js';
+import { PropertiesPanel } from '@/components/PropertiesPanel.js';
+import { NaturalLanguageInput } from '@/components/NaturalLanguageInput.js';
+import { TestPanel } from '@/components/TestPanel.js';
+import { WelcomeModal } from '@/components/WelcomeModal.js';
+import { Button } from '@/components/ui/button.js';
+import { BaseNodeData } from '@/components/nodes/BaseNode.js';
+import { getCurrentProject, saveProjectNodesAndEdges, Project } from '@/services/projectService.js';
+
+const transformNodes = (nodes: Node<BaseNodeData>[]) => {
+  return nodes.map(node => ({
+    ...node,
+    data: { ...node.data, id: node.id }
+  }));
+};
 
 const Index = () => {
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
@@ -22,7 +29,7 @@ const Index = () => {
   const [selectedNode, setSelectedNode] = useState<Node<BaseNodeData> | null>(null);
   const [nodes, setNodes] = useState<Node<BaseNodeData>[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
-  const [currentProject, setCurrentProject] = useState<any>(null);
+  const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
   
@@ -51,7 +58,7 @@ const Index = () => {
   // Save nodes and edges to the current project whenever they change
   useEffect(() => {
     if (currentProject?.id && (nodes.length > 0 || edges.length > 0)) {
-      saveProjectNodesAndEdges(currentProject.id, nodes, edges);
+      saveProjectNodesAndEdges(currentProject.id, transformNodes(nodes), edges);
     }
   }, [nodes, edges, currentProject]);
   
@@ -62,7 +69,7 @@ const Index = () => {
     
     // Save to the current project
     if (currentProject?.id) {
-      saveProjectNodesAndEdges(currentProject.id, generatedNodes, generatedEdges);
+      saveProjectNodesAndEdges(currentProject.id, transformNodes(generatedNodes), generatedEdges);
     }
     
     // Close NL input after generation

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, ArrowRight } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/use-toast.js';
 
 interface WelcomeStep {
   title: string;

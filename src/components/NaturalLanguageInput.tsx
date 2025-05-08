@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { PanelTop, XCircle, Loader2, AlertCircle } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { generateFlow } from '@/lib/openai';
-import { toast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils.js';
+import { generateFlow } from '@/lib/openai.js';
+import { toast } from '@/hooks/use-toast.js';  
 import { Node, Edge } from '@xyflow/react';
-import { BaseNodeData } from './nodes/BaseNode';
+import { BaseNodeData } from './nodes/BaseNode.js';
 
 interface NaturalLanguageInputProps {
   expanded: boolean;
