@@ -2,11 +2,14 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "composite": false,
+    "composite": true,
+    "skipLibCheck": true,
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "noEmit": false,
+    "outDir": "dist-dev"
   },
-  "include": ["src"],
-  "references": []
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.js", "src/**/*.jsx"],
+  "exclude": ["node_modules"]
 }
