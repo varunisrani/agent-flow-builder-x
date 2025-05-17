@@ -12,6 +12,8 @@ export default defineConfig({
     },
   },
   server: {
+    host: "::",
+    port: 8080,
     proxy: {
       '/api': {
         target: 'http://localhost:3001',
@@ -26,5 +28,6 @@ export default defineConfig({
   },
   build: {
     target: 'es2020',
+    sourcemap: true,
   },
 });
