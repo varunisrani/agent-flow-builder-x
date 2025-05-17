@@ -73,6 +73,7 @@ export function CodeGenerationModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mcpEnabled, setMcpEnabled] = useState(true); // Default to enable MCP
+  const [editorView, setEditorView] = useState<'view' | 'run'>('view');
 
   // Check if there are MCP nodes in the diagram
   const hasMcpNodes = nodes.some(node => 
@@ -166,6 +167,11 @@ export function CodeGenerationModal({
     });
   };
 
+  // Handle code updates from the editor
+  const handleCodeChange = (newCode: string) => {
+    setGeneratedCode(newCode);
+  };
+
   // Fallback code generation function that uses local logic if the API fails
   const getLocallyGeneratedCode = (nodes: Node<BaseNodeData>[], edges: Edge[], framework: string) => {
     switch (framework) {
@@ -184,6 +190,10 @@ export function CodeGenerationModal({
     <Dialog open={open} onOpenChange={(newOpen) => {
       console.log('CodeGenerationModal: Dialog state changing to', newOpen);
       onOpenChange(newOpen);
+      if (newOpen === false) {
+        // Reset to view mode when closing
+        setEditorView('view');
+      }
     }}>
       <DialogContent className="sm:max-w-4xl">
         <DialogHeader>
@@ -194,14 +204,33 @@ export function CodeGenerationModal({
         </DialogHeader>
 
         <Tabs defaultValue="adk" value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
-            <TabsTrigger value="adk">Google ADK</TabsTrigger>
-            <TabsTrigger value="vertex">Vertex AI</TabsTrigger>
-            <TabsTrigger value="custom">Custom Agent</TabsTrigger>
-          </TabsList>
+          <div className="flex justify-between items-center">
+            <TabsList>
+              <TabsTrigger value="adk">Google ADK</TabsTrigger>
+              <TabsTrigger value="vertex">Vertex AI</TabsTrigger>
+              <TabsTrigger value="custom">Custom Agent</TabsTrigger>
+            </TabsList>
+            
+            <div className="flex gap-2">
+              <Button 
+                variant={editorView === 'view' ? 'default' : 'outline'} 
+                size="sm" 
+                onClick={() => setEditorView('view')}
+              >
+                View Code
+              </Button>
+              <Button 
+                variant={editorView === 'run' ? 'default' : 'outline'} 
+                size="sm" 
+                onClick={() => setEditorView('run')}
+              >
+                Run Demo
+              </Button>
+            </div>
+          </div>
           
           <TabsContent value={activeTab} className="mt-4">
-            {activeTab === 'adk' && (
+            {activeTab === 'adk' && editorView === 'view' && (
               <div className="flex justify-between items-center mb-2">
                 <div className="flex items-center gap-2">
                   <label className="relative inline-flex items-center cursor-pointer">
@@ -261,33 +290,40 @@ export function CodeGenerationModal({
               </div>
             )}
             
-            <div className="relative">
-              {error && (
-                <div className="mb-2 p-2 bg-red-100 border border-red-200 rounded-md text-red-800 text-sm flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4" />
-                  <span>{error}</span>
-                </div>
-              )}
-              {loading ? (
-                <div className="flex items-center justify-center h-40 gap-2 bg-gray-900 rounded-md text-gray-200">
-                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                  <span>Generating code...</span>
-                </div>
-              ) : (
-                <div className="relative">
-                  <CodeHighlighter code={generatedCode} />
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="absolute top-2 right-2 bg-gray-800/70 hover:bg-gray-800/90"
-                    onClick={handleCopyCode}
-                    disabled={loading}
-                  >
-                    <Copy className="h-4 w-4 text-gray-200" />
-                  </Button>
-                </div>
-              )}
-            </div>
+            {editorView === 'view' ? (
+              <div className="relative">
+                {error && (
+                  <div className="mb-2 p-2 bg-red-100 border border-red-200 rounded-md text-red-800 text-sm flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4" />
+                    <span>{error}</span>
+                  </div>
+                )}
+                {loading ? (
+                  <div className="flex items-center justify-center h-40 gap-2 bg-gray-900 rounded-md text-gray-200">
+                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                    <span>Generating code...</span>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <CodeHighlighter code={generatedCode} />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="absolute top-2 right-2 bg-gray-800/70 hover:bg-gray-800/90"
+                      onClick={handleCopyCode}
+                      disabled={loading}
+                    >
+                      <Copy className="h-4 w-4 text-gray-200" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <CodeExecutionPanel 
+                code={generatedCode}
+                onCodeChange={handleCodeChange}
+              />
+            )}
             
             <div className="mt-2 text-xs text-muted-foreground">
               <strong>Note:</strong> The generated code uses {activeTab === 'adk' 
@@ -306,7 +342,7 @@ export function CodeGenerationModal({
           </div>
           <div className="flex gap-2">
             <Button 
-              disabled={loading} 
+              disabled={loading || editorView === 'run'} 
               onClick={() => {
                 console.log('CodeGenerationModal: Regenerating code');
                 setLoading(true);

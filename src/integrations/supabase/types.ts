@@ -9,6 +9,83 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      accommodation_images: {
+        Row: {
+          accommodation_id: string | null
+          alt_text: string
+          created_at: string | null
+          id: string
+          image_url: string
+          sort_order: number
+        }
+        Insert: {
+          accommodation_id?: string | null
+          alt_text: string
+          created_at?: string | null
+          id?: string
+          image_url: string
+          sort_order?: number
+        }
+        Update: {
+          accommodation_id?: string | null
+          alt_text?: string
+          created_at?: string | null
+          id?: string
+          image_url?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accommodation_images_accommodation_id_fkey"
+            columns: ["accommodation_id"]
+            isOneToOne: false
+            referencedRelation: "accommodations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      accommodations: {
+        Row: {
+          address: string
+          code: string
+          contact: string
+          created_at: string | null
+          description: string
+          email: string
+          features: string[]
+          id: string
+          main_image: string
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          address: string
+          code: string
+          contact: string
+          created_at?: string | null
+          description: string
+          email: string
+          features?: string[]
+          id?: string
+          main_image: string
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          address?: string
+          code?: string
+          contact?: string
+          created_at?: string | null
+          description?: string
+          email?: string
+          features?: string[]
+          id?: string
+          main_image?: string
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       agent_embeddings: {
         Row: {
           agents_code: string | null
@@ -141,6 +218,53 @@ export type Database = {
         }
         Relationships: []
       }
+      bills: {
+        Row: {
+          amount: number
+          bill_date: string
+          created_at: string
+          details: string | null
+          due_date: string
+          id: string
+          invoice_id: string
+          resident_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          bill_date?: string
+          created_at?: string
+          details?: string | null
+          due_date: string
+          id?: string
+          invoice_id: string
+          resident_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          bill_date?: string
+          created_at?: string
+          details?: string | null
+          due_date?: string
+          id?: string
+          invoice_id?: string
+          resident_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bills_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crew_site_pages: {
         Row: {
           chunk_number: number
@@ -224,6 +348,56 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      electricity_readings: {
+        Row: {
+          amount: number
+          created_at: string
+          current_reading: number
+          id: string
+          previous_reading: number
+          rate: number
+          reading_date: string
+          room_id: string
+          status: string
+          units: number
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          current_reading: number
+          id?: string
+          previous_reading: number
+          rate: number
+          reading_date?: string
+          room_id: string
+          status?: string
+          units: number
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          current_reading?: number
+          id?: string
+          previous_reading?: number
+          rate?: number
+          reading_date?: string
+          room_id?: string
+          status?: string
+          units?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "electricity_readings_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       enquiries: {
         Row: {
@@ -479,6 +653,33 @@ export type Database = {
           },
         ]
       }
+      login: {
+        Row: {
+          created_at: string
+          id: string
+          password: string
+          role: string
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          password: string
+          role: string
+          updated_at?: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          password?: string
+          role?: string
+          updated_at?: string
+          username?: string
+        }
+        Relationships: []
+      }
       mcp_templates: {
         Row: {
           agents_code: string
@@ -614,6 +815,142 @@ export type Database = {
         }
         Relationships: []
       }
+      residents: {
+        Row: {
+          created_at: string
+          date_of_birth: string | null
+          email: string | null
+          gender: string | null
+          id: string
+          join_date: string
+          monthly_rent: number | null
+          name: string
+          pg_location: string | null
+          phone: string
+          room_id: string | null
+          security_deposit: number | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date_of_birth?: string | null
+          email?: string | null
+          gender?: string | null
+          id?: string
+          join_date?: string
+          monthly_rent?: number | null
+          name: string
+          pg_location?: string | null
+          phone: string
+          room_id?: string | null
+          security_deposit?: number | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date_of_birth?: string | null
+          email?: string | null
+          gender?: string | null
+          id?: string
+          join_date?: string
+          monthly_rent?: number | null
+          name?: string
+          pg_location?: string | null
+          phone?: string
+          room_id?: string | null
+          security_deposit?: number | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "residents_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      room_types: {
+        Row: {
+          accommodation_id: string | null
+          availability: string
+          created_at: string | null
+          id: string
+          price: number
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          accommodation_id?: string | null
+          availability: string
+          created_at?: string | null
+          id?: string
+          price: number
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          accommodation_id?: string | null
+          availability?: string
+          created_at?: string | null
+          id?: string
+          price?: number
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_types_accommodation_id_fkey"
+            columns: ["accommodation_id"]
+            isOneToOne: false
+            referencedRelation: "accommodations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rooms: {
+        Row: {
+          capacity: number
+          created_at: string
+          floor: string
+          id: string
+          occupancy: number
+          rent: number
+          room_no: string
+          status: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          capacity: number
+          created_at?: string
+          floor: string
+          id?: string
+          occupancy?: number
+          rent: number
+          room_no: string
+          status?: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          capacity?: number
+          created_at?: string
+          floor?: string
+          id?: string
+          occupancy?: number
+          rent?: number
+          room_no?: string
+          status?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       site_pages: {
         Row: {
           chunk_number: number
@@ -668,6 +1005,27 @@ export type Database = {
           id?: number
           password?: string | null
           username?: string | null
+        }
+        Relationships: []
+      }
+      waitlist: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
         }
         Relationships: []
       }
