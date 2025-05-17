@@ -22,14 +22,40 @@ export function CodeExecutionPanel({ code, onCodeChange, readOnly = false }: Cod
   const [isRunning, setIsRunning] = useState(false);
   const [isSetupComplete, setIsSetupComplete] = useState(false);
   
+  // Automatically fix common Python indentation issues
+  const fixPythonIndentation = (code: string) => {
+    // Remove trailing spaces at the beginning of lines
+    let lines = code.split('\n');
+    lines = lines.map(line => {
+      // Replace tabs with spaces for consistent indentation
+      let processedLine = line.replace(/\t/g, '    ');
+      // Handle any other indentation issues if needed
+      return processedLine;
+    });
+    
+    // Make sure there are no empty lines at the start
+    while (lines.length > 0 && lines[0].trim() === '') {
+      lines.shift();
+    }
+    
+    return lines.join('\n');
+  };
+  
   const handleRunCode = async () => {
     try {
       setIsRunning(true);
       setLogs(prev => [...prev, '> Setting up virtual environment...']);
       
+      // First, fix any potential indentation issues
+      const fixedCode = fixPythonIndentation(code);
+      
+      if (fixedCode !== code && onCodeChange) {
+        onCodeChange(fixedCode);
+      }
+      
       // First, set up the virtual environment if not already done
       if (!isSetupComplete) {
-        await setupVirtualEnvironment();
+        await setupVirtualEnvironment(fixedCode);
       }
       
       setLogs(prev => [...prev, '> Running code...']);
@@ -75,7 +101,7 @@ export function CodeExecutionPanel({ code, onCodeChange, readOnly = false }: Cod
     }
   };
   
-  const setupVirtualEnvironment = async () => {
+  const setupVirtualEnvironment = async (codeToUse: string) => {
     try {
       setLogs(prev => [...prev, '> Creating virtual environment...']);
       
@@ -87,7 +113,7 @@ export function CodeExecutionPanel({ code, onCodeChange, readOnly = false }: Cod
         },
         body: JSON.stringify({
           agentName: 'current-agent',
-          code: code
+          code: codeToUse
         }),
       });
       
@@ -169,6 +195,7 @@ export function CodeExecutionPanel({ code, onCodeChange, readOnly = false }: Cod
         onChange={value => onCodeChange?.(value || '')} 
         readOnly={readOnly}
         height="40vh"
+        language="python"
       />
       
       <div>

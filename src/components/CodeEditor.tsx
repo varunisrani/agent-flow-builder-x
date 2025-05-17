@@ -25,6 +25,16 @@ export function CodeEditor({
   const handleEditorDidMount = (editor: any) => {
     editorRef.current = editor;
     setIsLoading(false);
+    
+    // Configure editor for better Python indentation handling
+    if (language === 'python') {
+      editor.updateOptions({
+        tabSize: 4,
+        insertSpaces: true,
+        detectIndentation: true,
+        autoIndent: 'full',
+      });
+    }
   };
 
   useEffect(() => {
@@ -50,12 +60,15 @@ export function CodeEditor({
           minimap: { enabled: false },
           scrollBeyondLastLine: false,
           fontSize: 14,
-          tabSize: 2,
+          tabSize: language === 'python' ? 4 : 2,
           readOnly,
           wordWrap: 'on',
           lineNumbers: 'on',
           renderLineHighlight: 'all',
-          automaticLayout: true
+          automaticLayout: true,
+          autoIndent: 'full',
+          detectIndentation: true,
+          insertSpaces: true
         }}
         onMount={handleEditorDidMount}
         onChange={onChange}
