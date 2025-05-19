@@ -294,16 +294,18 @@ app.post('/api/execute', async (req, res) => {
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   
   try {
-    const { code } = req.body;
+    const { files } = req.body;
     
-    if (!code) {
-      console.log('❌ Error: No code provided');
-      return res.status(400).json({ error: 'No code provided' });
+    if (!files || !files['agent.py']) {
+      console.log('❌ Error: No agent.py file provided');
+      return res.status(400).json({ error: 'No agent.py file provided' });
     }
 
-    console.log('📝 Code to execute:');
+    console.log('📝 Files to create:');
     console.log('━━━━━━━━━━━━━━━━━');
-    console.log(code);
+    Object.entries(files).forEach(([filename, content]) => {
+      console.log(`• ${filename} (${content.length} characters)`);
+    });
     console.log('━━━━━━━━━━━━━━━━━\n');
 
     // Create sandbox instance
@@ -319,9 +321,28 @@ app.post('/api/execute', async (req, res) => {
     });
     console.log('✅ Sandbox created successfully\n');
 
+    // Create a temporary directory for the agent
+    console.log('📁 Creating agent directory...');
+    await sbx.commands.run('mkdir -p agent');
+    console.log('✅ Agent directory created\n');
+
+    // Write files to the sandbox
+    console.log('📝 Writing files to sandbox...');
+    for (const [filename, content] of Object.entries(files)) {
+      await sbx.files.write(`agent/${filename}`, content);
+      console.log(`✅ Created ${filename}`);
+    }
+    console.log('✅ All files written successfully\n');
+
+    // Set up Python environment
+    console.log('🐍 Setting up Python environment...');
+    await sbx.commands.run('python3 -m venv agent/venv');
+    await sbx.commands.run('source agent/venv/bin/activate && pip install google-adk');
+    console.log('✅ Python environment ready\n');
+
     // Execute the code
     console.log('⚡ Executing code in sandbox...');
-    const execution = await sbx.runCode(code);
+    const execution = await sbx.commands.run('cd agent && source venv/bin/activate && python3 -c "from agent import root_agent; response = root_agent.generate(\'Hello, how can you help me?\'); print(response)"');
     console.log('✅ Code execution completed\n');
     
     // Format the response
@@ -331,31 +352,31 @@ app.post('/api/execute', async (req, res) => {
       executionTime: 0,
       memoryUsage: process.memoryUsage().heapUsed / 1024 / 1024, // in MB
       executionDetails: {
-        stdout: execution.logs.stdout || [],
-        stderr: execution.logs.stderr || [],
+        stdout: execution.stdout.split('\n'),
+        stderr: execution.stderr.split('\n'),
         exitCode: execution.exitCode,
-        status: execution.status,
-        duration: execution.duration
+        status: execution.exitCode === 0 ? 'success' : 'error',
+        duration: Date.now() - startTime
       }
     };
 
     console.log('📊 Execution Results:');
     console.log('━━━━━━━━━━━━━━━━━━');
     
-    if (execution.logs.stdout && execution.logs.stdout.length > 0) {
-      response.output = execution.logs.stdout.join('\n');
+    if (execution.stdout) {
+      response.output = execution.stdout;
       console.log('📤 Standard Output:');
       console.log(response.output);
     } else {
       console.log('📤 No standard output generated');
       console.log('Debug info:');
       console.log('• Exit Code:', execution.exitCode);
-      console.log('• Status:', execution.status);
-      console.log('• Duration:', execution.duration, 'ms');
+      console.log('• Status:', response.executionDetails.status);
+      console.log('• Duration:', response.executionDetails.duration, 'ms');
     }
     
-    if (execution.logs.stderr && execution.logs.stderr.length > 0) {
-      response.error = execution.logs.stderr.join('\n');
+    if (execution.stderr) {
+      response.error = execution.stderr;
       console.log('\n❌ Standard Error:');
       console.log(response.error);
     }
@@ -366,11 +387,11 @@ app.post('/api/execute', async (req, res) => {
     console.log(`• Execution Time: ${response.executionTime}ms`);
     console.log(`• Memory Usage: ${response.memoryUsage.toFixed(2)}MB`);
     console.log(`• Exit Code: ${execution.exitCode}`);
-    console.log(`• Status: ${execution.status}`);
+    console.log(`• Status: ${response.executionDetails.status}`);
 
     // Cleanup sandbox
     console.log('\n🧹 Cleaning up sandbox...');
-    await sbx.kill();
+    await sbx.close();
     console.log('✅ Sandbox cleaned up successfully');
 
     console.log('\n✨ Request completed successfully');

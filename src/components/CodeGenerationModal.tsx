@@ -323,155 +323,90 @@ export function CodeGenerationModal({
         throw new Error('No code provided to execute');
       }
 
-      console.log('📝 Code length:', code.length, 'characters');
+      // Split the code into agent.py and __init__.py
+      const agentCode = code;
+      const initCode = 'from .agent import root_agent\n__all__ = ["root_agent"]';
+
+      console.log('📝 Preparing files for sandbox execution...');
       console.log('🔗 Sending request to:', 'http://localhost:3001/api/execute');
 
-      // Call our API endpoint
+      // Call our API endpoint with both files
       const response = await fetch('http://localhost:3001/api/execute', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
         },
-        body: JSON.stringify({ code })
+        body: JSON.stringify({
+          files: {
+            'agent.py': agentCode,
+            '__init__.py': initCode
+          }
+        }),
       });
 
-      console.log('📡 Response status:', response.status);
-      
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const result = await response.json();
-      console.log('📊 Execution results:', result);
       
-      // Format and display execution results
-      let output = '📝 Code Execution Results\n';
-      output += '═══════════════════════\n\n';
-      
-      if (result.output) {
-        output += '📤 Output:\n';
-        output += '──────────\n';
-        output += result.output.split('\n')
-          .map((line: string) => line.trim())
-          .join('\n');
-        output += '\n\n';
-      }
-      
-      if (result.error) {
-        output += '❌ Errors:\n';
-        output += '──────────\n';
-        output += result.error.split('\n')
-          .map((line: string) => line.trim())
-          .join('\n');
-        output += '\n\n';
-      }
+      // Format and display the output
+      const executionTime = performance.now() - startTime;
+      const formattedOutput = [
+        `✨ Execution completed in ${executionTime.toFixed(2)}ms`,
+        '📤 Output:',
+        result.output || 'No output generated',
+        result.error ? `\n❌ Error:\n${result.error}` : '',
+        '\n📊 Execution Details:',
+        `• Status: ${result.executionDetails?.status || 'unknown'}`,
+        `• Exit Code: ${result.executionDetails?.exitCode}`,
+        `• Memory Usage: ${result.memoryUsage?.toFixed(2)}MB`,
+      ].join('\n');
 
-      // Add execution details
-      if (result.executionDetails) {
-        output += '🔍 Execution Details:\n';
-        output += '──────────────────\n';
-        output += `• Status: ${result.executionDetails.status}\n`;
-        output += `• Exit Code: ${result.executionDetails.exitCode}\n`;
-        output += `• Duration: ${result.executionDetails.duration}ms\n`;
-        
-        if (result.executionDetails.stdout.length === 0 && 
-            result.executionDetails.stderr.length === 0) {
-          output += '• Note: No output or errors were generated\n';
-          output += '  This might indicate:\n';
-          output += '  - The code ran successfully but didn\'t print anything\n';
-          output += '  - The code had no executable statements\n';
-          output += '  - There might be a syntax error preventing execution\n';
-        }
-        output += '\n';
-      }
-
-      // Add execution metadata
-      output += '📈 Execution Metadata:\n';
-      output += '───────────────────\n';
-      if (result.executionTime) {
-        output += `• Server Execution Time: ${result.executionTime}ms\n`;
-      }
-      if (result.memoryUsage) {
-        output += `• Memory Usage: ${result.memoryUsage.toFixed(2)}MB\n`;
-      }
-      const clientExecutionTime = Math.round(performance.now() - startTime);
-      output += `• Total Time: ${clientExecutionTime}ms\n`;
-      
-      output += '\n═══════════════════════\n';
-      setSandboxOutput(output);
-
-      // Show appropriate toast
-      if (result.error) {
-        console.warn('⚠️ Code executed with errors');
-        toast({
-          title: "Code executed with errors",
-          description: "Check the execution results for details.",
-          variant: "warning",
-        });
-      } else {
-        console.log('✅ Code executed successfully');
-        toast({
-          title: "Code executed successfully",
-          description: "Check the execution results below.",
-        });
-      }
-      
-    } catch (err) {
-      console.error('❌ Sandbox execution error:', err);
-      
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
-      const output = [
-        '❌ Execution Failed',
-        '═══════════════════',
-        '',
-        'Error Details:',
-        '─────────────',
-        errorMessage
-      ];
-
-      // If we have detailed error information from the server
-      interface ErrorDetails {
-        name: string;
-        code: string;
-        stack?: string;
-      }
-
-      if (err instanceof Error && 'errorDetails' in err) {
-        const errorDetails = (err as { errorDetails: ErrorDetails }).errorDetails;
-        output.push('');
-        output.push('🔍 Error Information:');
-        output.push('─────────────────');
-        output.push(`• Type: ${errorDetails.name}`);
-        output.push(`• Code: ${errorDetails.code}`);
-        if (errorDetails.stack) {
-          output.push('');
-          output.push('Stack Trace:');
-          output.push('───────────');
-          output.push(errorDetails.stack);
-        }
-      }
-
-      output.push('');
-      output.push('📈 Execution Metadata:');
-      output.push('───────────────────');
-      output.push(`• Total Time: ${Math.round(performance.now() - startTime)}ms`);
-      output.push('');
-      output.push('═══════════════════');
-      
-      setSandboxOutput(output.join('\n'));
-      
-      toast({
-        title: "Execution failed",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      setSandboxOutput(formattedOutput);
+    } catch (error) {
+      console.error('Error executing code:', error);
+      setSandboxOutput(`❌ Error executing code: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsExecuting(false);
       console.groupEnd();
-      console.log('✨ Code execution request completed\n');
     }
   };
+
+  const generateCode = useCallback(() => {
+    // Create a simplified representation of the flow
+    const nodeDescriptions = nodes.map(node => ({
+      id: node.id,
+      type: node.data.type,
+      label: node.data.label,
+      description: node.data.description || '',
+      instruction: node.data.instruction || '',
+      modelType: node.data.modelType || ''
+    }));
+
+    // Generate the Google ADK code
+    const hasTools = nodes.some(node => node.data.type === 'tool');
+    const agentInstruction = nodes.find(n => n.data.type === 'agent')?.data.instruction || 'Respond helpfully and concisely to the user\'s question. Use Google Search if needed.';
+    
+    const code = `from google.adk.agents import LlmAgent
+from google.adk.tools import google_search
+
+# Define a simple agent that answers user questions using an LLM and optional tools
+root_agent = LlmAgent(
+    model="gemini-2.0-flash-exp",  # Use your preferred model
+    name="question_answer_agent",
+    description="A helpful assistant agent that can answer general questions.",
+    instruction="${agentInstruction}",
+    tools=[google_search] if ${hasTools} else None
+)`;
+
+    return code;
+  }, [nodes]);
+
+  useEffect(() => {
+    const code = generateCode();
+    executeInSandbox(code);
+  }, [generateCode]);
 
   return (
     <Dialog open={open} onOpenChange={(newOpen) => {
@@ -1270,74 +1205,35 @@ from model_context_protocol.server import MCP_Server
 // Add the missing generateCodeWithOpenAI function
 async function generateCodeWithOpenAI(nodes: Node<BaseNodeData>[], edges: Edge[], mcpEnabled: boolean): Promise<string> {
   try {
-    // Create a simplified representation of the flow for the prompt
-    const nodeDescriptions = nodes.map(node => {
-      const { id, data } = node;
-      return {
-        id,
-        type: data.type,
-        label: data.label,
-        description: data.description || '',
-        instruction: data.instruction || '',
-        modelType: data.modelType || '',
-        mcpUrl: data.mcpUrl || '',
-        mcpToolId: data.mcpToolId || ''
-      };
-    });
+    // Create a simplified representation of the flow
+    const nodeDescriptions = nodes.map(node => ({
+      id: node.id,
+      type: node.data.type,
+      label: node.data.label,
+      description: node.data.description || '',
+      instruction: node.data.instruction || '',
+      modelType: node.data.modelType || ''
+    }));
 
-    // Simplify edges to make them easier to explain
-    const connectionDescriptions = edges.map(edge => {
-      const sourceNode = nodes.find(n => n.id === edge.source);
-      const targetNode = nodes.find(n => n.id === edge.target);
-      
-      return {
-        from: sourceNode?.data?.label || edge.source,
-        to: targetNode?.data?.label || edge.target,
-        fromType: sourceNode?.data?.type || 'unknown',
-        toType: targetNode?.data?.type || 'unknown',
-      };
-    });
+    // Generate the Google ADK code
+    const hasTools = nodes.some(node => node.data.type === 'tool');
+    const agentInstruction = nodes.find(n => n.data.type === 'agent')?.data.instruction || 'Respond helpfully and concisely to the user\'s question. Use Google Search if needed.';
+    const toolsConfig = hasTools ? '[google_search]' : 'None';
+    
+    const code = [
+      'from google.adk.agents import LlmAgent',
+      'from google.adk.tools import google_search',
+      '',
+      '# Define a simple agent that answers user questions using an LLM and optional tools',
+      'root_agent = LlmAgent(',
+      '    model="gemini-2.0-flash-exp",  # Use your preferred model',
+      '    name="question_answer_agent",',
+      '    description="A helpful assistant agent that can answer general questions.",',
+      `    instruction="${agentInstruction}",`,
+      `    tools=${toolsConfig}`,
+      ')'
+    ].join('\n');
 
-    // Create a prompt for the OpenAI model
-    const prompt = `Generate Python code for the following agent flow. Return ONLY the raw Python code without any markdown formatting, explanations, or comments outside the code:
-
-Flow Structure:
-${JSON.stringify({ nodes: nodeDescriptions, edges: connectionDescriptions }, null, 2)}
-
-Requirements:
-- Include necessary imports
-- Use proper Python syntax
-- ${mcpEnabled ? 'Include MCP (Model Context Protocol) support' : 'Do not include MCP support'}
-- For agent nodes, use the instruction field as the system instruction
-- For model nodes, use the modelType field if specified
-- For MCP client nodes, use the mcpUrl field if specified
-- For MCP tool nodes, use the mcpToolId field if specified
-- Export the primary agent as 'root_agent'
-- Include a main() function with example usage
-- DO NOT include any markdown formatting (no \`\`\`python or \`\`\` tags)
-- DO NOT include any text or explanations outside the code
-
-Return ONLY the raw Python code without any additional text, markdown, or formatting.`;
-
-    // Call OpenAI for code generation
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4-turbo-preview",
-      messages: [
-        { 
-          role: "system", 
-          content: "You are a Python code generator. Output ONLY raw Python code without any markdown formatting, additional text, explanations, or comments outside the code. Include docstrings and comments within the code as needed, but no text or formatting outside the code." 
-        },
-        { 
-          role: "user", 
-          content: prompt 
-        }
-      ],
-      temperature: 0.2,
-      max_tokens: 2000
-    });
-
-    // Extract and clean the code from response
-    const code = completion.choices[0].message.content || '';
     return code;
   } catch (error) {
     console.error('Error generating code with OpenAI:', error);
