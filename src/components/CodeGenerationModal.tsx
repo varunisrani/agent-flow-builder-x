@@ -14,12 +14,18 @@ import {
 import { Button } from '@/components/ui/button.js';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.js';
 import { BaseNodeData } from './nodes/BaseNode.js';
-import { Copy, AlertCircle, Loader2 } from 'lucide-react';
+import { Copy, AlertCircle, Loader2, Play } from 'lucide-react';
 import { toast } from '@/hooks/use-toast.js';
 import { generateCode } from '@/lib/codeGenerator.js';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { generateAgentCode as apiGenerateCode } from '@/services/agentService.js';
+import OpenAI from 'openai';
+
+// Initialize OpenAI client
+const openai = new OpenAI({
+  apiKey: import.meta.env.VITE_OPENAI_API_KEY,
+  dangerouslyAllowBrowser: true // Enable client-side usage
+});
 
 // Define proper type for newOpen parameter
 function useModalState(initialState = false): [boolean, (newOpen: boolean) => void] {
@@ -55,11 +61,82 @@ const CodeHighlighter: React.FC<{ code: string }> = ({ code }) => {
   );
 };
 
+// Add new component for sandbox output display
+const SandboxOutput: React.FC<{ output: string }> = ({ output }) => {
+  if (!output) return null;
+  
+  return (
+    <div className="mt-4 font-mono text-sm">
+      <div className="bg-gray-900 rounded-md p-4 overflow-auto max-h-[200px]">
+        <pre className="text-gray-200 whitespace-pre-wrap">{output}</pre>
+      </div>
+    </div>
+  );
+};
+
 interface CodeGenerationModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   nodes: Node<BaseNodeData>[];
   edges: Edge[];
+}
+
+// Add a helper function to get a unique key for the flow
+function getFlowKey(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
+  // Create a hash of the flow structure
+  const flowData = {
+    nodes: nodes.map(n => ({ id: n.id, type: n.data.type, label: n.data.label })),
+    edges: edges.map(e => ({ source: e.source, target: e.target }))
+  };
+  return btoa(JSON.stringify(flowData));
+}
+
+// Add a helper function to get/set code from localStorage
+function getStoredCode(flowKey: string, framework: string): string | null {
+  const key = `flow_code_${flowKey}_${framework}`;
+  return localStorage.getItem(key);
+}
+
+function storeCode(flowKey: string, framework: string, code: string): void {
+  const key = `flow_code_${flowKey}_${framework}`;
+  localStorage.setItem(key, code);
+}
+
+// Add a helper function to clean generated code
+function cleanGeneratedCode(code: string): string {
+  // Remove any "Note:" or comment blocks at the end
+  const noteIndex = code.indexOf('\nNote:');
+  if (noteIndex !== -1) {
+    code = code.substring(0, noteIndex);
+  }
+  
+  // Remove any trailing comments that might be added by the model
+  const lines = code.split('\n');
+  while (lines.length > 0 && (
+    lines[lines.length - 1].trim().startsWith('#') || 
+    lines[lines.length - 1].trim() === ''
+  )) {
+    lines.pop();
+  }
+  
+  // Remove any markdown code block indicators
+  code = lines.join('\n').trim();
+  code = code.replace(/```python\n/g, '');
+  code = code.replace(/```\n?/g, '');
+  
+  return code;
+}
+
+// Add a helper function to format the code for display
+function formatCodeForDisplay(code: string): string {
+  // Remove any markdown code block indicators if they exist
+  code = code.replace(/```python\n/g, '');
+  code = code.replace(/```\n?/g, '');
+  
+  // Remove any leading/trailing whitespace
+  code = code.trim();
+  
+  return code;
 }
 
 export function CodeGenerationModal({
@@ -72,8 +149,10 @@ export function CodeGenerationModal({
   const [generatedCode, setGeneratedCode] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mcpEnabled, setMcpEnabled] = useState(true); // Default to enable MCP
-  const [editorView, setEditorView] = useState<'view' | 'run'>('view');
+  const [mcpEnabled, setMcpEnabled] = useState(true);
+  const [isFirstGeneration, setIsFirstGeneration] = useState(true);
+  const [sandboxOutput, setSandboxOutput] = useState<string>('');
+  const [isExecuting, setIsExecuting] = useState(false);
 
   // Check if there are MCP nodes in the diagram
   const hasMcpNodes = nodes.some(node => 
@@ -82,6 +161,9 @@ export function CodeGenerationModal({
     node.data.type === 'mcp-tool'
   );
 
+  // Get unique key for current flow
+  const flowKey = getFlowKey(nodes, edges);
+
   // When the modal opens or when nodes/edges change, auto-set MCP toggle based on nodes
   useEffect(() => {
     if (hasMcpNodes) {
@@ -89,74 +171,73 @@ export function CodeGenerationModal({
     }
   }, [hasMcpNodes, open]);
 
-  // Generate code when the modal opens or when nodes/edges change
+  // Check localStorage when modal opens or framework changes
   useEffect(() => {
-    async function fetchCode() {
-      if (!open) return;
-      
-      console.log('CodeGenerationModal: Generating code with:', { 
-        framework: activeTab, 
-        nodeCount: nodes.length, 
-        edgeCount: edges.length,
-        mcpEnabled
-      });
-      
-      setLoading(true);
-      setError(null);
-      
-      try {
-        // Use the OpenAI API to generate code for ADK
-        if (activeTab === 'adk') {
-          try {
-            const response = await apiGenerateCode({
-              nodes: nodes, 
-              edges: edges,
-              mcpEnabled: mcpEnabled
-            });
-            
-            if (response?.success) {
-              setGeneratedCode(response.code);
-              console.log('CodeGenerationModal: Code generated successfully via API');
-            } else {
-              throw new Error(response?.error || 'API returned unsuccessful status');
-            }
-          } catch (apiError) {
-            console.error('API error generating code:', apiError);
-            console.log('CodeGenerationModal: Falling back to local code generation');
-            // Fallback to local generation
-            const localCode = getLocallyGeneratedCode(nodes, edges, activeTab);
-            setGeneratedCode(localCode);
-            toast({
-              title: "Using Local Generation",
-              description: "API server not available. Using local code generation instead.",
-              variant: "default"
-            });
-          }
-        } else {
-          // For other frameworks, use the local generation
-          const framework = activeTab as 'adk' | 'vertex' | 'custom';
-          const code = await generateCode(nodes, edges, framework);
-          console.log('CodeGenerationModal: Code generated successfully');
-          setGeneratedCode(code);
-        }
-      } catch (error) {
-        console.error('Error generating code:', error);
-        setError(error instanceof Error ? error.message : 'An error occurred generating code');
-        // Fallback to local generation
-        const localCode = getLocallyGeneratedCode(nodes, edges, activeTab);
-        setGeneratedCode(localCode);
-        toast({
-          title: "Using Local Generation",
-          description: "Error occurred. Using local code generation instead.",
-          variant: "default"
-        });
-      } finally {
-        setLoading(false);
-      }
+    if (!open) return;
+
+    const storedCode = getStoredCode(flowKey, activeTab);
+    if (storedCode) {
+      console.log('CodeGenerationModal: Loading code from localStorage');
+      setGeneratedCode(storedCode);
+      setIsFirstGeneration(false);
+      return;
     }
-    
-    fetchCode();
-  }, [open, nodes, edges, activeTab, mcpEnabled]);
+
+    // If no stored code, generate new code
+    if (isFirstGeneration) {
+      console.log('CodeGenerationModal: No stored code found, generating new code');
+      generateInitialCode();
+    }
+  }, [open, activeTab, flowKey]);
+
+  // Function to generate initial code
+  const generateInitialCode = async () => {
+    console.log('CodeGenerationModal: Generating initial code');
+    setLoading(true);
+    setError(null);
+
+    try {
+      let code: string;
+      if (activeTab === 'adk') {
+        try {
+          code = await generateCodeWithOpenAI(nodes, edges, mcpEnabled);
+          code = cleanGeneratedCode(code);
+        } catch (openaiError) {
+          console.error('OpenAI error generating code:', openaiError);
+          code = getLocallyGeneratedCode(nodes, edges, activeTab);
+          toast({
+            title: "Using Local Generation",
+            description: "OpenAI API error. Using local code generation instead.",
+            variant: "default"
+          });
+        }
+      } else {
+        const framework = activeTab as 'adk' | 'vertex' | 'custom';
+        code = await generateCode(nodes, edges, framework);
+        code = cleanGeneratedCode(code);
+      }
+
+      code = formatCodeForDisplay(code);
+      setGeneratedCode(code);
+      storeCode(flowKey, activeTab, code);
+      setIsFirstGeneration(false);
+      console.log('CodeGenerationModal: Code generated and stored successfully');
+    } catch (error) {
+      console.error('Error generating code:', error);
+      setError(error instanceof Error ? error.message : 'An error occurred generating code');
+      const localCode = getLocallyGeneratedCode(nodes, edges, activeTab);
+      const cleanedCode = cleanGeneratedCode(localCode);
+      setGeneratedCode(cleanedCode);
+      storeCode(flowKey, activeTab, cleanedCode);
+      toast({
+        title: "Using Local Generation",
+        description: "Error occurred. Using local code generation instead.",
+        variant: "default"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleCopyCode = () => {
     console.log('CodeGenerationModal: Copying code to clipboard');
@@ -165,11 +246,6 @@ export function CodeGenerationModal({
       title: "Code copied!",
       description: "The generated code has been copied to your clipboard.",
     });
-  };
-
-  // Handle code updates from the editor
-  const handleCodeChange = (newCode: string) => {
-    setGeneratedCode(newCode);
   };
 
   // Fallback code generation function that uses local logic if the API fails
@@ -186,51 +262,242 @@ export function CodeGenerationModal({
     }
   };
 
+  const handleExecuteClick = () => {
+    toast({
+      title: "Code Preview",
+      description: "This is a preview of the generated code. To execute, please copy and run in your development environment.",
+    });
+  };
+
+  // Update the regenerate button click handler
+  const handleRegenerate = async () => {
+    console.log('CodeGenerationModal: Regenerating code');
+    setLoading(true);
+    setError(null);
+    
+    try {
+      let code: string;
+      if (activeTab === 'adk') {
+        code = await generateCodeWithOpenAI(nodes, edges, mcpEnabled);
+      } else {
+        const framework = activeTab as 'adk' | 'vertex' | 'custom';
+        code = await generateCode(nodes, edges, framework);
+      }
+      
+      code = cleanGeneratedCode(code);
+      code = formatCodeForDisplay(code);
+      setGeneratedCode(code);
+      storeCode(flowKey, activeTab, code);
+      toast({
+        title: "Code regenerated",
+        description: "The code has been regenerated and saved."
+      });
+    } catch (error) {
+      console.error('Error regenerating code:', error);
+      setError(error instanceof Error ? error.message : 'Failed to regenerate code');
+      const localCode = getLocallyGeneratedCode(nodes, edges, activeTab);
+      const cleanedCode = cleanGeneratedCode(localCode);
+      setGeneratedCode(cleanedCode);
+      storeCode(flowKey, activeTab, cleanedCode);
+      toast({
+        title: "Using Local Generation",
+        description: "Error occurred. Using local code generation instead.",
+        variant: "default"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const executeInSandbox = async (code: string) => {
+    const startTime = performance.now();
+    console.log('\n🚀 Starting code execution...');
+    console.group('Code Execution Details');
+    
+    setIsExecuting(true);
+    setSandboxOutput('');
+
+    try {
+      // Input validation
+      if (!code.trim()) {
+        throw new Error('No code provided to execute');
+      }
+
+      console.log('📝 Code length:', code.length, 'characters');
+      console.log('🔗 Sending request to:', 'http://localhost:3001/api/execute');
+
+      // Call our API endpoint
+      const response = await fetch('http://localhost:3001/api/execute', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ code })
+      });
+
+      console.log('📡 Response status:', response.status);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('📊 Execution results:', result);
+      
+      // Format and display execution results
+      let output = '📝 Code Execution Results\n';
+      output += '═══════════════════════\n\n';
+      
+      if (result.output) {
+        output += '📤 Output:\n';
+        output += '──────────\n';
+        output += result.output.split('\n')
+          .map((line: string) => line.trim())
+          .join('\n');
+        output += '\n\n';
+      }
+      
+      if (result.error) {
+        output += '❌ Errors:\n';
+        output += '──────────\n';
+        output += result.error.split('\n')
+          .map((line: string) => line.trim())
+          .join('\n');
+        output += '\n\n';
+      }
+
+      // Add execution details
+      if (result.executionDetails) {
+        output += '🔍 Execution Details:\n';
+        output += '──────────────────\n';
+        output += `• Status: ${result.executionDetails.status}\n`;
+        output += `• Exit Code: ${result.executionDetails.exitCode}\n`;
+        output += `• Duration: ${result.executionDetails.duration}ms\n`;
+        
+        if (result.executionDetails.stdout.length === 0 && 
+            result.executionDetails.stderr.length === 0) {
+          output += '• Note: No output or errors were generated\n';
+          output += '  This might indicate:\n';
+          output += '  - The code ran successfully but didn\'t print anything\n';
+          output += '  - The code had no executable statements\n';
+          output += '  - There might be a syntax error preventing execution\n';
+        }
+        output += '\n';
+      }
+
+      // Add execution metadata
+      output += '📈 Execution Metadata:\n';
+      output += '───────────────────\n';
+      if (result.executionTime) {
+        output += `• Server Execution Time: ${result.executionTime}ms\n`;
+      }
+      if (result.memoryUsage) {
+        output += `• Memory Usage: ${result.memoryUsage.toFixed(2)}MB\n`;
+      }
+      const clientExecutionTime = Math.round(performance.now() - startTime);
+      output += `• Total Time: ${clientExecutionTime}ms\n`;
+      
+      output += '\n═══════════════════════\n';
+      setSandboxOutput(output);
+
+      // Show appropriate toast
+      if (result.error) {
+        console.warn('⚠️ Code executed with errors');
+        toast({
+          title: "Code executed with errors",
+          description: "Check the execution results for details.",
+          variant: "warning",
+        });
+      } else {
+        console.log('✅ Code executed successfully');
+        toast({
+          title: "Code executed successfully",
+          description: "Check the execution results below.",
+        });
+      }
+      
+    } catch (err) {
+      console.error('❌ Sandbox execution error:', err);
+      
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+      const output = [
+        '❌ Execution Failed',
+        '═══════════════════',
+        '',
+        'Error Details:',
+        '─────────────',
+        errorMessage
+      ];
+
+      // If we have detailed error information from the server
+      interface ErrorDetails {
+        name: string;
+        code: string;
+        stack?: string;
+      }
+
+      if (err instanceof Error && 'errorDetails' in err) {
+        const errorDetails = (err as { errorDetails: ErrorDetails }).errorDetails;
+        output.push('');
+        output.push('🔍 Error Information:');
+        output.push('─────────────────');
+        output.push(`• Type: ${errorDetails.name}`);
+        output.push(`• Code: ${errorDetails.code}`);
+        if (errorDetails.stack) {
+          output.push('');
+          output.push('Stack Trace:');
+          output.push('───────────');
+          output.push(errorDetails.stack);
+        }
+      }
+
+      output.push('');
+      output.push('📈 Execution Metadata:');
+      output.push('───────────────────');
+      output.push(`• Total Time: ${Math.round(performance.now() - startTime)}ms`);
+      output.push('');
+      output.push('═══════════════════');
+      
+      setSandboxOutput(output.join('\n'));
+      
+      toast({
+        title: "Execution failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsExecuting(false);
+      console.groupEnd();
+      console.log('✨ Code execution request completed\n');
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={(newOpen) => {
       console.log('CodeGenerationModal: Dialog state changing to', newOpen);
       onOpenChange(newOpen);
-      if (newOpen === false) {
-        // Reset to view mode when closing
-        setEditorView('view');
-      }
     }}>
       <DialogContent className="sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle>Generated Agent Code</DialogTitle>
           <DialogDescription>
             This code represents the agent flow you've designed. The code is generated by AI based on your workflow diagram.
+            {!isFirstGeneration && (
+              <span className="text-sm text-muted-foreground"> (Loaded from saved version)</span>
+            )}
           </DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="adk" value={activeTab} onValueChange={setActiveTab}>
-          <div className="flex justify-between items-center">
-            <TabsList>
-              <TabsTrigger value="adk">Google ADK</TabsTrigger>
-              <TabsTrigger value="vertex">Vertex AI</TabsTrigger>
-              <TabsTrigger value="custom">Custom Agent</TabsTrigger>
-            </TabsList>
-            
-            <div className="flex gap-2">
-              <Button 
-                variant={editorView === 'view' ? 'default' : 'outline'} 
-                size="sm" 
-                onClick={() => setEditorView('view')}
-              >
-                View Code
-              </Button>
-              <Button 
-                variant={editorView === 'run' ? 'default' : 'outline'} 
-                size="sm" 
-                onClick={() => setEditorView('run')}
-              >
-                Run Demo
-              </Button>
-            </div>
-          </div>
+          <TabsList>
+            <TabsTrigger value="adk">Google ADK</TabsTrigger>
+            <TabsTrigger value="vertex">Vertex AI</TabsTrigger>
+            <TabsTrigger value="custom">Custom Agent</TabsTrigger>
+          </TabsList>
           
           <TabsContent value={activeTab} className="mt-4">
-            {activeTab === 'adk' && editorView === 'view' && (
+            {activeTab === 'adk' && (
               <div className="flex justify-between items-center mb-2">
                 <div className="flex items-center gap-2">
                   <label className="relative inline-flex items-center cursor-pointer">
@@ -254,33 +521,31 @@ export function CodeGenerationModal({
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  onClick={() => {
+                  onClick={async () => {
                     console.log('CodeGenerationModal: Regenerating code with OpenAI');
                     setLoading(true);
                     setError(null);
                     
-                    apiGenerateCode({
-                      nodes: nodes, 
-                      edges: edges,
-                      mcpEnabled: mcpEnabled
-                    })
-                      .then(response => {
-                        if (response.success) {
-                          setGeneratedCode(response.code);
-                          toast({
-                            title: "Code regenerated",
-                            description: "The code has been regenerated with OpenAI."
-                          });
-                        } else {
-                          throw new Error(response.error || 'API returned unsuccessful status');
-                        }
-                      })
-                      .catch(err => {
-                        console.error('Error regenerating code with OpenAI:', err);
-                        setError(err instanceof Error ? err.message : 'Failed to regenerate code with OpenAI');
-                        // Don't fall back to local generation here to make the error visible
-                      })
-                      .finally(() => setLoading(false));
+                    try {
+                      const code = await generateCodeWithOpenAI(nodes, edges, mcpEnabled);
+                      setGeneratedCode(code);
+                      toast({
+                        title: "Code regenerated",
+                        description: "The code has been regenerated with OpenAI."
+                      });
+                    } catch (err) {
+                      console.error('Error regenerating code:', err);
+                      // Fall back to local generation
+                      const localCode = getLocallyGeneratedCode(nodes, edges, activeTab);
+                      setGeneratedCode(localCode);
+                      toast({
+                        title: "Using Local Generation",
+                        description: "API server not available. Using local code generation instead.",
+                        variant: "default"
+                      });
+                    } finally {
+                      setLoading(false);
+                    }
                   }}
                   disabled={loading}
                 >
@@ -290,40 +555,59 @@ export function CodeGenerationModal({
               </div>
             )}
             
-            {editorView === 'view' ? (
-              <div className="relative">
-                {error && (
-                  <div className="mb-2 p-2 bg-red-100 border border-red-200 rounded-md text-red-800 text-sm flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4" />
-                    <span>{error}</span>
-                  </div>
-                )}
-                {loading ? (
-                  <div className="flex items-center justify-center h-40 gap-2 bg-gray-900 rounded-md text-gray-200">
-                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                    <span>Generating code...</span>
-                  </div>
-                ) : (
+            <div className="relative">
+              {error && (
+                <div className="mb-2 p-2 bg-red-100 border border-red-200 rounded-md text-red-800 text-sm flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4" />
+                  <span>{error}</span>
+                </div>
+              )}
+              {loading ? (
+                <div className="flex items-center justify-center h-40 gap-2 bg-gray-900 rounded-md text-gray-200">
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                  <span>Generating code...</span>
+                </div>
+              ) : (
+                <>
                   <div className="relative">
                     <CodeHighlighter code={generatedCode} />
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="absolute top-2 right-2 bg-gray-800/70 hover:bg-gray-800/90"
-                      onClick={handleCopyCode}
-                      disabled={loading}
-                    >
-                      <Copy className="h-4 w-4 text-gray-200" />
-                    </Button>
+                    <div className="absolute top-2 right-2 flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="bg-gray-800/70 hover:bg-gray-800/90 flex items-center gap-2"
+                        onClick={() => executeInSandbox(generatedCode)}
+                        disabled={loading || isExecuting}
+                      >
+                        {isExecuting ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin text-gray-200" />
+                            <span className="text-gray-200">Running...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play className="h-4 w-4 text-gray-200" />
+                            <span className="text-gray-200">Execute</span>
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="bg-gray-800/70 hover:bg-gray-800/90 flex items-center gap-2"
+                        onClick={handleCopyCode}
+                        disabled={loading}
+                      >
+                        <Copy className="h-4 w-4 text-gray-200" />
+                        <span className="text-gray-200">Copy</span>
+                      </Button>
+                    </div>
                   </div>
-                )}
-              </div>
-            ) : (
-              <CodeExecutionPanel 
-                code={generatedCode}
-                onCodeChange={handleCodeChange}
-              />
-            )}
+                  
+                  <SandboxOutput output={sandboxOutput} />
+                </>
+              )}
+            </div>
             
             <div className="mt-2 text-xs text-muted-foreground">
               <strong>Note:</strong> The generated code uses {activeTab === 'adk' 
@@ -338,67 +622,12 @@ export function CodeGenerationModal({
 
         <DialogFooter className="flex justify-between items-center">
           <div className="text-xs text-muted-foreground">
-            Powered by GPT-4.1 Mini
+            {isFirstGeneration ? 'Initial generation' : 'Saved version'}
           </div>
           <div className="flex gap-2">
             <Button 
-              disabled={loading || editorView === 'run'} 
-              onClick={() => {
-                console.log('CodeGenerationModal: Regenerating code');
-                setLoading(true);
-                setError(null);
-                
-                if (activeTab === 'adk') {
-                  // Use the OpenAI API for ADK
-                  apiGenerateCode({
-                    nodes: nodes, 
-                    edges: edges,
-                    mcpEnabled: mcpEnabled
-                  })
-                    .then(response => {
-                      if (response?.success) {
-                        setGeneratedCode(response.code);
-                        toast({
-                          title: "Code regenerated",
-                          description: "The code has been regenerated with the latest AI model."
-                        });
-                      } else {
-                        throw new Error(response?.error || 'API returned unsuccessful status');
-                      }
-                    })
-                    .catch(err => {
-                      console.error('Error regenerating code:', err);
-                      // Fall back to local generation
-                      const localCode = getLocallyGeneratedCode(nodes, edges, activeTab);
-                      setGeneratedCode(localCode);
-                      toast({
-                        title: "Using Local Generation",
-                        description: "API server not available. Using local code generation instead.",
-                        variant: "default"
-                      });
-                    })
-                    .finally(() => setLoading(false));
-                } else {
-                  // Use local generation for other frameworks
-                  generateCode(nodes, edges, activeTab as 'adk' | 'vertex' | 'custom')
-                    .then(code => {
-                      console.log('CodeGenerationModal: Code regenerated successfully');
-                      setGeneratedCode(code);
-                      toast({
-                        title: "Code regenerated",
-                        description: "The code has been regenerated with the latest AI model."
-                      });
-                    })
-                    .catch(err => {
-                      console.error('Error regenerating code:', err);
-                      setError(err instanceof Error ? err.message : 'Failed to regenerate code');
-                      // Fall back to local generation
-                      const localCode = getLocallyGeneratedCode(nodes, edges, activeTab);
-                      setGeneratedCode(localCode);
-                    })
-                    .finally(() => setLoading(false));
-                }
-              }}
+              disabled={loading} 
+              onClick={handleRegenerate}
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               {loading ? "Generating..." : "Regenerate"}
@@ -491,7 +720,7 @@ function generateAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
       const varName = node.data.label.toLowerCase().replace(/\s+/g, '_');
       code += `${varName} = McpClient(\n`;
       code += `    name="${varName}",\n`;
-      code += `    server_url="${node.data.mcpUrl || 'http://localhost:8080'}"\n`;
+      code += `    server_url="${node.data.mcpUrl || 'http:// localhost:8080'}"\n`;
       code += `)\n`;
     });
   }
@@ -571,7 +800,7 @@ function generateAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
     code += `    tools=[]\n`;
     code += `)\n\n`;
     code += `# Example usage\n`;
-    code += `response = example_agent.generate("Hello, how can you help me today?")\n`;
+    code += `response = example_agent.generate("Hello, how can I assist you today?")\n`;
     code += `print(response)\n`;
   }
   
@@ -1036,4 +1265,82 @@ from model_context_protocol.server import MCP_Server
   }
   
   return code;
+}
+
+// Add the missing generateCodeWithOpenAI function
+async function generateCodeWithOpenAI(nodes: Node<BaseNodeData>[], edges: Edge[], mcpEnabled: boolean): Promise<string> {
+  try {
+    // Create a simplified representation of the flow for the prompt
+    const nodeDescriptions = nodes.map(node => {
+      const { id, data } = node;
+      return {
+        id,
+        type: data.type,
+        label: data.label,
+        description: data.description || '',
+        instruction: data.instruction || '',
+        modelType: data.modelType || '',
+        mcpUrl: data.mcpUrl || '',
+        mcpToolId: data.mcpToolId || ''
+      };
+    });
+
+    // Simplify edges to make them easier to explain
+    const connectionDescriptions = edges.map(edge => {
+      const sourceNode = nodes.find(n => n.id === edge.source);
+      const targetNode = nodes.find(n => n.id === edge.target);
+      
+      return {
+        from: sourceNode?.data?.label || edge.source,
+        to: targetNode?.data?.label || edge.target,
+        fromType: sourceNode?.data?.type || 'unknown',
+        toType: targetNode?.data?.type || 'unknown',
+      };
+    });
+
+    // Create a prompt for the OpenAI model
+    const prompt = `Generate Python code for the following agent flow. Return ONLY the raw Python code without any markdown formatting, explanations, or comments outside the code:
+
+Flow Structure:
+${JSON.stringify({ nodes: nodeDescriptions, edges: connectionDescriptions }, null, 2)}
+
+Requirements:
+- Include necessary imports
+- Use proper Python syntax
+- ${mcpEnabled ? 'Include MCP (Model Context Protocol) support' : 'Do not include MCP support'}
+- For agent nodes, use the instruction field as the system instruction
+- For model nodes, use the modelType field if specified
+- For MCP client nodes, use the mcpUrl field if specified
+- For MCP tool nodes, use the mcpToolId field if specified
+- Export the primary agent as 'root_agent'
+- Include a main() function with example usage
+- DO NOT include any markdown formatting (no \`\`\`python or \`\`\` tags)
+- DO NOT include any text or explanations outside the code
+
+Return ONLY the raw Python code without any additional text, markdown, or formatting.`;
+
+    // Call OpenAI for code generation
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4-turbo-preview",
+      messages: [
+        { 
+          role: "system", 
+          content: "You are a Python code generator. Output ONLY raw Python code without any markdown formatting, additional text, explanations, or comments outside the code. Include docstrings and comments within the code as needed, but no text or formatting outside the code." 
+        },
+        { 
+          role: "user", 
+          content: prompt 
+        }
+      ],
+      temperature: 0.2,
+      max_tokens: 2000
+    });
+
+    // Extract and clean the code from response
+    const code = completion.choices[0].message.content || '';
+    return code;
+  } catch (error) {
+    console.error('Error generating code with OpenAI:', error);
+    throw error;
+  }
 }

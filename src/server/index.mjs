@@ -7,6 +7,7 @@ import fs from 'fs';
 import { promisify } from 'util';
 import { exec, spawn } from 'child_process';
 import os from 'os';
+import { Sandbox } from '@e2b/code-interpreter';
 
 // Get the directory name in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -286,6 +287,123 @@ async function runAgentHandler(req, res) {
   }
 }
 
+// Execute code in sandbox endpoint
+app.post('/api/execute', async (req, res) => {
+  const startTime = Date.now();
+  console.log('\n🚀 Starting code execution request...');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  
+  try {
+    const { code } = req.body;
+    
+    if (!code) {
+      console.log('❌ Error: No code provided');
+      return res.status(400).json({ error: 'No code provided' });
+    }
+
+    console.log('📝 Code to execute:');
+    console.log('━━━━━━━━━━━━━━━━━');
+    console.log(code);
+    console.log('━━━━━━━━━━━━━━━━━\n');
+
+    // Create sandbox instance
+    console.log('🔧 Creating E2B sandbox instance...');
+    const sbx = await Sandbox.create({ 
+      apiKey: process.env.E2B_API_KEY,
+      onStdout: (data) => {
+        console.log('📤 Stdout:', data);
+      },
+      onStderr: (data) => {
+        console.log('❌ Stderr:', data);
+      }
+    });
+    console.log('✅ Sandbox created successfully\n');
+
+    // Execute the code
+    console.log('⚡ Executing code in sandbox...');
+    const execution = await sbx.runCode(code);
+    console.log('✅ Code execution completed\n');
+    
+    // Format the response
+    const response = {
+      output: '',
+      error: null,
+      executionTime: 0,
+      memoryUsage: process.memoryUsage().heapUsed / 1024 / 1024, // in MB
+      executionDetails: {
+        stdout: execution.logs.stdout || [],
+        stderr: execution.logs.stderr || [],
+        exitCode: execution.exitCode,
+        status: execution.status,
+        duration: execution.duration
+      }
+    };
+
+    console.log('📊 Execution Results:');
+    console.log('━━━━━━━━━━━━━━━━━━');
+    
+    if (execution.logs.stdout && execution.logs.stdout.length > 0) {
+      response.output = execution.logs.stdout.join('\n');
+      console.log('📤 Standard Output:');
+      console.log(response.output);
+    } else {
+      console.log('📤 No standard output generated');
+      console.log('Debug info:');
+      console.log('• Exit Code:', execution.exitCode);
+      console.log('• Status:', execution.status);
+      console.log('• Duration:', execution.duration, 'ms');
+    }
+    
+    if (execution.logs.stderr && execution.logs.stderr.length > 0) {
+      response.error = execution.logs.stderr.join('\n');
+      console.log('\n❌ Standard Error:');
+      console.log(response.error);
+    }
+    
+    // Add execution metadata
+    response.executionTime = Date.now() - startTime;
+    console.log('\n📈 Execution Metadata:');
+    console.log(`• Execution Time: ${response.executionTime}ms`);
+    console.log(`• Memory Usage: ${response.memoryUsage.toFixed(2)}MB`);
+    console.log(`• Exit Code: ${execution.exitCode}`);
+    console.log(`• Status: ${execution.status}`);
+
+    // Cleanup sandbox
+    console.log('\n🧹 Cleaning up sandbox...');
+    await sbx.kill();
+    console.log('✅ Sandbox cleaned up successfully');
+
+    console.log('\n✨ Request completed successfully');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
+    return res.status(200).json(response);
+  } catch (error) {
+    console.error('\n❌ Sandbox execution error:');
+    console.error('━━━━━━━━━━━━━━━━━━━━');
+    console.error(error);
+    
+    const errorResponse = {
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      stack: error instanceof Error ? error.stack : undefined,
+      executionTime: Date.now() - startTime,
+      errorDetails: {
+        name: error instanceof Error ? error.name : 'Unknown',
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        code: error instanceof Error ? (error.code || 'UNKNOWN') : 'UNKNOWN'
+      }
+    };
+    
+    console.error('\n📈 Error Metadata:');
+    console.error(`• Error Type: ${errorResponse.errorDetails.name}`);
+    console.error(`• Error Code: ${errorResponse.errorDetails.code}`);
+    console.error(`• Execution Time: ${errorResponse.executionTime}ms`);
+    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+    
+    return res.status(500).json(errorResponse);
+  }
+});
+
 // API routes
 app.post('/api/create-agent', createAgentHandler);
 app.post('/api/run-agent', runAgentHandler);
@@ -307,6 +425,7 @@ app.get('/', (req, res) => {
     endpoints: [
       { method: 'POST', path: '/api/create-agent', description: 'Create a new agent' },
       { method: 'POST', path: '/api/run-agent', description: 'Run an existing agent' },
+      { method: 'POST', path: '/api/execute', description: 'Execute code in sandbox' },
       { method: 'GET', path: '/api/health', description: 'Health check endpoint' }
     ]
   });

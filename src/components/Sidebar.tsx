@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Bot, BrainCircuit, Code, WrenchIcon, ArrowRight, Network, Server, Plug } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils.js';
 
 const nodeTypes = [
   { type: 'agent', label: 'Agent', icon: <Bot className="w-4 h-4" /> },

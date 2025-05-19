@@ -66,28 +66,6 @@ export interface RunAgentResponse {
   };
 }
 
-export interface GenerateCodeRequest {
-  nodes: Array<{
-    id: string;
-    data: Record<string, any>;
-    position?: { x: number; y: number };
-    [key: string]: any;
-  }>;
-  edges: Array<{
-    id?: string;
-    source: string;
-    target: string;
-    [key: string]: any;
-  }>;
-  mcpEnabled: boolean;
-}
-
-export interface GenerateCodeResponse {
-  success: boolean;
-  code: string;
-  error?: string;
-}
-
 /**
  * Creates an agent by saving code to files and setting up a Python environment
  */
@@ -126,29 +104,6 @@ export const runAgent = async (request: RunAgentRequest): Promise<RunAgentRespon
     return { 
       success: false, 
       error: 'Unknown error occurred while running agent' 
-    };
-  }
-};
-
-/**
- * Generate code using OpenAI from the flow diagram
- */
-export const generateAgentCode = async (request: GenerateCodeRequest): Promise<GenerateCodeResponse> => {
-  try {
-    const response = await axios.post(`${API_BASE_URL}/agents/generate-code`, request);
-    return response.data;
-  } catch (error) {
-    if (axios.isAxiosError(error)) {
-      return { 
-        success: false, 
-        code: '', 
-        error: error.response?.data?.error || error.message 
-      };
-    }
-    return { 
-      success: false, 
-      code: '',
-      error: 'Unknown error occurred while generating code' 
     };
   }
 };
