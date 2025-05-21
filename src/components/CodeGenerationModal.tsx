@@ -344,6 +344,7 @@ export function CodeGenerationModal({
     // Setup alternative endpoints to try if primary fails
     const endpoints = [
       API_CONFIG.executeUrl,
+      `/api/execute`,  // Relative path works when deployed as unified project
       `${API_CONFIG.baseUrl}/api/execute`,  // Try without using endpoints property
       'https://cogentx.dev/api/execute' // Fallback to known working URL
     ];

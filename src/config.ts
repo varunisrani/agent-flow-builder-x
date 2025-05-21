@@ -4,14 +4,20 @@ const isDevelopment = import.meta.env.MODE === 'development';
 // Get the hostname to determine which domain we're running on
 const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
 const isCogentxDomain = hostname.includes('cogentx.dev');
+const isVercelDomain = hostname.includes('vercel.app');
+
+// When running on same domain in production, API is at /api/* path
+const isUnifiedDeployment = isVercelDomain || isCogentxDomain;
 
 const API_CONFIG = {
   // Use the appropriate API URL based on environment and domain
   baseUrl: isDevelopment 
     ? 'http://localhost:3001' 
-    : isCogentxDomain
-      ? 'https://agent-flow-builder-api.cogentx.dev'
-      : 'https://agent-flow-builder-1ob1bdog8-varuns-projects-859429fc.vercel.app',
+    : isUnifiedDeployment
+      ? '' // Empty string - API is on same domain at /api path
+      : isCogentxDomain
+        ? 'https://agent-flow-builder-api.cogentx.dev'
+        : 'https://agent-flow-builder-9wcy78wub-varuns-projects-859429fc.vercel.app',
   
   endpoints: {
     execute: '/api/execute',
