@@ -2,9 +2,10 @@
 // import { toast } from '@/hooks/use-toast';
 
 import axios from 'axios';
+import API_CONFIG from '@/config';
 
-// Base API URL - hardcoded for browser environment
-const API_BASE_URL = 'http://localhost:3001/api';
+// Base API URL from config
+const API_BASE_URL = `${API_CONFIG.baseUrl}/api`;
 
 // Interface for create agent params
 export interface CreateAgentParams {

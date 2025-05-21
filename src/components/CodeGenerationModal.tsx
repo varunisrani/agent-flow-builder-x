@@ -16,10 +16,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.j
 import { BaseNodeData } from './nodes/BaseNode.js';
 import { Copy, AlertCircle, Loader2, Play } from 'lucide-react';
 import { toast } from '@/hooks/use-toast.js';
-import { generateCode } from '@/lib/codeGenerator.js';
+import { generateCode as generateCodeFromLib } from '@/lib/codeGenerator.js';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import OpenAI from 'openai';
+import API_CONFIG from '@/config';
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -234,7 +235,7 @@ export function CodeGenerationModal({
         }
       } else {
         const framework = activeTab as 'adk' | 'vertex' | 'custom';
-        code = await generateCode(nodes, edges, framework);
+        code = await generateCodeFromLib(nodes, edges, framework);
         code = cleanGeneratedCode(code);
       }
 
@@ -302,7 +303,7 @@ export function CodeGenerationModal({
         code = await generateCodeWithOpenAI(nodes, edges, mcpEnabled);
       } else {
         const framework = activeTab as 'adk' | 'vertex' | 'custom';
-        code = await generateCode(nodes, edges, framework);
+        code = await generateCodeFromLib(nodes, edges, framework);
       }
       
       code = cleanGeneratedCode(code);
@@ -340,6 +341,19 @@ export function CodeGenerationModal({
     setAgentUrl('');
     setShowOpenLink(false);
 
+    // Setup alternative endpoints to try if primary fails
+    const endpoints = [
+      API_CONFIG.executeUrl,
+      `${API_CONFIG.baseUrl}/api/execute`,  // Try without using endpoints property
+      'https://cogentx.dev/api/execute' // Fallback to known working URL
+    ];
+    
+    // Remove duplicates
+    const uniqueEndpoints = [...new Set(endpoints)];
+    
+    let lastError = null;
+    let responseData = null;
+
     try {
       // Input validation
       if (!code.trim()) {
@@ -350,36 +364,53 @@ export function CodeGenerationModal({
       const agentCode = code;
       const initCode = 'from .agent import root_agent\n__all__ = ["root_agent"]';
 
-      console.log('📝 Preparing files for sandbox execution...');
-      console.log('🔗 Sending request to:', 'http://localhost:3001/api/execute');
-
-      // Call our API endpoint with both files
-      const response = await fetch('http://localhost:3001/api/execute', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          files: {
-            'agent.py': agentCode,
-            '__init__.py': initCode
+      // Try each endpoint until one succeeds
+      let apiResponse = null;
+      for (const apiUrl of uniqueEndpoints) {
+        try {
+          console.log('📝 Trying API endpoint:', apiUrl);
+          
+          apiResponse = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              files: {
+                'agent.py': agentCode,
+                '__init__.py': initCode
+              }
+            }),
+          });
+          
+          if (apiResponse.ok) {
+            console.log('✅ API endpoint succeeded:', apiUrl);
+            break; // Found a working endpoint
+          } else {
+            const errorText = await apiResponse.text().catch(() => "No error details available");
+            console.warn(`⚠️ API endpoint failed (${apiResponse.status}):`, apiUrl, errorText);
+            lastError = new Error(`API Error (${apiResponse.status}): ${errorText || "No details available"}`);
+            apiResponse = null; // Reset for next iteration
           }
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        } catch (fetchError) {
+          console.warn(`⚠️ Fetch error with endpoint:`, apiUrl, fetchError);
+          lastError = fetchError;
+        }
+      }
+      
+      if (!apiResponse || !apiResponse.ok) {
+        throw lastError || new Error("All API endpoints failed");
       }
 
-      const result = await response.json();
+      responseData = await apiResponse.json();
       
       // Check if the response contains openUrl and showOpenLink fields
-      if (result.openUrl) {
-        setAgentUrl(result.openUrl);
-        setShowOpenLink(result.showOpenLink || true);
-      } else if (result.executionDetails?.serverUrl) {
+      if (responseData.openUrl) {
+        setAgentUrl(responseData.openUrl);
+        setShowOpenLink(responseData.showOpenLink || true);
+      } else if (responseData.executionDetails?.serverUrl) {
         // Fallback to serverUrl if openUrl is not available
-        setAgentUrl(result.executionDetails.serverUrl);
+        setAgentUrl(responseData.executionDetails.serverUrl);
         setShowOpenLink(true);
       }
       
@@ -388,12 +419,12 @@ export function CodeGenerationModal({
       const formattedOutput = [
         `✨ Execution completed in ${executionTime.toFixed(2)}ms`,
         '📤 Output:',
-        result.output || 'No output generated',
-        result.error ? `\n❌ Error:\n${result.error}` : '',
+        responseData.output || 'No output generated',
+        responseData.error ? `\n❌ Error:\n${responseData.error}` : '',
         '\n📊 Execution Details:',
-        `• Status: ${result.executionDetails?.status || 'unknown'}`,
-        `• Exit Code: ${result.executionDetails?.exitCode}`,
-        `• Memory Usage: ${result.memoryUsage?.toFixed(2)}MB`,
+        `• Status: ${responseData.executionDetails?.status || 'unknown'}`,
+        `• Exit Code: ${responseData.executionDetails?.exitCode}`,
+        `• Memory Usage: ${responseData.memoryUsage?.toFixed(2)}MB`,
       ].join('\n');
 
       setSandboxOutput(formattedOutput);
