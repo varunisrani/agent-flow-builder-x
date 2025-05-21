@@ -74,6 +74,25 @@ const SandboxOutput: React.FC<{ output: string }> = ({ output }) => {
   );
 };
 
+// Add new component for "Open Link" button
+const OpenLinkButton: React.FC<{ url: string; label?: string }> = ({ url, label = "Open Agent UI" }) => {
+  if (!url) return null;
+  
+  return (
+    <div className="mt-4 flex justify-center">
+      <a 
+        href={url} 
+        target="_blank" 
+        rel="noopener noreferrer"
+        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
+      >
+        {label}
+        <span className="text-sm">↗</span>
+      </a>
+    </div>
+  );
+};
+
 interface CodeGenerationModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -153,6 +172,8 @@ export function CodeGenerationModal({
   const [isFirstGeneration, setIsFirstGeneration] = useState(true);
   const [sandboxOutput, setSandboxOutput] = useState<string>('');
   const [isExecuting, setIsExecuting] = useState(false);
+  const [agentUrl, setAgentUrl] = useState<string>('');
+  const [showOpenLink, setShowOpenLink] = useState(false);
 
   // Check if there are MCP nodes in the diagram
   const hasMcpNodes = nodes.some(node => 
@@ -316,6 +337,8 @@ export function CodeGenerationModal({
     
     setIsExecuting(true);
     setSandboxOutput('');
+    setAgentUrl('');
+    setShowOpenLink(false);
 
     try {
       // Input validation
@@ -349,6 +372,16 @@ export function CodeGenerationModal({
       }
 
       const result = await response.json();
+      
+      // Check if the response contains openUrl and showOpenLink fields
+      if (result.openUrl) {
+        setAgentUrl(result.openUrl);
+        setShowOpenLink(result.showOpenLink || true);
+      } else if (result.executionDetails?.serverUrl) {
+        // Fallback to serverUrl if openUrl is not available
+        setAgentUrl(result.executionDetails.serverUrl);
+        setShowOpenLink(true);
+      }
       
       // Format and display the output
       const executionTime = performance.now() - startTime;
@@ -540,6 +573,11 @@ root_agent = LlmAgent(
                   </div>
                   
                   <SandboxOutput output={sandboxOutput} />
+                  
+                  {/* Add the OpenLinkButton component */}
+                  {showOpenLink && agentUrl && (
+                    <OpenLinkButton url={agentUrl} label="Open Agent UI" />
+                  )}
                 </>
               )}
             </div>

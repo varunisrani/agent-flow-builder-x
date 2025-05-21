@@ -276,7 +276,11 @@ async function runAgentHandler(req, res) {
       success: true,
       message: 'Agent is now running',
       output: `Started agent process using ADK web command in ${agentDir}`,
-      url: url
+      url: url,
+      // Add dedicated fields for the frontend to show an "Open Link" button
+      openUrl: url,
+      showOpenLink: true,
+      linkText: 'Open Agent UI'
     });
   } catch (error) {
     console.error('Error running agent:', error);
@@ -334,70 +338,165 @@ app.post('/api/execute', async (req, res) => {
     }
     console.log('✅ All files written successfully\n');
 
-    // Set up Python environment
+    // Set up Python environment with a compatible Python version
     console.log('🐍 Setting up Python environment...');
-    await sbx.commands.run('python3 -m venv agent/venv');
-    await sbx.commands.run('source agent/venv/bin/activate && pip install google-adk');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    
+    // Check Python versions available in the sandbox
+    console.log('📊 Checking available Python versions...');
+    const pythonVersions = await sbx.commands.run('ls /usr/bin/python* | grep -v config');
+    console.log(`Available Python versions:\n${pythonVersions.stdout}`);
+    
+    // Try to use Python 3.9 which is compatible with most Google Cloud libraries
+    console.log('📦 Creating virtual environment with Python 3.9...');
+    let venvResult;
+    try {
+      venvResult = await sbx.commands.run('python3.9 -m venv agent/venv');
+      console.log('✅ Successfully created venv with Python 3.9');
+    } catch (error) {
+      console.log('⚠️ Python 3.9 not available, falling back to default Python version');
+      venvResult = await sbx.commands.run('python3 -m venv agent/venv');
+    }
+    
+    console.log(`  • Exit code: ${venvResult.exitCode}`);
+    if (venvResult.stdout) console.log(`  • Output: ${venvResult.stdout}`);
+    if (venvResult.stderr) console.log(`  • Errors: ${venvResult.stderr}`);
+    console.log('✅ Virtual environment created\n');
+    
+    console.log('📦 Activating virtual environment and installing dependencies...');
+    console.log('  • Installing google-adk package...');
+    const pipResult = await sbx.commands.run('source agent/venv/bin/activate && pip install google-adk -v');
+    console.log(`  • Exit code: ${pipResult.exitCode}`);
+    console.log('  • Dependency installation details:');
+    if (pipResult.stdout) {
+      const pipLogs = pipResult.stdout.split('\n').map(line => `    ${line}`).join('\n');
+      console.log(pipLogs);
+    }
+    if (pipResult.stderr) {
+      console.log('  • Errors/Warnings:');
+      const pipErrors = pipResult.stderr.split('\n').map(line => `    ${line}`).join('\n');
+      console.log(pipErrors);
+    }
+    
+    // Verify the installation
+    console.log('\n📋 Verifying installation...');
+    const verifyResult = await sbx.commands.run('source agent/venv/bin/activate && pip list | grep google-adk');
+    if (verifyResult.stdout) {
+      console.log(`  • Installed: ${verifyResult.stdout.trim()}`);
+    } else {
+      console.log('  • Warning: Could not verify google-adk installation');
+    }
+    
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('✅ Python environment ready\n');
 
-    // Execute the code
-    console.log('⚡ Executing code in sandbox...');
-    const execution = await sbx.commands.run('cd agent && source venv/bin/activate && python3 -c "from agent import root_agent; response = root_agent.generate(\'Hello, how can you help me?\'); print(response)"');
-    console.log('✅ Code execution completed\n');
+    // Instead of executing the code directly, run the ADK web command
+    console.log('⚡ Starting agent with ADK web command...');
     
-    // Format the response
-    const response = {
-      output: '',
-      error: null,
-      executionTime: 0,
-      memoryUsage: process.memoryUsage().heapUsed / 1024 / 1024, // in MB
-      executionDetails: {
-        stdout: execution.stdout.split('\n'),
-        stderr: execution.stderr.split('\n'),
-        exitCode: execution.exitCode,
-        status: execution.exitCode === 0 ? 'success' : 'error',
-        duration: Date.now() - startTime
+    try {
+      // Create a startup script that properly detaches the process using nohup and disown
+      await sbx.files.write('agent/start_adk.sh', `#!/bin/bash
+source ./venv/bin/activate
+# Run adk web command in detached mode with nohup, redirecting output to a log file
+nohup adk web > adk_web.log 2>&1 &
+# Save the PID of the background process
+echo $! > adk_web.pid
+# Disown the process so it continues running even if the parent shell exits
+disown -h $!
+`);
+      
+      // Make the script executable
+      await sbx.commands.run('chmod +x agent/start_adk.sh', { timeoutMs: 30000 });
+      
+      // Execute the startup script
+      const adkWebResult = await sbx.commands.run('cd agent && ./start_adk.sh', { timeoutMs: 30000 });
+      
+      console.log('📋 ADK web server starting script output:');
+      if (adkWebResult.stdout) console.log(adkWebResult.stdout);
+      if (adkWebResult.stderr) console.log(adkWebResult.stderr);
+      
+      // Wait a moment for the server to start
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Check if the server is running
+      const psCheck = await sbx.commands.run('ps aux | grep "adk web" | grep -v grep');
+      console.log('✅ ADK web server process is running:');
+      console.log(psCheck.stdout);
+      
+      // Get the public URL for the ADK web server (port 8000)
+      const publicHost = sbx.getHost(8000);
+      const publicUrl = `https://${publicHost}`;
+      
+      // Format the response with the public URL
+      const response = {
+        output: `Agent started with ADK web command. Access the UI at ${publicUrl}`,
+        error: null,
+        executionTime: Date.now() - startTime,
+        memoryUsage: process.memoryUsage().heapUsed / 1024 / 1024, // in MB
+        executionDetails: {
+          stdout: [`Agent started with ADK web command`],
+          stderr: [],
+          exitCode: 0,
+          status: 'running',
+          duration: Date.now() - startTime,
+          serverUrl: publicUrl // Use the public URL that can be accessed from outside
+        },
+        // Add dedicated fields for the frontend to show an "Open Link" button
+        openUrl: publicUrl,
+        showOpenLink: true,
+        linkText: 'Open Agent UI'
+      };
+
+      console.log('📊 Execution Results:');
+      console.log('━━━━━━━━━━━━━━━━━━');
+      
+      console.log(`📤 ADK web server is accessible at: ${publicUrl}`);
+      console.log(`Debug info:`);
+      console.log(`• Status: ${response.executionDetails.status}`);
+      console.log(`• Duration: ${response.executionDetails.duration} ms`);
+      console.log(`• Server URL: ${response.executionDetails.serverUrl}`);
+
+      console.log('\n📈 Execution Metadata:');
+      console.log(`• Execution Time: ${response.executionTime}ms`);
+      console.log(`• Memory Usage: ${response.memoryUsage.toFixed(2)}MB`);
+      console.log(`• Status: ${response.executionDetails.status}`);
+      console.log(`• Server URL: ${response.executionDetails.serverUrl}`);
+      
+      res.status(200).json(response);
+    } catch (error) {
+      console.error('\n❌ Error running ADK web command:');
+      console.error(error);
+      
+      // Cleanup sandbox
+      try {
+        if (sbx) {
+          console.log('🧹 Cleaning up sandbox after error...');
+          
+          // Try to kill the ADK web process if it's running
+          try {
+            const killResult = await sbx.commands.run('if [ -f agent/adk_web.pid ]; then kill $(cat agent/adk_web.pid) 2>/dev/null || true; rm agent/adk_web.pid; fi', { timeoutMs: 10000 });
+            console.log('📋 ADK web kill result:', killResult.stdout || 'No output');
+          } catch (killError) {
+            console.error('Failed to kill ADK web process:', killError.message);
+          }
+          
+          // Destroy the sandbox
+          if (typeof sbx.destroy === 'function') {
+            await sbx.destroy();
+          } else if (typeof sbx.close === 'function') {
+            await sbx.close();
+          }
+          console.log('✅ Sandbox cleaned up after error');
+        }
+      } catch (cleanupError) {
+        console.error('Error cleaning up sandbox after error:', cleanupError);
       }
-    };
-
-    console.log('📊 Execution Results:');
-    console.log('━━━━━━━━━━━━━━━━━━');
-    
-    if (execution.stdout) {
-      response.output = execution.stdout;
-      console.log('📤 Standard Output:');
-      console.log(response.output);
-    } else {
-      console.log('📤 No standard output generated');
-      console.log('Debug info:');
-      console.log('• Exit Code:', execution.exitCode);
-      console.log('• Status:', response.executionDetails.status);
-      console.log('• Duration:', response.executionDetails.duration, 'ms');
+      
+      return res.status(500).json({
+        error: error instanceof Error ? error.message : 'Error running ADK web command',
+        executionTime: Date.now() - startTime
+      });
     }
-    
-    if (execution.stderr) {
-      response.error = execution.stderr;
-      console.log('\n❌ Standard Error:');
-      console.log(response.error);
-    }
-    
-    // Add execution metadata
-    response.executionTime = Date.now() - startTime;
-    console.log('\n📈 Execution Metadata:');
-    console.log(`• Execution Time: ${response.executionTime}ms`);
-    console.log(`• Memory Usage: ${response.memoryUsage.toFixed(2)}MB`);
-    console.log(`• Exit Code: ${execution.exitCode}`);
-    console.log(`• Status: ${response.executionDetails.status}`);
-
-    // Cleanup sandbox
-    console.log('\n🧹 Cleaning up sandbox...');
-    await sbx.close();
-    console.log('✅ Sandbox cleaned up successfully');
-
-    console.log('\n✨ Request completed successfully');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-
-    return res.status(200).json(response);
   } catch (error) {
     console.error('\n❌ Sandbox execution error:');
     console.error('━━━━━━━━━━━━━━━━━━━━');
