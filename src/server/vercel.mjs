@@ -93,23 +93,45 @@ app.post('/api/execute', async (req, res) => {
     // Install Python dependencies
     console.log('📦 Installing Python dependencies...');
     
-    // Create requirements.txt
-    await sbx.files.write('workspace/requirements.txt', `
-google-adk>=0.5.0
-google-cloud-aiplatform>=1.38.0
-    `.trim());
-    
-    // Install dependencies
-    const pipResult = await sbx.commands.run(`
-      python -m pip install --upgrade pip &&
-      python -m pip install -r workspace/requirements.txt
-    `);
-    
-    if (pipResult.exitCode !== 0) {
-      throw new Error(`Failed to install dependencies: ${pipResult.stderr}`);
+    try {
+      // Create requirements.txt with specific versions
+      await sbx.files.write('workspace/requirements.txt', `
+google-adk==0.5.0
+google-cloud-aiplatform==1.38.0
+google-cloud-core==2.3.3
+google-api-core==2.15.0
+protobuf==4.25.1
+grpcio==1.60.0
+      `.trim());
+      
+      // Install dependencies with verbose output and error handling
+      console.log('Installing pip packages...');
+      
+      // First upgrade pip itself
+      const pipUpgradeResult = await sbx.commands.run('python -m pip install --upgrade pip');
+      console.log('Pip upgrade output:', pipUpgradeResult.stdout);
+      if (pipUpgradeResult.stderr) console.log('Pip upgrade warnings:', pipUpgradeResult.stderr);
+      
+      // Then install the requirements with detailed error output
+      const pipResult = await sbx.commands.run('python -m pip install -v -r workspace/requirements.txt');
+      
+      // Log detailed installation output
+      console.log('Pip install output:', pipResult.stdout);
+      if (pipResult.stderr) console.log('Pip install warnings:', pipResult.stderr);
+      
+      if (pipResult.exitCode !== 0) {
+        throw new Error(`Failed to install dependencies: ${pipResult.stderr}`);
+      }
+      
+      // Verify installations
+      const verifyResult = await sbx.commands.run('python -m pip list');
+      console.log('Installed packages:', verifyResult.stdout);
+      
+      console.log('✅ Dependencies installed successfully\n');
+    } catch (error) {
+      console.error('Error installing dependencies:', error);
+      throw new Error(`Failed to install Python dependencies: ${error.message}`);
     }
-    
-    console.log('✅ Dependencies installed successfully\n');
 
     // Create ADK config file
     console.log('📝 Creating ADK config file...');
@@ -130,51 +152,100 @@ GOOGLE_CLOUD_LOCATION=us-central1
     
     // Create startup script
     await sbx.files.write('workspace/start_adk.sh', `#!/bin/bash
+set -e  # Exit on any error
+
 # Load environment variables
 set -a
 source .env
 set +a
 
+# Ensure Python environment is working
+echo "Verifying Python environment..."
+python -c "import google.adk" || {
+    echo "Error: google.adk module not found"
+    exit 1
+}
+
 # Kill any existing process on port 8000
+echo "Checking for existing processes on port 8000..."
 fuser -k 8000/tcp 2>/dev/null || true
 
+# Set up error handling
+handle_error() {
+    echo "Error occurred. Check adk_web.log for details"
+    cat adk_web.log
+    exit 1
+}
+trap handle_error ERR
+
 # Run adk web command with specific host and port binding
-adk web \\
+echo "Starting ADK web server..."
+PYTHONPATH=/workspace/agent_package adk web \\
   --api_key=$GOOGLE_API_KEY \\
   --host=0.0.0.0 \\
   --port=8000 \\
+  --project=$GOOGLE_CLOUD_PROJECT \\
+  --location=$GOOGLE_CLOUD_LOCATION \\
   > adk_web.log 2>&1 &
 
 # Save the PID
 echo $! > adk_web.pid
 
 # Wait for server to start
+echo "Waiting for server to start..."
 max_attempts=30
 attempt=0
 while ! curl -s http://localhost:8000/health >/dev/null && [ $attempt -lt $max_attempts ]; do
-  sleep 1
-  attempt=$((attempt + 1))
-  echo "Waiting for server to start... (attempt $attempt/$max_attempts)"
+    sleep 1
+    attempt=$((attempt + 1))
+    echo "Attempt $attempt/$max_attempts: Checking server status..."
+    
+    # Check if process is still running
+    if ! kill -0 $(cat adk_web.pid) 2>/dev/null; then
+        echo "Server process died. Last log entries:"
+        tail -n 20 adk_web.log
+        exit 1
+    fi
 done
 
-# Check if server started
+# Final check
 if curl -s http://localhost:8000/health >/dev/null; then
-  echo "Server started successfully on port 8000"
+    echo "Server started successfully on port 8000"
+    echo "Server logs:"
+    cat adk_web.log
 else
-  echo "Failed to start server on port 8000"
-  exit 1
+    echo "Failed to start server. Server logs:"
+    cat adk_web.log
+    exit 1
 fi
 `);
 
     // Make script executable
     await sbx.commands.run('chmod +x workspace/start_adk.sh');
 
-    // Start the ADK web server
+    // Start the ADK web server with better error handling
     console.log('⚡ Starting ADK web server...');
-    const startResult = await sbx.commands.run('cd workspace && ./start_adk.sh');
+    const startResult = await sbx.commands.run('cd workspace && ./start_adk.sh', {
+        timeout: 60000  // Give it 60 seconds to start
+    });
     
     if (startResult.exitCode !== 0) {
-      throw new Error(`Failed to start ADK web server: ${startResult.stderr}`);
+        console.error('Server startup logs:', startResult.stdout);
+        console.error('Server startup errors:', startResult.stderr);
+        throw new Error(`Failed to start ADK web server: ${startResult.stderr || startResult.stdout}`);
+    }
+
+    // Double check server is running
+    try {
+        const healthCheck = await sbx.commands.run('curl -s http://localhost:8000/health');
+        if (healthCheck.exitCode !== 0) {
+            throw new Error('Health check failed after server start');
+        }
+    } catch (error) {
+        console.error('Health check failed:', error);
+        // Get the server logs
+        const logs = await sbx.commands.run('cat workspace/adk_web.log').catch(() => ({ stdout: 'No logs available' }));
+        throw new Error(`Server health check failed. Logs:\n${logs.stdout}`);
     }
 
     // Get the public URL
@@ -203,18 +274,49 @@ fi
   } catch (error) {
     console.error('Error:', error);
     
-    // Cleanup
+    // Collect additional diagnostic information
+    let diagnosticInfo = {
+      error: error.message || 'Unknown error occurred',
+      executionTime: Date.now() - startTime
+    };
+
+    // If we have a sandbox instance, try to get more information
     if (sbx) {
       try {
-        await sbx.commands.run('cd workspace && [ -f adk_web.pid ] && kill $(cat adk_web.pid)');
+        // Get ADK web logs if they exist
+        const logs = await sbx.commands.run('cat workspace/adk_web.log').catch(() => ({ stdout: 'No logs available' }));
+        diagnosticInfo.adkLogs = logs.stdout;
+
+        // Check Python environment
+        const pythonVersion = await sbx.commands.run('python --version').catch(() => ({ stdout: 'Unknown' }));
+        diagnosticInfo.pythonVersion = pythonVersion.stdout;
+
+        // Check installed packages
+        const pipList = await sbx.commands.run('pip list').catch(() => ({ stdout: 'No package info available' }));
+        diagnosticInfo.installedPackages = pipList.stdout;
+
+        // Check if ADK is properly installed
+        const adkCheck = await sbx.commands.run('python -c "import google.adk; print(google.adk.__version__)"').catch(() => ({ stdout: 'ADK not found', stderr: 'Import error' }));
+        diagnosticInfo.adkVersion = adkCheck.stdout;
+        if (adkCheck.stderr) {
+          diagnosticInfo.adkError = adkCheck.stderr;
+        }
+
+        // Cleanup sandbox
+        console.log('🧹 Cleaning up sandbox after error...');
+        await sbx.commands.run('cd workspace && [ -f adk_web.pid ] && kill $(cat adk_web.pid) 2>/dev/null || true');
         await sbx.destroy();
+        console.log('✅ Sandbox cleaned up after error');
       } catch (cleanupError) {
         console.error('Cleanup error:', cleanupError);
+        diagnosticInfo.cleanupError = cleanupError.message;
       }
     }
-    
+
+    // Send detailed error response
     res.status(500).json({
-      error: error.message || 'Unknown error occurred',
+      error: 'Failed to execute code',
+      details: diagnosticInfo,
       executionTime: Date.now() - startTime
     });
   }
