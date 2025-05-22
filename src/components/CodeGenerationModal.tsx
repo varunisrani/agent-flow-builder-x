@@ -562,9 +562,10 @@ export function CodeGenerationModal({
       if (responseData.openUrl) {
         // Append query parameter to select our agent package
         const url = new URL(responseData.openUrl);
-        if (!url.searchParams.has('app')) {
-          url.searchParams.set('app', 'agent_package');
-        }
+        // Ensure we have the correct app parameter
+        url.searchParams.set('app', 'agent_package');
+        // Add any additional required parameters
+        url.searchParams.set('mode', 'dev');
         setAgentUrl(url.toString());
         setShowOpenLink(responseData.showOpenLink || true);
 
@@ -574,6 +575,7 @@ export function CodeGenerationModal({
           let packagesDetected = false;
           let retryCount = 0;
           const maxRetries = 5;
+          const retryDelay = 2000; // 2 seconds between retries
           
           while (!packagesDetected && retryCount < maxRetries) {
             try {
@@ -583,12 +585,9 @@ export function CodeGenerationModal({
               
               if (packagesResponse.ok) {
                 const packages = await packagesResponse.json();
-                const hasAgentPackage = packages.some(p => p.name === 'agent_package' || p.id === 'agent_package');
-                const hasTestAgent = packages.some(p => p.name === 'test_agent' || p.id === 'test_agent');
-                
-                if (hasAgentPackage && hasTestAgent) {
+                if (packages.some(p => p.name === 'agent_package' || p.id === 'agent_package')) {
                   packagesDetected = true;
-                  console.log('✅ ADK agent packages detected successfully');
+                  console.log('✅ ADK agent package detected successfully');
                   break;
                 }
               }
@@ -596,9 +595,8 @@ export function CodeGenerationModal({
               console.warn(`Retry ${retryCount + 1}/${maxRetries}: Could not verify packages:`, error);
             }
             
-            // Wait before retrying (exponential backoff)
-            const delay = Math.min(1000 * Math.pow(2, retryCount), 8000);
-            await new Promise(resolve => setTimeout(resolve, delay));
+            // Wait before retrying
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
             retryCount++;
           }
           
@@ -618,9 +616,10 @@ export function CodeGenerationModal({
       } else if (responseData.executionDetails?.serverUrl) {
         // Fallback to serverUrl if openUrl is not available
         const url = new URL(responseData.executionDetails.serverUrl);
-        if (!url.searchParams.has('app')) {
-          url.searchParams.set('app', 'agent_package');
-        }
+        // Ensure we have the correct app parameter
+        url.searchParams.set('app', 'agent_package');
+        // Add any additional required parameters
+        url.searchParams.set('mode', 'dev');
         setAgentUrl(url.toString());
         setShowOpenLink(true);
 

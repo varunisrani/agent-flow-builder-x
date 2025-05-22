@@ -143,6 +143,8 @@ adk web \\
   --api_key=$GOOGLE_API_KEY \\
   --host=0.0.0.0 \\
   --port=8000 \\
+  --default_app=agent_package \\
+  --dev_mode=true \\
   > adk_web.log 2>&1 &
 
 # Save the PID
@@ -151,17 +153,29 @@ echo $! > adk_web.pid
 # Wait for server to start
 max_attempts=30
 attempt=0
+echo "Waiting for ADK web server to start..."
+
 while ! curl -s http://localhost:8000/health >/dev/null && [ $attempt -lt $max_attempts ]; do
   sleep 1
   attempt=$((attempt + 1))
-  echo "Waiting for server to start... (attempt $attempt/$max_attempts)"
+  echo "Attempt $attempt/$max_attempts..."
 done
 
-# Check if server started
+# Verify server is running and agent package is detected
 if curl -s http://localhost:8000/health >/dev/null; then
-  echo "Server started successfully on port 8000"
+  echo "ADK web server started successfully on port 8000"
+  
+  # Wait a moment for package detection
+  sleep 2
+  
+  # Check if our agent package is detected
+  if curl -s http://localhost:8000/api/v1/packages | grep -q "agent_package"; then
+    echo "Agent package detected successfully"
+  else
+    echo "Warning: Agent package not detected yet. It may take a few moments to appear."
+  fi
 else
-  echo "Failed to start server on port 8000"
+  echo "Failed to start ADK web server"
   exit 1
 fi
 `);
@@ -177,13 +191,15 @@ fi
       throw new Error(`Failed to start ADK web server: ${startResult.stderr}`);
     }
 
-    // Get the public URL
+    // Get the public URL and add required parameters
     const publicHost = sbx.getHost(8000);
-    const publicUrl = `https://${publicHost}`;
+    const publicUrl = new URL(`https://${publicHost}`);
+    publicUrl.searchParams.set('app', 'agent_package');
+    publicUrl.searchParams.set('mode', 'dev');
 
     // Format response
     const response = {
-      output: `ADK web server started successfully. Access the UI at ${publicUrl}`,
+      output: `ADK web server started successfully. Access the UI at ${publicUrl.toString()}`,
       error: null,
       executionTime: Date.now() - startTime,
       memoryUsage: process.memoryUsage().heapUsed / 1024 / 1024,
@@ -192,9 +208,9 @@ fi
         stderr: startResult.stderr ? startResult.stderr.split('\n') : [],
         exitCode: startResult.exitCode,
         status: 'running',
-        serverUrl: publicUrl
+        serverUrl: publicUrl.toString()
       },
-      openUrl: publicUrl,
+      openUrl: publicUrl.toString(),
       showOpenLink: true,
       linkText: 'Open Agent UI'
     };
