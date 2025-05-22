@@ -146,7 +146,7 @@ app.post('/api/execute', async (req, res) => {
 ADK_API_KEY=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY
 `);
       
-      // Create a startup script that properly detaches the process using nohup and disown
+      // Create a startup script that properly detaches the process and binds to 0.0.0.0
       await sbx.files.write('workspace/start_adk.sh', `#!/bin/bash
 source ./venv/bin/activate
 # Set environment variables for Google ADK
@@ -154,8 +154,8 @@ export GOOGLE_API_KEY=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY
 export ADK_API_KEY=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY
 # Run adk web command in the parent directory of agent_package per ADK requirements
 cd /home/user/workspace
-# Run adk web command in detached mode with nohup, redirecting output to a log file
-nohup adk web --api_key=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY > adk_web.log 2>&1 &
+# Run adk web command with host 0.0.0.0 to bind to all interfaces - critical for E2B port forwarding
+nohup adk web --api_key=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY --host 0.0.0.0 > adk_web.log 2>&1 &
 # Save the PID of the background process
 echo $! > adk_web.pid
 # Disown the process so it continues running even if the parent shell exits
@@ -172,17 +172,37 @@ disown -h $!
       if (adkWebResult.stdout) console.log(adkWebResult.stdout);
       if (adkWebResult.stderr) console.log(adkWebResult.stderr);
       
-      // Wait a moment for the server to start
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Wait longer for the server to start (5 seconds instead of 2)
+      await new Promise(resolve => setTimeout(resolve, 5000));
       
       // Check if the server is running
       const psCheck = await sbx.commands.run('ps aux | grep "adk web" | grep -v grep');
       console.log('✅ ADK web server process is running:');
       console.log(psCheck.stdout);
       
+      // Verify that the server is actually listening on port 8000
+      const netstatCheck = await sbx.commands.run('netstat -tlpn | grep 8000');
+      if (netstatCheck.stdout) {
+        console.log('✅ Server is listening on port 8000:');
+        console.log(netstatCheck.stdout);
+      } else {
+        // If netstat doesn't show the port, try lsof as an alternative
+        const lsofCheck = await sbx.commands.run('lsof -i :8000 || echo "Port 8000 not found"');
+        console.log('✅ Port 8000 status check:');
+        console.log(lsofCheck.stdout);
+      }
+      
       // Get the public URL for the ADK web server (port 8000)
       const publicHost = sbx.getHost(8000);
       const publicUrl = `https://${publicHost}`;
+      
+      // Try to verify the server is actually responding
+      try {
+        const curlCheck = await sbx.commands.run(`curl -s -o /dev/null -w "%{http_code}" http://localhost:8000 || echo "Failed to connect"`);
+        console.log(`✅ HTTP server response check: ${curlCheck.stdout}`);
+      } catch (error) {
+        console.log('⚠️ Could not verify HTTP server response');
+      }
       
       // Format the response with the public URL
       const response = {
