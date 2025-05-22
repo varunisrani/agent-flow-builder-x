@@ -15,9 +15,7 @@ const API_CONFIG = {
     ? 'http://localhost:3001' 
     : isUnifiedDeployment
       ? '' // Empty string - API is on same domain at /api path
-      : isCogentxDomain
-        ? 'https://agent-flow-builder-api.cogentx.dev'
-        : 'https://agent-flow-builder-9wcy78wub-varuns-projects-859429fc.vercel.app',
+      : 'https://agent-flow-builder-api.onrender.com', // Primary: Render API
   
   endpoints: {
     execute: '/api/execute',
