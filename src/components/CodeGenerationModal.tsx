@@ -672,9 +672,15 @@ export function CodeGenerationModal({
     const code = `import os
 from google.adk.agents import LlmAgent
 from google.adk.tools import google_search
+from google.cloud import aiplatform
 
-# Set Google API key
+# Set Google API key and project settings
 os.environ["GOOGLE_API_KEY"] = "AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY"
+os.environ["GOOGLE_CLOUD_PROJECT"] = "your-project-id"
+os.environ["GOOGLE_CLOUD_LOCATION"] = "us-central1"
+
+# Initialize Vertex AI
+aiplatform.init(project="your-project-id", location="us-central1")
 
 # Define a simple agent that answers user questions using an LLM and optional tools
 root_agent = LlmAgent(
@@ -684,7 +690,12 @@ root_agent = LlmAgent(
     instruction="${agentInstruction}",
     tools=[google_search] if ${hasTools} else None,
     api_key="AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY"  # Provide API key directly
-)`;
+)
+
+# Example usage
+if __name__ == "__main__":
+    response = root_agent.generate("Hello, how can I help you today?")
+    print(response)`;
 
     return code;
   }, [nodes]);

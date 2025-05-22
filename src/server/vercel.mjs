@@ -32,12 +32,18 @@ app.post('/api/execute', async (req, res) => {
   console.log('\n🚀 Starting code execution request...');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   
+  let sbx = null;
+  
   try {
     const { files } = req.body;
     
     if (!files || !files['agent.py']) {
       console.log('❌ Error: No agent.py file provided');
       return res.status(400).json({ error: 'No agent.py file provided' });
+    }
+
+    if (!process.env.E2B_API_KEY) {
+      throw new Error('E2B_API_KEY environment variable is not set');
     }
 
     console.log('📝 Files to create:');
@@ -47,10 +53,11 @@ app.post('/api/execute', async (req, res) => {
     });
     console.log('━━━━━━━━━━━━━━━━━\n');
 
-    // Create sandbox instance
+    // Create sandbox instance with Python template
     console.log('🔧 Creating E2B sandbox instance...');
-    const sbx = await Sandbox.create({ 
+    sbx = await Sandbox.create({ 
       apiKey: process.env.E2B_API_KEY,
+      template: 'Python3',
       onStdout: (data) => {
         console.log('📤 Stdout:', data);
       },
@@ -83,303 +90,133 @@ app.post('/api/execute', async (req, res) => {
     console.log('✅ Created __init__.py file');
     console.log('✅ All files written successfully\n');
 
-    // Set up Python environment with a compatible Python version
-    console.log('🐍 Setting up Python environment...');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    // Install Python dependencies
+    console.log('📦 Installing Python dependencies...');
     
-    // Check Python versions available in the sandbox
-    console.log('📊 Checking available Python versions...');
-    const pythonVersions = await sbx.commands.run('ls /usr/bin/python* | grep -v config');
-    console.log(`Available Python versions:\n${pythonVersions.stdout}`);
+    // Create requirements.txt
+    await sbx.files.write('workspace/requirements.txt', `
+google-adk>=0.5.0
+google-cloud-aiplatform>=1.38.0
+    `.trim());
     
-    // Try to use Python 3.9 which is compatible with most Google Cloud libraries
-    console.log('📦 Creating virtual environment with Python 3.9...');
-    let venvResult;
-    try {
-      venvResult = await sbx.commands.run('python3.9 -m venv workspace/venv');
-      console.log('✅ Successfully created venv with Python 3.9');
-    } catch (error) {
-      console.log('⚠️ Python 3.9 not available, falling back to default Python version');
-      venvResult = await sbx.commands.run('python3 -m venv workspace/venv');
+    // Install dependencies
+    const pipResult = await sbx.commands.run(`
+      python -m pip install --upgrade pip &&
+      python -m pip install -r workspace/requirements.txt
+    `);
+    
+    if (pipResult.exitCode !== 0) {
+      throw new Error(`Failed to install dependencies: ${pipResult.stderr}`);
     }
     
-    console.log(`  • Exit code: ${venvResult.exitCode}`);
-    if (venvResult.stdout) console.log(`  • Output: ${venvResult.stdout}`);
-    if (venvResult.stderr) console.log(`  • Errors: ${venvResult.stderr}`);
-    console.log('✅ Virtual environment created\n');
-    
-    console.log('📦 Activating virtual environment and installing dependencies...');
-    console.log('  • Installing google-adk package...');
-    const pipResult = await sbx.commands.run('source workspace/venv/bin/activate && pip install google-adk -v');
-    console.log(`  • Exit code: ${pipResult.exitCode}`);
-    console.log('  • Dependency installation details:');
-    if (pipResult.stdout) {
-      const pipLogs = pipResult.stdout.split('\n').map(line => `    ${line}`).join('\n');
-      console.log(pipLogs);
-    }
-    if (pipResult.stderr) {
-      console.log('  • Errors/Warnings:');
-      const pipErrors = pipResult.stderr.split('\n').map(line => `    ${line}`).join('\n');
-      console.log(pipErrors);
-    }
-    
-    // Verify the installation
-    console.log('\n📋 Verifying installation...');
-    const verifyResult = await sbx.commands.run('source workspace/venv/bin/activate && pip list | grep google-adk');
-    if (verifyResult.stdout) {
-      console.log(`  • Installed: ${verifyResult.stdout.trim()}`);
-    } else {
-      console.log('  • Warning: Could not verify google-adk installation');
-    }
-    
+    console.log('✅ Dependencies installed successfully\n');
+
     // Create ADK config file
     console.log('📝 Creating ADK config file...');
     await sbx.files.write('workspace/adk.config.json', JSON.stringify({
-      "api_key": "AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY"
+      "api_key": "AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY",
+      "project_id": "your-project-id",
+      "location": "us-central1"
     }, null, 2));
     console.log('✅ ADK config file created');
-    
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('✅ Python environment ready\n');
 
-    // Instead of executing the code directly, run the ADK web command
-    console.log('⚡ Starting agent with ADK web command...');
-    
-    try {
-      // Create a .env file with the Google ADK API key
-      await sbx.files.write('workspace/.env', `GOOGLE_API_KEY=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY
+    // Create .env file with API keys
+    await sbx.files.write('workspace/.env', `
+GOOGLE_API_KEY=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY
 ADK_API_KEY=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY
-`);
-      
-      // Create a startup script that properly detaches the process using nohup and disown
-      await sbx.files.write('workspace/start_adk.sh', `#!/bin/bash
-source ./venv/bin/activate
-
-# Set environment variables for Google ADK
-export GOOGLE_API_KEY=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY
-export ADK_API_KEY=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY
-
-# Run adk web command in the parent directory of agent_package per ADK requirements
-cd /home/user/workspace
+GOOGLE_CLOUD_PROJECT=your-project-id
+GOOGLE_CLOUD_LOCATION=us-central1
+    `.trim());
+    
+    // Create startup script
+    await sbx.files.write('workspace/start_adk.sh', `#!/bin/bash
+# Load environment variables
+set -a
+source .env
+set +a
 
 # Kill any existing process on port 8000
-fuser -k 8000/tcp || true
+fuser -k 8000/tcp 2>/dev/null || true
 
 # Run adk web command with specific host and port binding
-nohup adk web \\
-  --api_key=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY \\
+adk web \\
+  --api_key=$GOOGLE_API_KEY \\
   --host=0.0.0.0 \\
   --port=8000 \\
   > adk_web.log 2>&1 &
 
-# Save the PID of the background process
+# Save the PID
 echo $! > adk_web.pid
 
-# Wait for the server to start (max 30 seconds)
+# Wait for server to start
 max_attempts=30
 attempt=0
-while ! nc -z localhost 8000 && [ $attempt -lt $max_attempts ]; do
+while ! curl -s http://localhost:8000/health >/dev/null && [ $attempt -lt $max_attempts ]; do
   sleep 1
   attempt=$((attempt + 1))
   echo "Waiting for server to start... (attempt $attempt/$max_attempts)"
 done
 
-# Check if server started successfully
-if nc -z localhost 8000; then
+# Check if server started
+if curl -s http://localhost:8000/health >/dev/null; then
   echo "Server started successfully on port 8000"
 else
   echo "Failed to start server on port 8000"
   exit 1
 fi
-
-# Disown the process so it continues running even if the parent shell exits
-disown -h $!
 `);
-      
-      // Make the script executable
-      await sbx.commands.run('chmod +x workspace/start_adk.sh', { timeoutMs: 30000 });
-      
-      // Create a test agent to verify package detection
-      console.log('📝 Creating test agent for verification...');
-      await sbx.files.write('workspace/test_agent/__init__.py', `from .agent import root_agent\n__all__ = ["root_agent"]\n`);
-      await sbx.files.write('workspace/test_agent/agent.py', `
-import os
-from google.adk.agents import LlmAgent
 
-os.environ["GOOGLE_API_KEY"] = "AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY"
+    // Make script executable
+    await sbx.commands.run('chmod +x workspace/start_adk.sh');
 
-# Simple test agent
-root_agent = LlmAgent(
-    name="test_agent",
-    model="gemini-2.0-flash-exp",
-    description="A test agent to verify ADK package detection",
-    instruction="I am a test agent.",
-    api_key="AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY"
-)
-`);
-      console.log('✅ Test agent created\n');
-
-      // Execute the startup script
-      const adkWebResult = await sbx.commands.run('cd workspace && ./start_adk.sh', { timeoutMs: 30000 });
-      
-      console.log('📋 ADK web server starting script output:');
-      if (adkWebResult.stdout) console.log(adkWebResult.stdout);
-      if (adkWebResult.stderr) console.log(adkWebResult.stderr);
-      
-      // Verify the server is actually running and port is accessible
-      console.log('🔍 Verifying server accessibility...');
-      
-      // Check if the process is running
-      const psCheck = await sbx.commands.run('ps aux | grep "adk web" | grep -v grep');
-      if (!psCheck.stdout) {
-        throw new Error('ADK web server process not found');
-      }
-      console.log('✅ ADK web server process is running');
-      
-      // Double check port is listening
-      const portCheck = await sbx.commands.run('netstat -tulpn | grep :8000');
-      if (!portCheck.stdout) {
-        throw new Error('Port 8000 is not being listened to by any process');
-      }
-      console.log('✅ Port 8000 is being listened to');
-      console.log(portCheck.stdout);
-
-      // Verify agent packages are detected
-      console.log('🔍 Verifying agent package detection...');
-      try {
-        // Wait a moment for the ADK web server to scan for packages
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Use curl to check the ADK web API for available packages
-        const packageCheck = await sbx.commands.run('curl -s http://localhost:8000/api/v1/packages');
-        const packages = JSON.parse(packageCheck.stdout);
-        
-        // Verify both test_agent and agent_package are detected
-        const expectedPackages = ['test_agent', 'agent_package'];
-        const missingPackages = expectedPackages.filter(pkg => 
-          !packages.some(p => p.name === pkg || p.id === pkg)
-        );
-        
-        if (missingPackages.length > 0) {
-          throw new Error(`Missing expected packages: ${missingPackages.join(', ')}`);
-        }
-        console.log('✅ Agent packages detected successfully:', expectedPackages.join(', '));
-      } catch (error) {
-        console.warn('⚠️ Could not verify agent package detection:', error.message);
-        console.log('Will continue anyway as the server might still be initializing...');
-      }
-      
-      // Get the public URL for the ADK web server (port 8000)
-      const publicHost = sbx.getHost(8000);
-      const publicUrl = `https://${publicHost}`;
-      
-      // Try to verify the server is responding
-      console.log('🔍 Testing server response...');
-      try {
-        const curlCheck = await sbx.commands.run('curl -s -o /dev/null -w "%{http_code}" http://localhost:8000');
-        if (curlCheck.stdout !== '200') {
-          console.warn('⚠️ Server is running but not responding with 200 OK');
-        } else {
-          console.log('✅ Server is responding properly');
-        }
-      } catch (error) {
-        console.warn('⚠️ Could not verify server response:', error.message);
-      }
-      
-      // Format the response with the public URL
-      const response = {
-        output: `Agent started with ADK web command. Access the UI at ${publicUrl}`,
-        error: null,
-        executionTime: Date.now() - startTime,
-        memoryUsage: process.memoryUsage().heapUsed / 1024 / 1024, // in MB
-        executionDetails: {
-          stdout: [`Agent started with ADK web command`],
-          stderr: [],
-          exitCode: 0,
-          status: 'running',
-          duration: Date.now() - startTime,
-          serverUrl: publicUrl // Use the public URL that can be accessed from outside
-        },
-        // Add dedicated fields for the frontend to show an "Open Link" button
-        openUrl: publicUrl,
-        showOpenLink: true,
-        linkText: 'Open Agent UI'
-      };
-
-      console.log('📊 Execution Results:');
-      console.log('━━━━━━━━━━━━━━━━━━');
-      
-      console.log(`📤 ADK web server is accessible at: ${publicUrl}`);
-      console.log(`Debug info:`);
-      console.log(`• Status: ${response.executionDetails.status}`);
-      console.log(`• Duration: ${response.executionDetails.duration} ms`);
-      console.log(`• Server URL: ${response.executionDetails.serverUrl}`);
-
-      console.log('\n📈 Execution Metadata:');
-      console.log(`• Execution Time: ${response.executionTime}ms`);
-      console.log(`• Memory Usage: ${response.memoryUsage.toFixed(2)}MB`);
-      console.log(`• Status: ${response.executionDetails.status}`);
-      console.log(`• Server URL: ${response.executionDetails.serverUrl}`);
-      
-      res.status(200).json(response);
-    } catch (error) {
-      console.error('\n❌ Error running ADK web command:');
-      console.error(error);
-      
-      // Cleanup sandbox
-      try {
-        if (sbx) {
-          console.log('🧹 Cleaning up sandbox after error...');
-          
-          // Try to kill the ADK web process if it's running
-          try {
-            const killResult = await sbx.commands.run('if [ -f workspace/adk_web.pid ]; then kill $(cat workspace/adk_web.pid) 2>/dev/null || true; rm workspace/adk_web.pid; fi', { timeoutMs: 10000 });
-            console.log('📋 ADK web kill result:', killResult.stdout || 'No output');
-          } catch (killError) {
-            console.error('Failed to kill ADK web process:', killError.message);
-          }
-          
-          // Destroy the sandbox
-          if (typeof sbx.destroy === 'function') {
-            await sbx.destroy();
-          } else if (typeof sbx.close === 'function') {
-            await sbx.close();
-          }
-          console.log('✅ Sandbox cleaned up after error');
-        }
-      } catch (cleanupError) {
-        console.error('Error cleaning up sandbox after error:', cleanupError);
-      }
-      
-      return res.status(500).json({
-        error: error instanceof Error ? error.message : 'Error running ADK web command',
-        executionTime: Date.now() - startTime
-      });
+    // Start the ADK web server
+    console.log('⚡ Starting ADK web server...');
+    const startResult = await sbx.commands.run('cd workspace && ./start_adk.sh');
+    
+    if (startResult.exitCode !== 0) {
+      throw new Error(`Failed to start ADK web server: ${startResult.stderr}`);
     }
-  } catch (error) {
-    console.error('\n❌ Sandbox execution error:');
-    console.error('━━━━━━━━━━━━━━━━━━━━');
-    console.error(error);
-    
-    const errorResponse = {
-      error: error instanceof Error ? error.message : 'Unknown error occurred',
-      stack: error instanceof Error ? error.stack : undefined,
+
+    // Get the public URL
+    const publicHost = sbx.getHost(8000);
+    const publicUrl = `https://${publicHost}`;
+
+    // Format response
+    const response = {
+      output: `ADK web server started successfully. Access the UI at ${publicUrl}`,
+      error: null,
       executionTime: Date.now() - startTime,
-      errorDetails: {
-        name: error instanceof Error ? error.name : 'Unknown',
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        code: error instanceof Error ? (error.code || 'UNKNOWN') : 'UNKNOWN'
-      }
+      memoryUsage: process.memoryUsage().heapUsed / 1024 / 1024,
+      executionDetails: {
+        stdout: startResult.stdout ? startResult.stdout.split('\n') : [],
+        stderr: startResult.stderr ? startResult.stderr.split('\n') : [],
+        exitCode: startResult.exitCode,
+        status: 'running',
+        serverUrl: publicUrl
+      },
+      openUrl: publicUrl,
+      showOpenLink: true,
+      linkText: 'Open Agent UI'
     };
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error('Error:', error);
     
-    console.error('\n📈 Error Metadata:');
-    console.error(`• Error Type: ${errorResponse.errorDetails.name}`);
-    console.error(`• Error Code: ${errorResponse.errorDetails.code}`);
-    console.error(`• Execution Time: ${errorResponse.executionTime}ms`);
-    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+    // Cleanup
+    if (sbx) {
+      try {
+        await sbx.commands.run('cd workspace && [ -f adk_web.pid ] && kill $(cat adk_web.pid)');
+        await sbx.destroy();
+      } catch (cleanupError) {
+        console.error('Cleanup error:', cleanupError);
+      }
+    }
     
-    return res.status(500).json(errorResponse);
+    res.status(500).json({
+      error: error.message || 'Unknown error occurred',
+      executionTime: Date.now() - startTime
+    });
   }
 });
 
