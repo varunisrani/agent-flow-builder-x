@@ -28,6 +28,70 @@ const openai = new OpenAI({
   dangerouslyAllowBrowser: true // Enable client-side usage
 });
 
+// Rate limiting utilities
+const REQUEST_QUEUE = [];
+let IS_CIRCUIT_OPEN = false;
+let LAST_SUCCESS_TIME = Date.now();
+let CONSECUTIVE_FAILURES = 0;
+
+// Global rate limiter and circuit breaker
+const rateLimiter = {
+  // Circuit breaker parameters
+  maxConsecutiveFailures: 5,
+  circuitResetTimeMs: 10000, // 10 seconds
+  maxConcurrentRequests: 2,
+  activeRequests: 0,
+  
+  // Check if we should allow this request
+  canMakeRequest: function() {
+    // If circuit is open (in failure mode), check if enough time has passed to try again
+    if (IS_CIRCUIT_OPEN) {
+      const timeSinceLastFailure = Date.now() - LAST_SUCCESS_TIME;
+      if (timeSinceLastFailure > this.circuitResetTimeMs) {
+        console.log('🔄 Circuit breaker reset, allowing a test request');
+        // Allow one test request
+        IS_CIRCUIT_OPEN = false;
+        CONSECUTIVE_FAILURES = 0;
+        return true;
+      }
+      console.log('🛑 Circuit breaker open, blocking request');
+      return false;
+    }
+    
+    // Check if we're already at max concurrent requests
+    if (this.activeRequests >= this.maxConcurrentRequests) {
+      console.log(`⏳ Too many concurrent requests (${this.activeRequests}/${this.maxConcurrentRequests})`);
+      return false;
+    }
+    
+    return true;
+  },
+  
+  // Record a successful request
+  recordSuccess: function() {
+    LAST_SUCCESS_TIME = Date.now();
+    CONSECUTIVE_FAILURES = 0;
+    this.activeRequests = Math.max(0, this.activeRequests - 1);
+  },
+  
+  // Record a failed request
+  recordFailure: function() {
+    CONSECUTIVE_FAILURES++;
+    this.activeRequests = Math.max(0, this.activeRequests - 1);
+    
+    // Open the circuit if we've had too many consecutive failures
+    if (CONSECUTIVE_FAILURES >= this.maxConsecutiveFailures) {
+      console.log(`🔌 Opening circuit breaker after ${CONSECUTIVE_FAILURES} consecutive failures`);
+      IS_CIRCUIT_OPEN = true;
+    }
+  },
+  
+  // Start tracking a new request
+  startRequest: function() {
+    this.activeRequests++;
+  }
+};
+
 // Define proper type for newOpen parameter
 function useModalState(initialState = false): [boolean, (newOpen: boolean) => void] {
   const [state, setState] = useState(initialState);
@@ -361,46 +425,104 @@ export function CodeGenerationModal({
         throw new Error('No code provided to execute');
       }
 
+      // Check if we can make a request now
+      if (!rateLimiter.canMakeRequest()) {
+        throw new Error("Rate limit protection active. Please wait 10-15 seconds and try again.");
+      }
+
       // Split the code into agent.py and __init__.py
       const agentCode = code;
       const initCode = 'from .agent import root_agent\n__all__ = ["root_agent"]';
 
-      // Try each endpoint until one succeeds
+      // Try each endpoint with exponential backoff for rate limits
       let apiResponse = null;
+      const MAX_RETRIES = 3;
+      
+      // Record that we're starting a request
+      rateLimiter.startRequest();
+      
       for (const apiUrl of uniqueEndpoints) {
-        try {
-          console.log('📝 Trying API endpoint:', apiUrl);
-          
-          apiResponse = await fetch(apiUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              files: {
-                'agent.py': agentCode,
-                '__init__.py': initCode
+        let retries = 0;
+        let shouldRetry = true;
+        
+        while (shouldRetry && retries < MAX_RETRIES) {
+          try {
+            // Calculate backoff delay with much longer intervals (500ms, 2s, 4.5s)
+            const backoffDelay = retries > 0 ? (Math.pow(2, retries) - 1) * 500 : 0;
+            
+            if (backoffDelay > 0) {
+              console.log(`⏱️ Rate limit encountered. Retrying in ${backoffDelay}ms (attempt ${retries + 1}/${MAX_RETRIES})...`);
+              await new Promise(resolve => setTimeout(resolve, backoffDelay));
+            }
+            
+            console.log(`📝 Trying API endpoint: ${apiUrl}${retries > 0 ? ` (retry ${retries}/${MAX_RETRIES})` : ''}`);
+            
+            apiResponse = await fetch(apiUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                files: {
+                  'agent.py': agentCode,
+                  '__init__.py': initCode
+                }
+              }),
+            });
+            
+            if (apiResponse.ok) {
+              console.log('✅ API endpoint succeeded:', apiUrl);
+              rateLimiter.recordSuccess();
+              shouldRetry = false;
+              break; // Found a working endpoint
+            } else {
+              const errorStatus = apiResponse.status;
+              const errorText = await apiResponse.text().catch(() => "No error details available");
+              
+              // Check if it's a rate limit error (429 or 500 with rate limit message)
+              const isRateLimitError = 
+                errorStatus === 429 || 
+                (errorStatus === 500 && errorText.toLowerCase().includes('rate limit'));
+              
+              if (isRateLimitError && retries < MAX_RETRIES - 1) {
+                console.warn(`⚠️ Rate limit detected (${errorStatus}): Will retry with longer delay`);
+                retries++;
+                shouldRetry = true;
+                // Continue retry loop
+              } else {
+                console.warn(`⚠️ API endpoint failed (${errorStatus}):`, apiUrl, errorText);
+                lastError = new Error(`API Error (${errorStatus}): ${errorText || "No details available"}`);
+                shouldRetry = false;
+                apiResponse = null; // Reset for next endpoint
+                break;
               }
-            }),
-          });
-          
-          if (apiResponse.ok) {
-            console.log('✅ API endpoint succeeded:', apiUrl);
-            break; // Found a working endpoint
-          } else {
-            const errorText = await apiResponse.text().catch(() => "No error details available");
-            console.warn(`⚠️ API endpoint failed (${apiResponse.status}):`, apiUrl, errorText);
-            lastError = new Error(`API Error (${apiResponse.status}): ${errorText || "No details available"}`);
-            apiResponse = null; // Reset for next iteration
+            }
+          } catch (fetchError) {
+            console.warn(`⚠️ Fetch error with endpoint:`, apiUrl, fetchError);
+            lastError = fetchError;
+            shouldRetry = false;
+            break;
           }
-        } catch (fetchError) {
-          console.warn(`⚠️ Fetch error with endpoint:`, apiUrl, fetchError);
-          lastError = fetchError;
+        }
+        
+        if (apiResponse?.ok) {
+          break; // Successfully got a response, exit the endpoint loop
         }
       }
       
+      // Record failure if no successful response
       if (!apiResponse || !apiResponse.ok) {
-        throw lastError || new Error("All API endpoints failed");
+        rateLimiter.recordFailure();
+        
+        // Provide more helpful error messages based on the specific situation
+        if (IS_CIRCUIT_OPEN) {
+          throw new Error("Service temporarily unavailable due to rate limiting. Please wait 10-15 seconds before trying again.");
+        } else if (lastError && typeof lastError === 'object' && 'message' in lastError && 
+            typeof lastError.message === 'string' && lastError.message.toLowerCase().includes('rate limit')) {
+          throw new Error("Rate limit exceeded. Please wait a minute and try again.");
+        } else {
+          throw lastError || new Error("All API endpoints failed");
+        }
       }
 
       responseData = await apiResponse.json();
