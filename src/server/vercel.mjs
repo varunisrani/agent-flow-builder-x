@@ -74,21 +74,35 @@ app.post('/api/execute', async (req, res) => {
 
     // Create proper directory structure for ADK agent detection
     console.log('📁 Creating agent directories...');
-    await sbx.commands.run('mkdir -p workspace/agent_package');
-    console.log('✅ Workspace and agent_package directories created\n');
+    await sbx.commands.run('mkdir -p workspace/multi_tool_agent');
+    console.log('✅ Workspace and agent package directories created\n');
 
     // Write files to the sandbox with proper ADK structure
     console.log('📝 Writing files to sandbox...');
-    for (const [filename, content] of Object.entries(files)) {
-      await sbx.files.write(`workspace/agent_package/${filename}`, content);
-      console.log(`✅ Created ${filename}`);
-    }
     
-    // Create __init__.py file to make agent_package a proper Python package
-    console.log('📝 Creating __init__.py file...');
-    await sbx.files.write('workspace/agent_package/__init__.py', 'from .agent import root_agent\n__all__ = ["root_agent"]\n');
-    console.log('✅ Created __init__.py file');
-    console.log('✅ All files written successfully\n');
+    // Create __init__.py first
+    await sbx.files.write('workspace/multi_tool_agent/__init__.py', 'from .agent import root_agent\n__all__ = ["root_agent"]\n');
+    console.log('✅ Created __init__.py');
+    
+    // Write agent.py with proper imports
+    const agentPyContent = files['agent.py'];
+    await sbx.files.write('workspace/multi_tool_agent/agent.py', agentPyContent);
+    console.log('✅ Created agent.py');
+    
+    // Create .env file with proper configuration
+    await sbx.files.write('workspace/multi_tool_agent/.env', `
+GOOGLE_GENAI_USE_VERTEXAI=FALSE
+GOOGLE_API_KEY=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY
+`.trim());
+    console.log('✅ Created .env file');
+
+    // Create adk.config.json with proper configuration
+    await sbx.files.write('workspace/adk.config.json', JSON.stringify({
+      "api_key": "AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY",
+      "project_id": "your-project-id",
+      "location": "us-central1"
+    }, null, 2));
+    console.log('✅ Created adk.config.json');
 
     // Install Python dependencies
     console.log('📦 Installing Python dependencies...');
@@ -133,38 +147,28 @@ grpcio==1.60.0
       throw new Error(`Failed to install Python dependencies: ${error.message}`);
     }
 
-    // Create ADK config file
-    console.log('📝 Creating ADK config file...');
-    await sbx.files.write('workspace/adk.config.json', JSON.stringify({
-      "api_key": "AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY",
-      "project_id": "your-project-id",
-      "location": "us-central1"
-    }, null, 2));
-    console.log('✅ ADK config file created');
-
-    // Create .env file with API keys
-    await sbx.files.write('workspace/.env', `
-GOOGLE_API_KEY=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY
-ADK_API_KEY=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY
-GOOGLE_CLOUD_PROJECT=your-project-id
-GOOGLE_CLOUD_LOCATION=us-central1
-    `.trim());
-    
     // Create startup script
     await sbx.files.write('workspace/start_adk.sh', `#!/bin/bash
 set -e  # Exit on any error
 
 # Load environment variables
 set -a
-source .env
+source multi_tool_agent/.env
 set +a
 
 # Ensure Python environment is working
 echo "Verifying Python environment..."
 python -c "import google.adk" || {
     echo "Error: google.adk module not found"
-    exit 1
+    exit 100
 }
+
+# Verify API key format
+echo "Verifying API key..."
+if [[ ! $GOOGLE_API_KEY =~ ^AIza ]]; then
+    echo "Error: Invalid API key format. Must start with 'AIza'"
+    exit 100
+fi
 
 # Kill any existing process on port 8000
 echo "Checking for existing processes on port 8000..."
@@ -174,18 +178,20 @@ fuser -k 8000/tcp 2>/dev/null || true
 handle_error() {
     echo "Error occurred. Check adk_web.log for details"
     cat adk_web.log
-    exit 1
+    exit 100
 }
 trap handle_error ERR
 
+# Set PYTHONPATH to include the agent package
+export PYTHONPATH=/home/user/workspace:$PYTHONPATH
+
 # Run adk web command with specific host and port binding
 echo "Starting ADK web server..."
-PYTHONPATH=/workspace/agent_package adk web \\
+cd /home/user/workspace
+adk web \\
   --api_key=$GOOGLE_API_KEY \\
   --host=0.0.0.0 \\
   --port=8000 \\
-  --project=$GOOGLE_CLOUD_PROJECT \\
-  --location=$GOOGLE_CLOUD_LOCATION \\
   > adk_web.log 2>&1 &
 
 # Save the PID
@@ -204,7 +210,7 @@ while ! curl -s http://localhost:8000/health >/dev/null && [ $attempt -lt $max_a
     if ! kill -0 $(cat adk_web.pid) 2>/dev/null; then
         echo "Server process died. Last log entries:"
         tail -n 20 adk_web.log
-        exit 1
+        exit 100
     fi
 done
 
@@ -216,9 +222,8 @@ if curl -s http://localhost:8000/health >/dev/null; then
 else
     echo "Failed to start server. Server logs:"
     cat adk_web.log
-    exit 1
-fi
-`);
+    exit 100
+fi`);
 
     // Make script executable
     await sbx.commands.run('chmod +x workspace/start_adk.sh');
@@ -229,7 +234,38 @@ fi
         timeout: 60000  // Give it 60 seconds to start
     });
     
-    if (startResult.exitCode !== 0) {
+    if (startResult.exitCode === 100) {
+        // Exit code 100 typically indicates ADK initialization issues
+        console.error('ADK initialization failed. Checking for common issues...');
+        
+        // Check Python environment
+        const pythonVersion = await sbx.commands.run('python --version');
+        console.log('Python version:', pythonVersion.stdout);
+        
+        // Check ADK installation
+        const adkVersion = await sbx.commands.run('pip show google-adk');
+        console.log('ADK installation:', adkVersion.stdout);
+        
+        // Check if API key is properly set
+        const envCheck = await sbx.commands.run('cd workspace/multi_tool_agent && python -c "import os; print(os.environ.get(\'GOOGLE_API_KEY\'))"');
+        if (!envCheck.stdout || !envCheck.stdout.trim().startsWith('AIza')) {
+            throw new Error('Invalid or missing Google API key. Please ensure GOOGLE_API_KEY is properly set and starts with "AIza"');
+        }
+        
+        // Check ADK config file
+        const configCheck = await sbx.commands.run('cat workspace/adk.config.json');
+        if (!configCheck.stdout || !configCheck.stdout.includes('"api_key"')) {
+            throw new Error('Invalid ADK configuration. Please check adk.config.json');
+        }
+        
+        // Check agent package structure
+        const packageCheck = await sbx.commands.run('ls -R workspace/multi_tool_agent');
+        if (!packageCheck.stdout.includes('__init__.py') || !packageCheck.stdout.includes('agent.py')) {
+            throw new Error('Invalid agent package structure. Missing required files.');
+        }
+        
+        throw new Error('ADK initialization failed. Please check the logs for details.');
+    } else if (startResult.exitCode !== 0) {
         console.error('Server startup logs:', startResult.stdout);
         console.error('Server startup errors:', startResult.stderr);
         throw new Error(`Failed to start ADK web server: ${startResult.stderr || startResult.stdout}`);

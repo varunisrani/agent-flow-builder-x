@@ -670,26 +670,69 @@ export function CodeGenerationModal({
     const agentInstruction = nodes.find(n => n.data.type === 'agent')?.data.instruction || 'Respond helpfully and concisely to the user\'s question. Use Google Search if needed.';
     
     const code = `import os
-from google.adk.agents import LlmAgent
+import datetime
+from zoneinfo import ZoneInfo
+from google.adk.agents import Agent
 from google.adk.tools import google_search
-from google.cloud import aiplatform
 
-# Set Google API key and project settings
-os.environ["GOOGLE_API_KEY"] = "AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY"
-os.environ["GOOGLE_CLOUD_PROJECT"] = "your-project-id"
-os.environ["GOOGLE_CLOUD_LOCATION"] = "us-central1"
+# Validate and set Google API key
+api_key = os.environ.get("GOOGLE_API_KEY", "AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY")
+if not api_key.startswith("AIza"):
+    raise ValueError("Invalid Google API key format. Key should start with 'AIza'")
 
-# Initialize Vertex AI
-aiplatform.init(project="your-project-id", location="us-central1")
+def get_weather(city: str) -> dict:
+    """Retrieves the current weather report for a specified city.
+    
+    Args:
+        city (str): The name of the city for which to retrieve the weather report.
+    
+    Returns:
+        dict: status and result or error msg.
+    """
+    if city.lower() == "new york":
+        return {
+            "status": "success",
+            "report": (
+                "The weather in New York is sunny with a temperature of 25 degrees"
+                " Celsius (77 degrees Fahrenheit)."
+            ),
+        }
+    else:
+        return {
+            "status": "error",
+            "error_message": f"Weather information for '{city}' is not available.",
+        }
 
-# Define a simple agent that answers user questions using an LLM and optional tools
-root_agent = LlmAgent(
-    model="gemini-2.0-flash-exp",  # Use your preferred model
-    name="question_answer_agent",
-    description="A helpful assistant agent that can answer general questions.",
+def get_current_time(city: str) -> dict:
+    """Returns the current time in a specified city.
+    
+    Args:
+        city (str): The name of the city for which to retrieve the current time.
+    
+    Returns:
+        dict: status and result or error msg.
+    """
+    if city.lower() == "new york":
+        tz_identifier = "America/New_York"
+    else:
+        return {
+            "status": "error",
+            "error_message": f"Sorry, I don't have timezone information for {city}."
+        }
+
+    tz = ZoneInfo(tz_identifier)
+    now = datetime.datetime.now(tz)
+    report = f'The current time in {city} is {now.strftime("%Y-%m-%d %H:%M:%S %Z%z")}'
+    return {"status": "success", "report": report}
+
+# Initialize the root agent with proper configuration
+root_agent = Agent(
+    name="weather_time_agent",
+    model="gemini-2.0-flash",  # Use your preferred model
+    description="A helpful assistant agent that can answer questions about the time and weather in a city.",
     instruction="${agentInstruction}",
-    tools=[google_search] if ${hasTools} else None,
-    api_key="AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY"  # Provide API key directly
+    tools=[get_weather, get_current_time${hasTools ? ', google_search' : ''}],
+    api_key=api_key  # Pass the validated API key
 )
 
 # Example usage
