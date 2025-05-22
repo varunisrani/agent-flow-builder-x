@@ -727,7 +727,7 @@ root_agent = LlmAgent(
               <div className="text-xs text-muted-foreground ml-14 mt-1">
                 When disabled, code will not automatically run in the browser
               </div>
-            </div>
+                </div>
                 
                 <Button 
                   variant="outline" 
@@ -1508,19 +1508,11 @@ async function generateCodeWithOpenAI(nodes: Node<BaseNodeData>[], edges: Edge[]
     
     const code = [
       'import os',
-      'import json',
       'from google.adk.agents import LlmAgent',
       'from google.adk.tools import google_search',
       '',
-      '# Set Google API key (multiple methods for better compatibility)',
-      '# 1. Environment variable',
+      '# Set Google API key',
       'os.environ["GOOGLE_API_KEY"] = "AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY"',
-      '# 2. Create an .env file',
-      'with open(".env", "w") as env_file:',
-      '    env_file.write("GOOGLE_API_KEY=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY\\n")',
-      '# 3. Create config file',
-      'with open("adk.config.json", "w") as config_file:',
-      '    json.dump({"api_key": "AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY"}, config_file)',
       '',
       '# Define a simple agent that answers user questions using an LLM and optional tools',
       'root_agent = LlmAgent(',

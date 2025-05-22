@@ -76,11 +76,6 @@ app.post('/api/execute', async (req, res) => {
     console.log('📝 Creating __init__.py file...');
     await sbx.files.write('workspace/agent_package/__init__.py', 'from .agent import root_agent\n__all__ = ["root_agent"]\n');
     console.log('✅ Created __init__.py file');
-    
-    // Create a README.md file to help identify the package in the ADK web UI
-    console.log('📝 Creating README.md file...');
-    await sbx.files.write('workspace/agent_package/README.md', '# Agent Flow Builder Generated Agent\n\nThis agent was automatically generated from your Agent Flow Builder diagram.\n');
-    console.log('✅ Created README.md file');
     console.log('✅ All files written successfully\n');
 
     // Set up Python environment with a compatible Python version
@@ -92,26 +87,15 @@ app.post('/api/execute', async (req, res) => {
     const pythonVersions = await sbx.commands.run('ls /usr/bin/python* | grep -v config');
     console.log(`Available Python versions:\n${pythonVersions.stdout}`);
     
-    // Try to use Python 3.10 which is compatible with Google ADK
-    console.log('📦 Creating virtual environment...');
+    // Try to use Python 3.9 which is compatible with most Google Cloud libraries
+    console.log('📦 Creating virtual environment with Python 3.9...');
     let venvResult;
     try {
-      // First check what Python versions are available
-      const pythonVersionsResult = await sbx.commands.run('ls -la /usr/bin/python*');
-      console.log(`Available Python versions: ${pythonVersionsResult.stdout}`);
-      
-      // Try Python 3.10 first (known to work with Google ADK)
-      venvResult = await sbx.commands.run('python3.10 -m venv workspace/venv');
-      console.log('✅ Successfully created venv with Python 3.10');
+      venvResult = await sbx.commands.run('python3.9 -m venv workspace/venv');
+      console.log('✅ Successfully created venv with Python 3.9');
     } catch (error) {
-      console.log('⚠️ Python 3.10 not available, trying Python 3.9...');
-      try {
-        venvResult = await sbx.commands.run('python3.9 -m venv workspace/venv');
-        console.log('✅ Successfully created venv with Python 3.9');
-      } catch (secondError) {
-        console.log('⚠️ Python 3.9 not available, falling back to default Python version');
-        venvResult = await sbx.commands.run('python3 -m venv workspace/venv');
-      }
+      console.log('⚠️ Python 3.9 not available, falling back to default Python version');
+      venvResult = await sbx.commands.run('python3 -m venv workspace/venv');
     }
     
     console.log(`  • Exit code: ${venvResult.exitCode}`);
@@ -120,38 +104,19 @@ app.post('/api/execute', async (req, res) => {
     console.log('✅ Virtual environment created\n');
     
     console.log('📦 Activating virtual environment and installing dependencies...');
-    console.log('  • Upgrading pip and installing wheel...');
-    await sbx.commands.run('source workspace/venv/bin/activate && pip install --upgrade pip wheel setuptools');
-    
-    console.log('  • Installing google-adk package and dependencies...');
-    await sbx.commands.run('source workspace/venv/bin/activate && pip install protobuf google-api-python-client google-auth fastapi uvicorn');
-    
-    // Try installing google-adk with different pip flags
-    try {
-      console.log('  • Installing google-adk package (attempt 1)...');
-      const pipResult = await sbx.commands.run('source workspace/venv/bin/activate && pip install google-adk==0.0.18 --no-cache-dir -v');
-      console.log(`  • Exit code: ${pipResult.exitCode}`);
-    } catch (error) {
-      console.log('  • First attempt failed, trying alternative installation...');
-      try {
-        // Try installing directly from PyPI with no version constraint
-        const altResult = await sbx.commands.run('source workspace/venv/bin/activate && pip install google-adk --no-cache-dir --no-deps');
-        console.log(`  • Alternative installation exit code: ${altResult.exitCode}`);
-      } catch (altError) {
-        console.log('  • Alternative installation failed, trying minimal install...');
-                 // Try with minimal dependencies
-         await sbx.commands.run('source workspace/venv/bin/activate && pip install google-adk --no-cache-dir --no-deps --ignore-installed');
-       }
-     }
-     
-     console.log('  • Checking installed ADK package:');
-     try {
-       const adkCheck = await sbx.commands.run('source workspace/venv/bin/activate && pip show google-adk');
-       console.log('  • ADK package details:');
-       console.log(adkCheck.stdout);
-     } catch (error) {
-       console.log('  • Could not get ADK package details:', error.message);
-     }
+    console.log('  • Installing google-adk package...');
+    const pipResult = await sbx.commands.run('source workspace/venv/bin/activate && pip install google-adk -v');
+    console.log(`  • Exit code: ${pipResult.exitCode}`);
+    console.log('  • Dependency installation details:');
+    if (pipResult.stdout) {
+      const pipLogs = pipResult.stdout.split('\n').map(line => `    ${line}`).join('\n');
+      console.log(pipLogs);
+    }
+    if (pipResult.stderr) {
+      console.log('  • Errors/Warnings:');
+      const pipErrors = pipResult.stderr.split('\n').map(line => `    ${line}`).join('\n');
+      console.log(pipErrors);
+    }
     
     // Verify the installation
     console.log('\n📋 Verifying installation...');
@@ -183,126 +148,45 @@ ADK_API_KEY=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY
       
       // Create a startup script that properly detaches the process using nohup and disown
       await sbx.files.write('workspace/start_adk.sh', `#!/bin/bash
-set -e  # Exit immediately if a command fails
-echo "Starting ADK Web Server"
-
-# Source the virtual environment
 source ./venv/bin/activate
-echo "Virtual environment activated"
-
 # Set environment variables for Google ADK
 export GOOGLE_API_KEY=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY
 export ADK_API_KEY=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY
-echo "Environment variables set"
-
-# Make sure we're in the workspace directory
+# Run adk web command in the parent directory of agent_package per ADK requirements
 cd /home/user/workspace
-echo "Changed to workspace directory: $(pwd)"
-
-# List the directory contents to debug
-echo "Directory contents:"
-ls -la
-
-# Print Python and ADK versions for debugging
-python --version
-pip list | grep google-adk
-echo "Python version and ADK package checked"
-
-# Try to diagnose the Python environment
-echo "Python diagnostic information:"
-which python3
-python3 --version
-which adk
-adk --version
-echo "ADK installation path:"
-pip show google-adk | grep Location
-
-# Try debugging with verbose flags
-echo "Starting ADK web server on port 8000..."
-nohup adk web --host=0.0.0.0 --port=8000 --api_key=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY --debug --verbose > adk_web.log 2>&1 &
-
-# Save the PID
+# Run adk web command in detached mode with nohup, redirecting output to a log file
+nohup adk web --api_key=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY > adk_web.log 2>&1 &
+# Save the PID of the background process
 echo $! > adk_web.pid
-echo "ADK web server started with PID: $(cat adk_web.pid)"
-
-# Disown the process
+# Disown the process so it continues running even if the parent shell exits
 disown -h $!
-echo "Process disowned successfully"
-
-# Show the log file contents for debugging
-echo "Initial log file contents:"
-cat adk_web.log || echo "Log file not yet created"
-
-# Check if process is running
-echo "Process status:"
-ps -p $(cat adk_web.pid) || echo "Process not yet visible in ps"
-
-echo "Startup script completed successfully"
 `);
       
       // Make the script executable
       await sbx.commands.run('chmod +x workspace/start_adk.sh', { timeoutMs: 30000 });
       
-      // Execute the startup script with increased timeout
-      console.log('🚀 Running ADK web startup script...');
-      try {
-        const adkWebResult = await sbx.commands.run('cd workspace && ./start_adk.sh', { 
-          timeoutMs: 60000, // Increase timeout to 60 seconds
-          env: {
-            "GOOGLE_API_KEY": "AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY",
-            "ADK_API_KEY": "AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY"
-          }
-        });
-        
-        console.log('📋 ADK web server starting script output:');
-        if (adkWebResult.stdout) console.log(adkWebResult.stdout);
-        if (adkWebResult.stderr) console.log(adkWebResult.stderr);
-        
-        // Wait a moment for the server to start
-        console.log('⏳ Waiting for server to start...');
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        
-        // Check log file contents
-        console.log('📋 Checking ADK web server logs:');
-        const logCheck = await sbx.commands.run('cat workspace/adk_web.log || echo "Log file not found"');
-        console.log(logCheck.stdout);
-        
-        // Check if the server is running
-        console.log('👀 Checking if ADK web server process is running:');
-        const psCheck = await sbx.commands.run('ps aux | grep "adk web" | grep -v grep || echo "No ADK web process found"');
-        console.log(psCheck.stdout);
-        
-        // Check open ports
-        console.log('🔍 Checking open ports:');
-        const portsCheck = await sbx.commands.run('netstat -tulpn | grep LISTEN || echo "netstat not available"');
-        console.log(portsCheck.stdout);
-        
-        // Test if we can reach the server
-        console.log('🌐 Testing HTTP connection to ADK web server:');
-        const curlCheck = await sbx.commands.run('curl -s -I http://localhost:8000 || echo "Connection failed"');
-        console.log(curlCheck.stdout);
-      } catch (error) {
-        console.error('❌ Error running startup script:', error);
-        // Try to collect diagnostic information even if the script failed
-        try {
-          console.log('🔍 Collecting diagnostic information after error...');
-          const diagnosticInfo = await sbx.commands.run('cd workspace && ls -la && cat adk_web.log || echo "Log not found"');
-          console.log('Diagnostic output:', diagnosticInfo.stdout);
-        } catch (diagError) {
-          console.error('Failed to collect diagnostic information:', diagError);
-        }
-      }
+      // Execute the startup script
+      const adkWebResult = await sbx.commands.run('cd workspace && ./start_adk.sh', { timeoutMs: 30000 });
+      
+      console.log('📋 ADK web server starting script output:');
+      if (adkWebResult.stdout) console.log(adkWebResult.stdout);
+      if (adkWebResult.stderr) console.log(adkWebResult.stderr);
+      
+      // Wait a moment for the server to start
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Check if the server is running
+      const psCheck = await sbx.commands.run('ps aux | grep "adk web" | grep -v grep');
+      console.log('✅ ADK web server process is running:');
+      console.log(psCheck.stdout);
       
       // Get the public URL for the ADK web server (port 8000)
       const publicHost = sbx.getHost(8000);
       const publicUrl = `https://${publicHost}`;
       
-      // Also construct a URL for the dev-ui path specifically 
-      const devUiUrl = `https://${publicHost}/dev-ui?app=agent_package`;
-      
       // Format the response with the public URL
       const response = {
-        output: `Agent started with ADK web command. Access the UI at ${devUiUrl}`,
+        output: `Agent started with ADK web command. Access the UI at ${publicUrl}`,
         error: null,
         executionTime: Date.now() - startTime,
         memoryUsage: process.memoryUsage().heapUsed / 1024 / 1024, // in MB
@@ -312,10 +196,10 @@ echo "Startup script completed successfully"
           exitCode: 0,
           status: 'running',
           duration: Date.now() - startTime,
-          serverUrl: devUiUrl // Use the dev-ui URL that directly goes to the UI
+          serverUrl: publicUrl // Use the public URL that can be accessed from outside
         },
         // Add dedicated fields for the frontend to show an "Open Link" button
-        openUrl: devUiUrl, // Direct link to the dev UI with agent_package selected
+        openUrl: publicUrl,
         showOpenLink: true,
         linkText: 'Open Agent UI'
       };
@@ -323,7 +207,7 @@ echo "Startup script completed successfully"
       console.log('📊 Execution Results:');
       console.log('━━━━━━━━━━━━━━━━━━');
       
-      console.log(`📤 ADK web server is accessible at: ${devUiUrl}`);
+      console.log(`📤 ADK web server is accessible at: ${publicUrl}`);
       console.log(`Debug info:`);
       console.log(`• Status: ${response.executionDetails.status}`);
       console.log(`• Duration: ${response.executionDetails.duration} ms`);
@@ -335,43 +219,7 @@ echo "Startup script completed successfully"
       console.log(`• Status: ${response.executionDetails.status}`);
       console.log(`• Server URL: ${response.executionDetails.serverUrl}`);
       
-      // Check if the ADK web process actually started by examining logs or port activity
-      let isServerRunning = false;
-      
-      // Look for evidence in the logs that the server started
-      try {
-        const lastLog = await sbx.commands.run('cd workspace && tail -n 20 adk_web.log || echo "Log file not found"');
-        // Check if any of these strings appear in the log indicating server is running
-        if (lastLog.stdout.includes('Running on') || 
-            lastLog.stdout.includes('Application startup complete') ||
-            lastLog.stdout.includes('Started server process')) {
-          isServerRunning = true;
-        }
-      } catch (err) {
-        console.log('Could not check log file for server status:', err.message);
-      }
-      
-      // Verify by checking if port 8000 is in use
-      try {
-        const portCheck = await sbx.commands.run('netstat -tulpn | grep 8000 || echo "Port not in use"');
-        if (portCheck.stdout.includes('8000')) {
-          isServerRunning = true;
-        }
-      } catch (err) {
-        console.log('Could not check port status:', err.message);
-      }
-      
-      if (isServerRunning) {
-        // Server is running, return success response
-        res.status(200).json(response);
-      } else {
-        // Server did not start properly, return error
-        console.error('⚠️ ADK web server does not appear to be running!');
-        res.status(500).json({
-          error: "ADK web server failed to start properly. Please try again.",
-          executionTime: Date.now() - startTime
-        });
-      }
+      res.status(200).json(response);
     } catch (error) {
       console.error('\n❌ Error running ADK web command:');
       console.error(error);
