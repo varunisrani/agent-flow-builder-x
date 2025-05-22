@@ -341,7 +341,14 @@ fi`);
         // Cleanup sandbox
         console.log('🧹 Cleaning up sandbox after error...');
         await sbx.commands.run('cd workspace && [ -f adk_web.pid ] && kill $(cat adk_web.pid) 2>/dev/null || true');
-        await sbx.destroy();
+        // Use proper method to terminate sandbox with fallbacks
+        if (typeof sbx.destroy === 'function') {
+          await sbx.destroy();
+        } else if (typeof sbx.close === 'function') {
+          await sbx.close();
+        } else if (typeof sbx.kill === 'function') {
+          await sbx.kill();
+        }
         console.log('✅ Sandbox cleaned up after error');
       } catch (cleanupError) {
         console.error('Cleanup error:', cleanupError);
