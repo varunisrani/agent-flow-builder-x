@@ -369,10 +369,10 @@ export function CodeGenerationModal({
     if (generatedCode) {
       executeInSandbox(generatedCode);
     } else {
-      toast({
+    toast({
         title: "No Code Available",
         description: "Please generate code first before executing.",
-      });
+    });
     }
   };
 
@@ -615,8 +615,12 @@ export function CodeGenerationModal({
     const hasTools = nodes.some(node => node.data.type === 'tool');
     const agentInstruction = nodes.find(n => n.data.type === 'agent')?.data.instruction || 'Respond helpfully and concisely to the user\'s question. Use Google Search if needed.';
     
-    const code = `from google.adk.agents import LlmAgent
+    const code = `import os
+from google.adk.agents import LlmAgent
 from google.adk.tools import google_search
+
+# Set Google API key
+os.environ["GOOGLE_API_KEY"] = "AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY"
 
 # Define a simple agent that answers user questions using an LLM and optional tools
 root_agent = LlmAgent(
@@ -624,16 +628,17 @@ root_agent = LlmAgent(
     name="question_answer_agent",
     description="A helpful assistant agent that can answer general questions.",
     instruction="${agentInstruction}",
-    tools=[google_search] if ${hasTools} else None
+    tools=[google_search] if ${hasTools} else None,
+    api_key="AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY"  # Provide API key directly
 )`;
 
     return code;
   }, [nodes]);
-  
+
   useEffect(() => {
     if (autoExecute) {
-      const code = generateCode();
-      executeInSandbox(code);
+    const code = generateCode();
+    executeInSandbox(code);
     }
   }, [generateCode, autoExecute]);
 
@@ -680,24 +685,24 @@ root_agent = LlmAgent(
           <TabsContent value={activeTab} className="mt-4">
             {activeTab === 'adk' && (
               <div className="flex justify-between items-center mb-2">
-                            <div className="flex items-center gap-2">
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  className="sr-only peer"
-                  checked={mcpEnabled}
-                  onChange={() => setMcpEnabled(!mcpEnabled)}
-                  disabled={hasMcpNodes} // Disable toggle if MCP nodes exist
-                />
-                <div className={`w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600 ${hasMcpNodes ? 'opacity-60' : ''}`}></div>
-                <span className="ms-3 text-sm font-medium">MCP Support</span>
-              </label>
-              {hasMcpNodes && (
-                <span className="text-xs text-yellow-500">
-                  (MCP nodes detected in diagram)
-                </span>
-              )}
-            </div>
+                <div className="flex items-center gap-2">
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      className="sr-only peer"
+                      checked={mcpEnabled}
+                      onChange={() => setMcpEnabled(!mcpEnabled)}
+                      disabled={hasMcpNodes} // Disable toggle if MCP nodes exist
+                    />
+                    <div className={`w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600 ${hasMcpNodes ? 'opacity-60' : ''}`}></div>
+                    <span className="ms-3 text-sm font-medium">MCP Support</span>
+                  </label>
+                  {hasMcpNodes && (
+                    <span className="text-xs text-yellow-500">
+                      (MCP nodes detected in diagram)
+                    </span>
+                  )}
+                </div>
             <div className="flex items-center gap-2 ml-6">
               <label className="relative inline-flex items-center cursor-pointer">
                 <input 
@@ -870,7 +875,10 @@ function generateAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
   const mcpToolNodes = nodes.filter(node => node.data.type === 'mcp-tool');
   
   // Initialize imports
-  let code = `from google.adk.agents import Agent\n`;
+  let code = `import os\nfrom google.adk.agents import Agent\n\n`;
+  
+  // Add API key setup
+  code += `# Set Google API key\nos.environ["GOOGLE_API_KEY"] = "AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY"\n\n`;
   
   // Add tool imports
   if (toolNodes.length > 0) {
@@ -983,7 +991,8 @@ function generateAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
     code += `    model="${modelName}",\n`;
     code += `    description="${mainAgent.data.description || 'An AI agent'}",\n`;
     code += `    instruction="${mainAgent.data.instruction || 'I am a helpful assistant.'}",\n`;
-    code += `    tools=${toolList}\n`;
+    code += `    tools=${toolList},\n`;
+    code += `    api_key="AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY"  # Provide API key directly\n`;
     code += `)\n`;
     
     // Add usage example
@@ -1008,7 +1017,8 @@ function generateAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
     code += `    model="gemini-2.0-flash",\n`;
     code += `    description="A helpful assistant agent that can answer questions.",\n`;
     code += `    instruction="I am a helpful assistant that provides accurate and detailed information.",\n`;
-    code += `    tools=[]\n`;
+    code += `    tools=[],\n`;
+    code += `    api_key="AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY"  # Provide API key directly\n`;
     code += `)\n\n`;
     code += `# Example usage\n`;
     code += `response = example_agent.generate("Hello, how can I assist you today?")\n`;
@@ -1497,8 +1507,12 @@ async function generateCodeWithOpenAI(nodes: Node<BaseNodeData>[], edges: Edge[]
     const toolsConfig = hasTools ? '[google_search]' : 'None';
     
     const code = [
+      'import os',
       'from google.adk.agents import LlmAgent',
       'from google.adk.tools import google_search',
+      '',
+      '# Set Google API key',
+      'os.environ["GOOGLE_API_KEY"] = "AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY"',
       '',
       '# Define a simple agent that answers user questions using an LLM and optional tools',
       'root_agent = LlmAgent(',
@@ -1506,7 +1520,8 @@ async function generateCodeWithOpenAI(nodes: Node<BaseNodeData>[], edges: Edge[]
       '    name="question_answer_agent",',
       '    description="A helpful assistant agent that can answer general questions.",',
       `    instruction="${agentInstruction}",`,
-      `    tools=${toolsConfig}`,
+      `    tools=${toolsConfig},`,
+      '    api_key="AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY"  # Provide API key directly',
       ')'
     ].join('\n');
 

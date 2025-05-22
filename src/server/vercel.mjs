@@ -71,6 +71,11 @@ app.post('/api/execute', async (req, res) => {
       await sbx.files.write(`workspace/agent_package/${filename}`, content);
       console.log(`✅ Created ${filename}`);
     }
+    
+    // Create __init__.py file to make agent_package a proper Python package
+    console.log('📝 Creating __init__.py file...');
+    await sbx.files.write('workspace/agent_package/__init__.py', 'from .agent import root_agent\n__all__ = ["root_agent"]\n');
+    console.log('✅ Created __init__.py file');
     console.log('✅ All files written successfully\n');
 
     // Set up Python environment with a compatible Python version
@@ -122,6 +127,13 @@ app.post('/api/execute', async (req, res) => {
       console.log('  • Warning: Could not verify google-adk installation');
     }
     
+    // Create ADK config file
+    console.log('📝 Creating ADK config file...');
+    await sbx.files.write('workspace/adk.config.json', JSON.stringify({
+      "api_key": "AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY"
+    }, null, 2));
+    console.log('✅ ADK config file created');
+    
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('✅ Python environment ready\n');
 
@@ -129,13 +141,21 @@ app.post('/api/execute', async (req, res) => {
     console.log('⚡ Starting agent with ADK web command...');
     
     try {
+      // Create a .env file with the Google ADK API key
+      await sbx.files.write('workspace/.env', `GOOGLE_API_KEY=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY
+ADK_API_KEY=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY
+`);
+      
       // Create a startup script that properly detaches the process using nohup and disown
       await sbx.files.write('workspace/start_adk.sh', `#!/bin/bash
 source ./venv/bin/activate
+# Set environment variables for Google ADK
+export GOOGLE_API_KEY=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY
+export ADK_API_KEY=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY
 # Run adk web command in the parent directory of agent_package per ADK requirements
 cd /home/user/workspace
 # Run adk web command in detached mode with nohup, redirecting output to a log file
-nohup adk web > adk_web.log 2>&1 &
+nohup adk web --api_key=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY > adk_web.log 2>&1 &
 # Save the PID of the background process
 echo $! > adk_web.pid
 # Disown the process so it continues running even if the parent shell exits
