@@ -567,6 +567,54 @@ export function CodeGenerationModal({
         }
         setAgentUrl(url.toString());
         setShowOpenLink(responseData.showOpenLink || true);
+
+        // Verify the URL is accessible and packages are detected
+        try {
+          // Try to verify package detection with retries
+          let packagesDetected = false;
+          let retryCount = 0;
+          const maxRetries = 5;
+          
+          while (!packagesDetected && retryCount < maxRetries) {
+            try {
+              // Check if packages API is available
+              const packagesUrl = new URL('/api/v1/packages', url);
+              const packagesResponse = await fetch(packagesUrl.toString());
+              
+              if (packagesResponse.ok) {
+                const packages = await packagesResponse.json();
+                const hasAgentPackage = packages.some(p => p.name === 'agent_package' || p.id === 'agent_package');
+                const hasTestAgent = packages.some(p => p.name === 'test_agent' || p.id === 'test_agent');
+                
+                if (hasAgentPackage && hasTestAgent) {
+                  packagesDetected = true;
+                  console.log('✅ ADK agent packages detected successfully');
+                  break;
+                }
+              }
+            } catch (error) {
+              console.warn(`Retry ${retryCount + 1}/${maxRetries}: Could not verify packages:`, error);
+            }
+            
+            // Wait before retrying (exponential backoff)
+            const delay = Math.min(1000 * Math.pow(2, retryCount), 8000);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            retryCount++;
+          }
+          
+          if (!packagesDetected) {
+            setSandboxOutput(prevOutput => 
+              prevOutput + '\n\n⚠️ Note: Could not verify agent package detection. ' +
+              'If you don\'t see your agent in the dropdown menu, please wait a few moments and refresh the page.'
+            );
+          }
+        } catch (error) {
+          console.warn('⚠️ Could not verify agent package detection:', error);
+          setSandboxOutput(prevOutput => 
+            prevOutput + '\n\n⚠️ Note: Could not verify agent package detection. ' +
+            'If you don\'t see your agent in the dropdown menu, please wait a few moments and refresh the page.'
+          );
+        }
       } else if (responseData.executionDetails?.serverUrl) {
         // Fallback to serverUrl if openUrl is not available
         const url = new URL(responseData.executionDetails.serverUrl);
@@ -575,6 +623,12 @@ export function CodeGenerationModal({
         }
         setAgentUrl(url.toString());
         setShowOpenLink(true);
+
+        // Add warning about potential delay
+        setSandboxOutput(prevOutput => 
+          prevOutput + '\n\n⚠️ Note: The server may take a few seconds to become accessible. ' +
+          'If you see a connection error, please wait briefly and try again.'
+        );
       }
       
       // Format and display the output
