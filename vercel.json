@@ -2,6 +2,11 @@
   "version": 2,
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "functions": {
+    "src/server/vercel.mjs": {
+      "maxDuration": 300
+    }
+  },
   "builds": [
     {
       "src": "src/server/vercel.mjs",
