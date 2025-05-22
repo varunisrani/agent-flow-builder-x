@@ -439,9 +439,11 @@ export function CodeGenerationModal({
     // Setup alternative endpoints to try if primary fails
     const endpoints = [
       API_CONFIG.executeUrl,
-      'https://agent-flow-builder-api.onrender.com/api/execute', // Primary: Render API
+   
+      'https://agent-flow-builder-api.onrender.com/api/execute',
+      'https://localhost:3001/api/execute',
       `/api/execute`,  // Relative path works when deployed as unified project
-     
+      'https://localhost:3001/api/execute' // Fallback to known working URL
     ];
     
     // Remove duplicates
