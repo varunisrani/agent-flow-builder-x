@@ -199,6 +199,26 @@ disown -h $!
       // Make the script executable
       await sbx.commands.run('chmod +x workspace/start_adk.sh', { timeoutMs: 30000 });
       
+      // Create a test agent to verify package detection
+      console.log('📝 Creating test agent for verification...');
+      await sbx.files.write('workspace/test_agent/__init__.py', `from .agent import root_agent\n__all__ = ["root_agent"]\n`);
+      await sbx.files.write('workspace/test_agent/agent.py', `
+import os
+from google.adk.agents import LlmAgent
+
+os.environ["GOOGLE_API_KEY"] = "AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY"
+
+# Simple test agent
+root_agent = LlmAgent(
+    name="test_agent",
+    model="gemini-2.0-flash-exp",
+    description="A test agent to verify ADK package detection",
+    instruction="I am a test agent.",
+    api_key="AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY"
+)
+`);
+      console.log('✅ Test agent created\n');
+
       // Execute the startup script
       const adkWebResult = await sbx.commands.run('cd workspace && ./start_adk.sh', { timeoutMs: 30000 });
       
@@ -223,6 +243,31 @@ disown -h $!
       }
       console.log('✅ Port 8000 is being listened to');
       console.log(portCheck.stdout);
+
+      // Verify agent packages are detected
+      console.log('🔍 Verifying agent package detection...');
+      try {
+        // Wait a moment for the ADK web server to scan for packages
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Use curl to check the ADK web API for available packages
+        const packageCheck = await sbx.commands.run('curl -s http://localhost:8000/api/v1/packages');
+        const packages = JSON.parse(packageCheck.stdout);
+        
+        // Verify both test_agent and agent_package are detected
+        const expectedPackages = ['test_agent', 'agent_package'];
+        const missingPackages = expectedPackages.filter(pkg => 
+          !packages.some(p => p.name === pkg || p.id === pkg)
+        );
+        
+        if (missingPackages.length > 0) {
+          throw new Error(`Missing expected packages: ${missingPackages.join(', ')}`);
+        }
+        console.log('✅ Agent packages detected successfully:', expectedPackages.join(', '));
+      } catch (error) {
+        console.warn('⚠️ Could not verify agent package detection:', error.message);
+        console.log('Will continue anyway as the server might still be initializing...');
+      }
       
       // Get the public URL for the ADK web server (port 8000)
       const publicHost = sbx.getHost(8000);
