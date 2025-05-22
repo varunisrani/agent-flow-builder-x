@@ -567,6 +567,21 @@ export function CodeGenerationModal({
         }
         setAgentUrl(url.toString());
         setShowOpenLink(responseData.showOpenLink || true);
+
+        // Verify the URL is accessible
+        try {
+          const urlCheck = await fetch(url.toString(), { method: 'HEAD' });
+          if (!urlCheck.ok) {
+            throw new Error(`Server returned ${urlCheck.status}`);
+          }
+        } catch (error) {
+          console.warn('⚠️ Could not verify server URL:', error);
+          setSandboxOutput(prevOutput => 
+            prevOutput + '\n\n⚠️ Warning: The server URL may not be immediately accessible. ' +
+            'If you see a connection error, please wait a few seconds and try again. ' +
+            'The server might need some time to fully start up.'
+          );
+        }
       } else if (responseData.executionDetails?.serverUrl) {
         // Fallback to serverUrl if openUrl is not available
         const url = new URL(responseData.executionDetails.serverUrl);
@@ -575,6 +590,12 @@ export function CodeGenerationModal({
         }
         setAgentUrl(url.toString());
         setShowOpenLink(true);
+
+        // Add warning about potential delay
+        setSandboxOutput(prevOutput => 
+          prevOutput + '\n\n⚠️ Note: The server may take a few seconds to become accessible. ' +
+          'If you see a connection error, please wait briefly and try again.'
+        );
       }
       
       // Format and display the output

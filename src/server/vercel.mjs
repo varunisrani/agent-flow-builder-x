@@ -60,6 +60,11 @@ app.post('/api/execute', async (req, res) => {
     });
     console.log('✅ Sandbox created successfully\n');
 
+    // Install required system packages
+    console.log('📦 Installing system packages...');
+    await sbx.commands.run('apt-get update && apt-get install -y netcat-openbsd fuser curl net-tools');
+    console.log('✅ System packages installed\n');
+
     // Create proper directory structure for ADK agent detection
     console.log('📁 Creating agent directories...');
     await sbx.commands.run('mkdir -p workspace/agent_package');
@@ -149,15 +154,44 @@ ADK_API_KEY=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY
       // Create a startup script that properly detaches the process using nohup and disown
       await sbx.files.write('workspace/start_adk.sh', `#!/bin/bash
 source ./venv/bin/activate
+
 # Set environment variables for Google ADK
 export GOOGLE_API_KEY=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY
 export ADK_API_KEY=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY
+
 # Run adk web command in the parent directory of agent_package per ADK requirements
 cd /home/user/workspace
-# Run adk web command in detached mode with nohup, redirecting output to a log file
-nohup adk web --api_key=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY > adk_web.log 2>&1 &
+
+# Kill any existing process on port 8000
+fuser -k 8000/tcp || true
+
+# Run adk web command with specific host and port binding
+nohup adk web \\
+  --api_key=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY \\
+  --host=0.0.0.0 \\
+  --port=8000 \\
+  > adk_web.log 2>&1 &
+
 # Save the PID of the background process
 echo $! > adk_web.pid
+
+# Wait for the server to start (max 30 seconds)
+max_attempts=30
+attempt=0
+while ! nc -z localhost 8000 && [ $attempt -lt $max_attempts ]; do
+  sleep 1
+  attempt=$((attempt + 1))
+  echo "Waiting for server to start... (attempt $attempt/$max_attempts)"
+done
+
+# Check if server started successfully
+if nc -z localhost 8000; then
+  echo "Server started successfully on port 8000"
+else
+  echo "Failed to start server on port 8000"
+  exit 1
+fi
+
 # Disown the process so it continues running even if the parent shell exits
 disown -h $!
 `);
@@ -172,17 +206,40 @@ disown -h $!
       if (adkWebResult.stdout) console.log(adkWebResult.stdout);
       if (adkWebResult.stderr) console.log(adkWebResult.stderr);
       
-      // Wait a moment for the server to start
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Verify the server is actually running and port is accessible
+      console.log('🔍 Verifying server accessibility...');
       
-      // Check if the server is running
+      // Check if the process is running
       const psCheck = await sbx.commands.run('ps aux | grep "adk web" | grep -v grep');
-      console.log('✅ ADK web server process is running:');
-      console.log(psCheck.stdout);
+      if (!psCheck.stdout) {
+        throw new Error('ADK web server process not found');
+      }
+      console.log('✅ ADK web server process is running');
+      
+      // Double check port is listening
+      const portCheck = await sbx.commands.run('netstat -tulpn | grep :8000');
+      if (!portCheck.stdout) {
+        throw new Error('Port 8000 is not being listened to by any process');
+      }
+      console.log('✅ Port 8000 is being listened to');
+      console.log(portCheck.stdout);
       
       // Get the public URL for the ADK web server (port 8000)
       const publicHost = sbx.getHost(8000);
       const publicUrl = `https://${publicHost}`;
+      
+      // Try to verify the server is responding
+      console.log('🔍 Testing server response...');
+      try {
+        const curlCheck = await sbx.commands.run('curl -s -o /dev/null -w "%{http_code}" http://localhost:8000');
+        if (curlCheck.stdout !== '200') {
+          console.warn('⚠️ Server is running but not responding with 200 OK');
+        } else {
+          console.log('✅ Server is responding properly');
+        }
+      } catch (error) {
+        console.warn('⚠️ Could not verify server response:', error.message);
+      }
       
       // Format the response with the public URL
       const response = {
