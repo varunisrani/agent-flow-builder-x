@@ -239,6 +239,8 @@ export function CodeGenerationModal({
   const [isExecuting, setIsExecuting] = useState(false);
   const [agentUrl, setAgentUrl] = useState<string>('');
   const [showOpenLink, setShowOpenLink] = useState(false);
+  // Added option to control automatic execution
+  const [autoExecute, setAutoExecute] = useState(false);
 
   // Check if there are MCP nodes in the diagram
   const hasMcpNodes = nodes.some(node => 
@@ -266,6 +268,11 @@ export function CodeGenerationModal({
       console.log('CodeGenerationModal: Loading code from localStorage');
       setGeneratedCode(storedCode);
       setIsFirstGeneration(false);
+      
+      // If auto-execute is enabled, execute the stored code
+      if (autoExecute && storedCode) {
+        executeInSandbox(storedCode);
+      }
       return;
     }
 
@@ -274,7 +281,7 @@ export function CodeGenerationModal({
       console.log('CodeGenerationModal: No stored code found, generating new code');
       generateInitialCode();
     }
-  }, [open, activeTab, flowKey]);
+  }, [open, activeTab, flowKey, autoExecute]);
 
   // Function to generate initial code
   const generateInitialCode = async () => {
@@ -308,6 +315,11 @@ export function CodeGenerationModal({
       storeCode(flowKey, activeTab, code);
       setIsFirstGeneration(false);
       console.log('CodeGenerationModal: Code generated and stored successfully');
+      
+      // Auto-execute the code if enabled
+      if (autoExecute && code) {
+        executeInSandbox(code);
+      }
     } catch (error) {
       console.error('Error generating code:', error);
       setError(error instanceof Error ? error.message : 'An error occurred generating code');
@@ -320,6 +332,11 @@ export function CodeGenerationModal({
         description: "Error occurred. Using local code generation instead.",
         variant: "default"
       });
+      
+      // Auto-execute the fallback code if enabled
+      if (autoExecute && cleanedCode) {
+        executeInSandbox(cleanedCode);
+      }
     } finally {
       setLoading(false);
     }
@@ -349,10 +366,14 @@ export function CodeGenerationModal({
   };
 
   const handleExecuteClick = () => {
-    toast({
-      title: "Code Preview",
-      description: "This is a preview of the generated code. To execute, please copy and run in your development environment.",
-    });
+    if (generatedCode) {
+      executeInSandbox(generatedCode);
+    } else {
+      toast({
+        title: "No Code Available",
+        description: "Please generate code first before executing.",
+      });
+    }
   };
 
   // Update the regenerate button click handler
@@ -378,6 +399,11 @@ export function CodeGenerationModal({
         title: "Code regenerated",
         description: "The code has been regenerated and saved."
       });
+      
+      // Auto-execute the code if enabled
+      if (autoExecute && code) {
+        executeInSandbox(code);
+      }
     } catch (error) {
       console.error('Error regenerating code:', error);
       setError(error instanceof Error ? error.message : 'Failed to regenerate code');
@@ -390,6 +416,11 @@ export function CodeGenerationModal({
         description: "Error occurred. Using local code generation instead.",
         variant: "default"
       });
+      
+      // Auto-execute the fallback code if enabled
+      if (autoExecute && cleanedCode) {
+        executeInSandbox(cleanedCode);
+      }
     } finally {
       setLoading(false);
     }
@@ -529,11 +560,20 @@ export function CodeGenerationModal({
       
       // Check if the response contains openUrl and showOpenLink fields
       if (responseData.openUrl) {
-        setAgentUrl(responseData.openUrl);
+        // Append query parameter to select our agent package
+        const url = new URL(responseData.openUrl);
+        if (!url.searchParams.has('app')) {
+          url.searchParams.set('app', 'agent_package');
+        }
+        setAgentUrl(url.toString());
         setShowOpenLink(responseData.showOpenLink || true);
       } else if (responseData.executionDetails?.serverUrl) {
         // Fallback to serverUrl if openUrl is not available
-        setAgentUrl(responseData.executionDetails.serverUrl);
+        const url = new URL(responseData.executionDetails.serverUrl);
+        if (!url.searchParams.has('app')) {
+          url.searchParams.set('app', 'agent_package');
+        }
+        setAgentUrl(url.toString());
         setShowOpenLink(true);
       }
       
@@ -589,11 +629,13 @@ root_agent = LlmAgent(
 
     return code;
   }, [nodes]);
-
+  
   useEffect(() => {
-    const code = generateCode();
-    executeInSandbox(code);
-  }, [generateCode]);
+    if (autoExecute) {
+      const code = generateCode();
+      executeInSandbox(code);
+    }
+  }, [generateCode, autoExecute]);
 
   return (
     <Dialog open={open} onOpenChange={(newOpen) => {
@@ -611,7 +653,24 @@ root_agent = LlmAgent(
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="adk" value={activeTab} onValueChange={setActiveTab}>
+        <Tabs 
+          defaultValue="adk" 
+          value={activeTab} 
+          onValueChange={(newTab) => {
+            // Reset execution state when changing tabs
+            if (isExecuting) {
+              setIsExecuting(false);
+              setSandboxOutput('Execution stopped due to tab change.');
+              setShowOpenLink(false);
+              toast({
+                title: "Execution Stopped",
+                description: "Code execution was stopped due to tab change.",
+                variant: "default"
+              });
+            }
+            setActiveTab(newTab);
+          }}
+        >
           <TabsList>
             <TabsTrigger value="adk">Google ADK</TabsTrigger>
             <TabsTrigger value="vertex">Vertex AI</TabsTrigger>
@@ -621,24 +680,49 @@ root_agent = LlmAgent(
           <TabsContent value={activeTab} className="mt-4">
             {activeTab === 'adk' && (
               <div className="flex justify-between items-center mb-2">
-                <div className="flex items-center gap-2">
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      className="sr-only peer"
-                      checked={mcpEnabled}
-                      onChange={() => setMcpEnabled(!mcpEnabled)}
-                      disabled={hasMcpNodes} // Disable toggle if MCP nodes exist
-                    />
-                    <div className={`w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600 ${hasMcpNodes ? 'opacity-60' : ''}`}></div>
-                    <span className="ms-3 text-sm font-medium">MCP Support</span>
-                  </label>
-                  {hasMcpNodes && (
-                    <span className="text-xs text-yellow-500">
-                      (MCP nodes detected in diagram)
-                    </span>
-                  )}
-                </div>
+                            <div className="flex items-center gap-2">
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  className="sr-only peer"
+                  checked={mcpEnabled}
+                  onChange={() => setMcpEnabled(!mcpEnabled)}
+                  disabled={hasMcpNodes} // Disable toggle if MCP nodes exist
+                />
+                <div className={`w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600 ${hasMcpNodes ? 'opacity-60' : ''}`}></div>
+                <span className="ms-3 text-sm font-medium">MCP Support</span>
+              </label>
+              {hasMcpNodes && (
+                <span className="text-xs text-yellow-500">
+                  (MCP nodes detected in diagram)
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 ml-6">
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  className="sr-only peer"
+                  checked={autoExecute}
+                  onChange={() => {
+                    const newValue = !autoExecute;
+                    setAutoExecute(newValue);
+                    toast({
+                      title: newValue ? "Auto-Execute Enabled" : "Auto-Execute Disabled",
+                      description: newValue 
+                        ? "Code will automatically execute when generated." 
+                        : "Code will only execute when you click the Execute button.",
+                      variant: "default"
+                    });
+                  }}
+                />
+                <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                <span className="ms-3 text-sm font-medium">Auto-Execute Code</span>
+              </label>
+              <div className="text-xs text-muted-foreground ml-14 mt-1">
+                When disabled, code will not automatically run in the browser
+              </div>
+            </div>
                 
                 <Button 
                   variant="outline" 
@@ -698,7 +782,7 @@ root_agent = LlmAgent(
                         size="sm"
                         variant="ghost"
                         className="bg-gray-800/70 hover:bg-gray-800/90 flex items-center gap-2"
-                        onClick={() => executeInSandbox(generatedCode)}
+                        onClick={handleExecuteClick}
                         disabled={loading || isExecuting}
                       >
                         {isExecuting ? (

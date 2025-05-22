@@ -60,15 +60,15 @@ app.post('/api/execute', async (req, res) => {
     });
     console.log('✅ Sandbox created successfully\n');
 
-    // Create a temporary directory for the agent
-    console.log('📁 Creating agent directory...');
-    await sbx.commands.run('mkdir -p agent');
-    console.log('✅ Agent directory created\n');
+    // Create proper directory structure for ADK agent detection
+    console.log('📁 Creating agent directories...');
+    await sbx.commands.run('mkdir -p workspace/agent_package');
+    console.log('✅ Workspace and agent_package directories created\n');
 
-    // Write files to the sandbox
+    // Write files to the sandbox with proper ADK structure
     console.log('📝 Writing files to sandbox...');
     for (const [filename, content] of Object.entries(files)) {
-      await sbx.files.write(`agent/${filename}`, content);
+      await sbx.files.write(`workspace/agent_package/${filename}`, content);
       console.log(`✅ Created ${filename}`);
     }
     console.log('✅ All files written successfully\n');
@@ -86,11 +86,11 @@ app.post('/api/execute', async (req, res) => {
     console.log('📦 Creating virtual environment with Python 3.9...');
     let venvResult;
     try {
-      venvResult = await sbx.commands.run('python3.9 -m venv agent/venv');
+      venvResult = await sbx.commands.run('python3.9 -m venv workspace/venv');
       console.log('✅ Successfully created venv with Python 3.9');
     } catch (error) {
       console.log('⚠️ Python 3.9 not available, falling back to default Python version');
-      venvResult = await sbx.commands.run('python3 -m venv agent/venv');
+      venvResult = await sbx.commands.run('python3 -m venv workspace/venv');
     }
     
     console.log(`  • Exit code: ${venvResult.exitCode}`);
@@ -100,7 +100,7 @@ app.post('/api/execute', async (req, res) => {
     
     console.log('📦 Activating virtual environment and installing dependencies...');
     console.log('  • Installing google-adk package...');
-    const pipResult = await sbx.commands.run('source agent/venv/bin/activate && pip install google-adk -v');
+    const pipResult = await sbx.commands.run('source workspace/venv/bin/activate && pip install google-adk -v');
     console.log(`  • Exit code: ${pipResult.exitCode}`);
     console.log('  • Dependency installation details:');
     if (pipResult.stdout) {
@@ -115,7 +115,7 @@ app.post('/api/execute', async (req, res) => {
     
     // Verify the installation
     console.log('\n📋 Verifying installation...');
-    const verifyResult = await sbx.commands.run('source agent/venv/bin/activate && pip list | grep google-adk');
+    const verifyResult = await sbx.commands.run('source workspace/venv/bin/activate && pip list | grep google-adk');
     if (verifyResult.stdout) {
       console.log(`  • Installed: ${verifyResult.stdout.trim()}`);
     } else {
@@ -130,8 +130,10 @@ app.post('/api/execute', async (req, res) => {
     
     try {
       // Create a startup script that properly detaches the process using nohup and disown
-      await sbx.files.write('agent/start_adk.sh', `#!/bin/bash
+      await sbx.files.write('workspace/start_adk.sh', `#!/bin/bash
 source ./venv/bin/activate
+# Run adk web command in the parent directory of agent_package per ADK requirements
+cd /home/user/workspace
 # Run adk web command in detached mode with nohup, redirecting output to a log file
 nohup adk web > adk_web.log 2>&1 &
 # Save the PID of the background process
@@ -141,10 +143,10 @@ disown -h $!
 `);
       
       // Make the script executable
-      await sbx.commands.run('chmod +x agent/start_adk.sh', { timeoutMs: 30000 });
+      await sbx.commands.run('chmod +x workspace/start_adk.sh', { timeoutMs: 30000 });
       
       // Execute the startup script
-      const adkWebResult = await sbx.commands.run('cd agent && ./start_adk.sh', { timeoutMs: 30000 });
+      const adkWebResult = await sbx.commands.run('cd workspace && ./start_adk.sh', { timeoutMs: 30000 });
       
       console.log('📋 ADK web server starting script output:');
       if (adkWebResult.stdout) console.log(adkWebResult.stdout);
@@ -209,7 +211,7 @@ disown -h $!
           
           // Try to kill the ADK web process if it's running
           try {
-            const killResult = await sbx.commands.run('if [ -f agent/adk_web.pid ]; then kill $(cat agent/adk_web.pid) 2>/dev/null || true; rm agent/adk_web.pid; fi', { timeoutMs: 10000 });
+            const killResult = await sbx.commands.run('if [ -f workspace/adk_web.pid ]; then kill $(cat workspace/adk_web.pid) 2>/dev/null || true; rm workspace/adk_web.pid; fi', { timeoutMs: 10000 });
             console.log('📋 ADK web kill result:', killResult.stdout || 'No output');
           } catch (killError) {
             console.error('Failed to kill ADK web process:', killError.message);
