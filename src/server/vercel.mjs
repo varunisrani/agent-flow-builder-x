@@ -51,11 +51,18 @@ app.post('/api/execute', async (req, res) => {
     console.log('🔧 Creating E2B sandbox instance...');
     const sbx = await Sandbox.create({ 
       apiKey: process.env.E2B_API_KEY,
+      template: 'python3', // Specify Python3 template for ADK compatibility
+      timeout: 300000, // 5 minute timeout
       onStdout: (data) => {
         console.log('📤 Stdout:', data);
       },
       onStderr: (data) => {
         console.log('❌ Stderr:', data);
+      },
+      env: {
+        GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+        ADK_API_KEY: process.env.ADK_API_KEY,
+        PYTHONUNBUFFERED: '1' // Ensure Python output is not buffered
       }
     });
     console.log('✅ Sandbox created successfully\n');
@@ -148,98 +155,161 @@ ADK_API_KEY=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY
       
       // Create a startup script that properly detaches the process and binds to 0.0.0.0
       await sbx.files.write('workspace/start_adk.sh', `#!/bin/bash
+set -e  # Exit on any error
+
+# Source virtual environment
 source ./venv/bin/activate
+
 # Set environment variables for Google ADK
-export GOOGLE_API_KEY=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY
-export ADK_API_KEY=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY
-# Run adk web command in the parent directory of agent_package per ADK requirements
+export GOOGLE_API_KEY=\${GOOGLE_API_KEY:-$GOOGLE_API_KEY}
+export ADK_API_KEY=\${ADK_API_KEY:-$ADK_API_KEY}
+
+# Change to workspace directory
 cd /home/user/workspace
-# Run adk web command with host 0.0.0.0 to bind to all interfaces - critical for E2B port forwarding
-nohup adk web --api_key=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY --host 0.0.0.0 > adk_web.log 2>&1 &
-# Save the PID of the background process
+
+# Check if ADK is installed correctly
+if ! command -v adk &> /dev/null; then
+    echo "ADK command not found. Installing..."
+    pip install --upgrade google-adk
+fi
+
+# Kill any existing ADK web processes
+pkill -f "adk web" || true
+
+# Start ADK web server with proper error handling
+nohup adk web \
+  --api_key=\${ADK_API_KEY} \
+  --host 0.0.0.0 \
+  --port 8000 \
+  --log_level debug \
+  > adk_web.log 2>&1 &
+
+# Save the PID and disown
 echo $! > adk_web.pid
-# Disown the process so it continues running even if the parent shell exits
 disown -h $!
+
+# Wait for server to start
+for i in {1..30}; do
+  if netstat -tln | grep -q ':8000'; then
+    echo "ADK web server started successfully"
+    exit 0
+  fi
+  sleep 1
+done
+
+echo "Failed to start ADK web server"
+exit 1
 `);
       
       // Make the script executable
       await sbx.commands.run('chmod +x workspace/start_adk.sh', { timeoutMs: 30000 });
       
-      // Execute the startup script
-      const adkWebResult = await sbx.commands.run('cd workspace && ./start_adk.sh', { timeoutMs: 30000 });
-      
-      console.log('📋 ADK web server starting script output:');
-      if (adkWebResult.stdout) console.log(adkWebResult.stdout);
-      if (adkWebResult.stderr) console.log(adkWebResult.stderr);
-      
-      // Wait longer for the server to start (5 seconds instead of 2)
-      await new Promise(resolve => setTimeout(resolve, 5000));
-      
-      // Check if the server is running
-      const psCheck = await sbx.commands.run('ps aux | grep "adk web" | grep -v grep');
-      console.log('✅ ADK web server process is running:');
-      console.log(psCheck.stdout);
-      
-      // Verify that the server is actually listening on port 8000
-      const netstatCheck = await sbx.commands.run('netstat -tlpn | grep 8000');
-      if (netstatCheck.stdout) {
-        console.log('✅ Server is listening on port 8000:');
-        console.log(netstatCheck.stdout);
-      } else {
-        // If netstat doesn't show the port, try lsof as an alternative
-        const lsofCheck = await sbx.commands.run('lsof -i :8000 || echo "Port 8000 not found"');
-        console.log('✅ Port 8000 status check:');
-        console.log(lsofCheck.stdout);
-      }
-      
-      // Get the public URL for the ADK web server (port 8000)
-      const publicHost = sbx.getHost(8000);
-      const publicUrl = `https://${publicHost}`;
-      
-      // Try to verify the server is actually responding
+      // Execute the startup script with proper error handling
+      console.log('⚡ Starting ADK web server...');
       try {
-        const curlCheck = await sbx.commands.run(`curl -s -o /dev/null -w "%{http_code}" http://localhost:8000 || echo "Failed to connect"`);
-        console.log(`✅ HTTP server response check: ${curlCheck.stdout}`);
+        const adkWebResult = await sbx.commands.run('cd workspace && ./start_adk.sh', { 
+          timeoutMs: 60000,  // Increase timeout to 60 seconds
+          shell: true,
+          env: {
+            GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+            ADK_API_KEY: process.env.ADK_API_KEY
+          }
+        });
+        
+        console.log('📋 ADK web server startup output:');
+        if (adkWebResult.stdout) console.log(adkWebResult.stdout);
+        if (adkWebResult.stderr) console.log(adkWebResult.stderr);
+        
+        // Verify server is running
+        const isRunning = await sbx.commands.run('netstat -tln | grep :8000', { timeoutMs: 5000 });
+        if (!isRunning.exitCode === 0) {
+          throw new Error('ADK web server failed to start - port 8000 not listening');
+        }
+        
+        console.log('✅ ADK web server started successfully');
+        
+        // Get the public URL for the ADK web server (port 8000)
+        const publicHost = sbx.getHost(8000);
+        const publicUrl = `https://${publicHost}`;
+        
+        // Try to verify the server is actually responding
+        try {
+          const curlCheck = await sbx.commands.run(`curl -s -o /dev/null -w "%{http_code}" http://localhost:8000 || echo "Failed to connect"`);
+          console.log(`✅ HTTP server response check: ${curlCheck.stdout}`);
+        } catch (error) {
+          console.log('⚠️ Could not verify HTTP server response');
+        }
+        
+        // Format the response with the public URL
+        const response = {
+          output: `Agent started with ADK web command. Access the UI at ${publicUrl}`,
+          error: null,
+          executionTime: Date.now() - startTime,
+          memoryUsage: process.memoryUsage().heapUsed / 1024 / 1024, // in MB
+          executionDetails: {
+            stdout: [`Agent started with ADK web command`],
+            stderr: [],
+            exitCode: 0,
+            status: 'running',
+            duration: Date.now() - startTime,
+            serverUrl: publicUrl // Use the public URL that can be accessed from outside
+          },
+          // Add dedicated fields for the frontend to show an "Open Link" button
+          openUrl: publicUrl,
+          showOpenLink: true,
+          linkText: 'Open Agent UI'
+        };
+
+        console.log('📊 Execution Results:');
+        console.log('━━━━━━━━━━━━━━━━━━');
+        
+        console.log(`📤 ADK web server is accessible at: ${publicUrl}`);
+        console.log(`Debug info:`);
+        console.log(`• Status: ${response.executionDetails.status}`);
+        console.log(`• Duration: ${response.executionDetails.duration} ms`);
+        console.log(`• Server URL: ${response.executionDetails.serverUrl}`);
+
+        console.log('\n📈 Execution Metadata:');
+        console.log(`• Execution Time: ${response.executionTime}ms`);
+        console.log(`• Memory Usage: ${response.memoryUsage.toFixed(2)}MB`);
+        console.log(`• Status: ${response.executionDetails.status}`);
+        console.log(`• Server URL: ${response.executionDetails.serverUrl}`);
+        
+        res.status(200).json(response);
       } catch (error) {
-        console.log('⚠️ Could not verify HTTP server response');
+        console.error('\n❌ Error running ADK web command:');
+        console.error(error);
+        
+        // Cleanup sandbox
+        try {
+          if (sbx) {
+            console.log('🧹 Cleaning up sandbox after error...');
+            
+            // Try to kill the ADK web process if it's running
+            try {
+              const killResult = await sbx.commands.run('if [ -f workspace/adk_web.pid ]; then kill $(cat workspace/adk_web.pid) 2>/dev/null || true; rm workspace/adk_web.pid; fi', { timeoutMs: 10000 });
+              console.log('📋 ADK web kill result:', killResult.stdout || 'No output');
+            } catch (killError) {
+              console.error('Failed to kill ADK web process:', killError.message);
+            }
+            
+            // Destroy the sandbox
+            if (typeof sbx.destroy === 'function') {
+              await sbx.destroy();
+            } else if (typeof sbx.close === 'function') {
+              await sbx.close();
+            }
+            console.log('✅ Sandbox cleaned up after error');
+          }
+        } catch (cleanupError) {
+          console.error('Error cleaning up sandbox after error:', cleanupError);
+        }
+        
+        return res.status(500).json({
+          error: error instanceof Error ? error.message : 'Error running ADK web command',
+          executionTime: Date.now() - startTime
+        });
       }
-      
-      // Format the response with the public URL
-      const response = {
-        output: `Agent started with ADK web command. Access the UI at ${publicUrl}`,
-        error: null,
-        executionTime: Date.now() - startTime,
-        memoryUsage: process.memoryUsage().heapUsed / 1024 / 1024, // in MB
-        executionDetails: {
-          stdout: [`Agent started with ADK web command`],
-          stderr: [],
-          exitCode: 0,
-          status: 'running',
-          duration: Date.now() - startTime,
-          serverUrl: publicUrl // Use the public URL that can be accessed from outside
-        },
-        // Add dedicated fields for the frontend to show an "Open Link" button
-        openUrl: publicUrl,
-        showOpenLink: true,
-        linkText: 'Open Agent UI'
-      };
-
-      console.log('📊 Execution Results:');
-      console.log('━━━━━━━━━━━━━━━━━━');
-      
-      console.log(`📤 ADK web server is accessible at: ${publicUrl}`);
-      console.log(`Debug info:`);
-      console.log(`• Status: ${response.executionDetails.status}`);
-      console.log(`• Duration: ${response.executionDetails.duration} ms`);
-      console.log(`• Server URL: ${response.executionDetails.serverUrl}`);
-
-      console.log('\n📈 Execution Metadata:');
-      console.log(`• Execution Time: ${response.executionTime}ms`);
-      console.log(`• Memory Usage: ${response.memoryUsage.toFixed(2)}MB`);
-      console.log(`• Status: ${response.executionDetails.status}`);
-      console.log(`• Server URL: ${response.executionDetails.serverUrl}`);
-      
-      res.status(200).json(response);
     } catch (error) {
       console.error('\n❌ Error running ADK web command:');
       console.error(error);
