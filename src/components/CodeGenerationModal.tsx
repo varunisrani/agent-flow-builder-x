@@ -438,7 +438,6 @@ export function CodeGenerationModal({
 
     // Setup alternative endpoints to try if primary fails
     const endpoints = [
-      API_CONFIG.executeUrl,
       'https://agent-flow-builder-api.onrender.com/api/execute',
      
     ];
@@ -872,9 +871,6 @@ function generateAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
   // Initialize imports
   let code = `import os\nfrom google.adk.agents import Agent\n\n`;
   
-  // Add API key setup
-  code += `# Set Google API key\nos.environ["GOOGLE_API_KEY"] = "AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY"\n\n`;
-  
   // Add tool imports
   if (toolNodes.length > 0) {
     code += `from google.adk.tools import google_search\n`;
@@ -986,8 +982,7 @@ function generateAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
     code += `    model="${modelName}",\n`;
     code += `    description="${mainAgent.data.description || 'An AI agent'}",\n`;
     code += `    instruction="${mainAgent.data.instruction || 'I am a helpful assistant.'}",\n`;
-    code += `    tools=${toolList},\n`;
-    code += `    api_key="AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY"  # Provide API key directly\n`;
+    code += `    tools=${toolList}\n`;
     code += `)\n`;
     
     // Add usage example
@@ -1012,8 +1007,7 @@ function generateAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
     code += `    model="gemini-2.0-flash",\n`;
     code += `    description="A helpful assistant agent that can answer questions.",\n`;
     code += `    instruction="I am a helpful assistant that provides accurate and detailed information.",\n`;
-    code += `    tools=[],\n`;
-    code += `    api_key="AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY"  # Provide API key directly\n`;
+    code += `    tools=[]\n`;
     code += `)\n\n`;
     code += `# Example usage\n`;
     code += `response = example_agent.generate("Hello, how can I assist you today?")\n`;
@@ -1499,7 +1493,6 @@ async function generateCodeWithOpenAI(nodes: Node<BaseNodeData>[], edges: Edge[]
     // Generate the Google ADK code
     const hasTools = nodes.some(node => node.data.type === 'tool');
     const agentInstruction = nodes.find(n => n.data.type === 'agent')?.data.instruction || 'Respond helpfully and concisely to the user\'s question. Use Google Search if needed.';
-    const toolsConfig = hasTools ? '[google_search]' : 'None';
     
    const code = [
   "from google.adk.agents import LlmAgent",
