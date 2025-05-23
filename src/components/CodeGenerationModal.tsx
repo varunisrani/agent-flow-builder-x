@@ -1494,19 +1494,23 @@ async function generateCodeWithOpenAI(nodes: Node<BaseNodeData>[], edges: Edge[]
     const hasTools = nodes.some(node => node.data.type === 'tool');
     const agentInstruction = nodes.find(n => n.data.type === 'agent')?.data.instruction || 'Respond helpfully and concisely to the user\'s question. Use Google Search if needed.';
     
-   const code = [
-  "from google.adk.agents import LlmAgent",
-  "from google.adk.tools import google_search",
-  "",
-  "# Define a simple agent that answers user questions using an LLM and optional tools",
-  "root_agent = LlmAgent(",
-  "    model=\"gemini-2.0-flash-exp\",  # Use your preferred model",
-  "    name=\"question_answer_agent\",",
-  "    description=\"A helpful assistant agent that can answer general questions.\",",
-  "    instruction=\"${agentInstruction}\",",
-  "    tools=[google_search] if ${hasTools} else None",
-  ")"
-].join('\n');
+   // Use template literals (backticks) for proper interpolation of variables
+   const code = `from google.adk.agents import LlmAgent
+from google.adk.tools import google_search
+
+# Define a simple agent that answers user questions using an LLM and optional tools
+root_agent = LlmAgent(
+    model="gemini-2.0-flash-exp",  # Use your preferred model
+    name="question_answer_agent",
+    description="A helpful assistant agent that can answer general questions.",
+    instruction="${agentInstruction}",
+    tools=[google_search] if ${hasTools} else None
+)`;
+
+    // Process the variables for actual interpolation
+    return code
+      .replace('${agentInstruction}', agentInstruction)
+      .replace('${hasTools}', hasTools.toString());
 
 
     return code;
