@@ -622,7 +622,7 @@ root_agent = LlmAgent(
     name="question_answer_agent",
     description="A helpful assistant agent that can answer general questions.",
     instruction="${agentInstruction}",
-    tools=[google_search] if ${hasTools} else None
+    tools=[google_search] if ${hasTools ? 'True' : 'False'} else None
 )`;
 
     return code;
@@ -1510,10 +1510,7 @@ root_agent = LlmAgent(
     // Process the variables for actual interpolation
     return code
       .replace('${agentInstruction}', agentInstruction)
-      .replace('${hasTools}', hasTools.toString());
-
-
-    return code;
+      .replace('${hasTools}', hasTools ? 'True' : 'False');  // Use Python Boolean syntax
   } catch (error) {
     console.error('Error generating code with OpenAI:', error);
     throw error;
