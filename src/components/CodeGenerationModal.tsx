@@ -16,81 +16,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.j
 import { BaseNodeData } from './nodes/BaseNode.js';
 import { Copy, AlertCircle, Loader2, Play } from 'lucide-react';
 import { toast } from '@/hooks/use-toast.js';
-import { generateCode as generateCodeFromLib } from '@/lib/codeGenerator.js';
+import { generateCode } from '@/lib/codeGenerator.js';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import OpenAI from 'openai';
-import API_CONFIG from '@/config';
 
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: import.meta.env.VITE_OPENAI_API_KEY,
   dangerouslyAllowBrowser: true // Enable client-side usage
 });
-
-// Rate limiting utilities
-const REQUEST_QUEUE = [];
-let IS_CIRCUIT_OPEN = false;
-let LAST_SUCCESS_TIME = Date.now();
-let CONSECUTIVE_FAILURES = 0;
-
-// Global rate limiter and circuit breaker
-const rateLimiter = {
-  // Circuit breaker parameters
-  maxConsecutiveFailures: 5,
-  circuitResetTimeMs: 10000, // 10 seconds
-  maxConcurrentRequests: 2,
-  activeRequests: 0,
-  
-  // Check if we should allow this request
-  canMakeRequest: function() {
-    // If circuit is open (in failure mode), check if enough time has passed to try again
-    if (IS_CIRCUIT_OPEN) {
-      const timeSinceLastFailure = Date.now() - LAST_SUCCESS_TIME;
-      if (timeSinceLastFailure > this.circuitResetTimeMs) {
-        console.log('🔄 Circuit breaker reset, allowing a test request');
-        // Allow one test request
-        IS_CIRCUIT_OPEN = false;
-        CONSECUTIVE_FAILURES = 0;
-        return true;
-      }
-      console.log('🛑 Circuit breaker open, blocking request');
-      return false;
-    }
-    
-    // Check if we're already at max concurrent requests
-    if (this.activeRequests >= this.maxConcurrentRequests) {
-      console.log(`⏳ Too many concurrent requests (${this.activeRequests}/${this.maxConcurrentRequests})`);
-      return false;
-    }
-    
-    return true;
-  },
-  
-  // Record a successful request
-  recordSuccess: function() {
-    LAST_SUCCESS_TIME = Date.now();
-    CONSECUTIVE_FAILURES = 0;
-    this.activeRequests = Math.max(0, this.activeRequests - 1);
-  },
-  
-  // Record a failed request
-  recordFailure: function() {
-    CONSECUTIVE_FAILURES++;
-    this.activeRequests = Math.max(0, this.activeRequests - 1);
-    
-    // Open the circuit if we've had too many consecutive failures
-    if (CONSECUTIVE_FAILURES >= this.maxConsecutiveFailures) {
-      console.log(`🔌 Opening circuit breaker after ${CONSECUTIVE_FAILURES} consecutive failures`);
-      IS_CIRCUIT_OPEN = true;
-    }
-  },
-  
-  // Start tracking a new request
-  startRequest: function() {
-    this.activeRequests++;
-  }
-};
 
 // Define proper type for newOpen parameter
 function useModalState(initialState = false): [boolean, (newOpen: boolean) => void] {
@@ -135,25 +70,6 @@ const SandboxOutput: React.FC<{ output: string }> = ({ output }) => {
       <div className="bg-gray-900 rounded-md p-4 overflow-auto max-h-[200px]">
         <pre className="text-gray-200 whitespace-pre-wrap">{output}</pre>
       </div>
-    </div>
-  );
-};
-
-// Add new component for "Open Link" button
-const OpenLinkButton: React.FC<{ url: string; label?: string }> = ({ url, label = "Open Agent UI" }) => {
-  if (!url) return null;
-  
-  return (
-    <div className="mt-4 flex justify-center">
-      <a 
-        href={url} 
-        target="_blank" 
-        rel="noopener noreferrer"
-        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
-      >
-        {label}
-        <span className="text-sm">↗</span>
-      </a>
     </div>
   );
 };
@@ -237,10 +153,6 @@ export function CodeGenerationModal({
   const [isFirstGeneration, setIsFirstGeneration] = useState(true);
   const [sandboxOutput, setSandboxOutput] = useState<string>('');
   const [isExecuting, setIsExecuting] = useState(false);
-  const [agentUrl, setAgentUrl] = useState<string>('');
-  const [showOpenLink, setShowOpenLink] = useState(false);
-  // Added option to control automatic execution
-  const [autoExecute, setAutoExecute] = useState(false);
 
   // Check if there are MCP nodes in the diagram
   const hasMcpNodes = nodes.some(node => 
@@ -268,11 +180,6 @@ export function CodeGenerationModal({
       console.log('CodeGenerationModal: Loading code from localStorage');
       setGeneratedCode(storedCode);
       setIsFirstGeneration(false);
-      
-      // If auto-execute is enabled, execute the stored code
-      if (autoExecute && storedCode) {
-        executeInSandbox(storedCode);
-      }
       return;
     }
 
@@ -281,7 +188,7 @@ export function CodeGenerationModal({
       console.log('CodeGenerationModal: No stored code found, generating new code');
       generateInitialCode();
     }
-  }, [open, activeTab, flowKey, autoExecute]);
+  }, [open, activeTab, flowKey]);
 
   // Function to generate initial code
   const generateInitialCode = async () => {
@@ -306,7 +213,7 @@ export function CodeGenerationModal({
         }
       } else {
         const framework = activeTab as 'adk' | 'vertex' | 'custom';
-        code = await generateCodeFromLib(nodes, edges, framework);
+        code = await generateCode(nodes, edges, framework);
         code = cleanGeneratedCode(code);
       }
 
@@ -315,11 +222,6 @@ export function CodeGenerationModal({
       storeCode(flowKey, activeTab, code);
       setIsFirstGeneration(false);
       console.log('CodeGenerationModal: Code generated and stored successfully');
-      
-      // Auto-execute the code if enabled
-      if (autoExecute && code) {
-        executeInSandbox(code);
-      }
     } catch (error) {
       console.error('Error generating code:', error);
       setError(error instanceof Error ? error.message : 'An error occurred generating code');
@@ -332,11 +234,6 @@ export function CodeGenerationModal({
         description: "Error occurred. Using local code generation instead.",
         variant: "default"
       });
-      
-      // Auto-execute the fallback code if enabled
-      if (autoExecute && cleanedCode) {
-        executeInSandbox(cleanedCode);
-      }
     } finally {
       setLoading(false);
     }
@@ -366,14 +263,10 @@ export function CodeGenerationModal({
   };
 
   const handleExecuteClick = () => {
-    if (generatedCode) {
-      executeInSandbox(generatedCode);
-    } else {
     toast({
-        title: "No Code Available",
-        description: "Please generate code first before executing.",
+      title: "Code Preview",
+      description: "This is a preview of the generated code. To execute, please copy and run in your development environment.",
     });
-    }
   };
 
   // Update the regenerate button click handler
@@ -388,7 +281,7 @@ export function CodeGenerationModal({
         code = await generateCodeWithOpenAI(nodes, edges, mcpEnabled);
       } else {
         const framework = activeTab as 'adk' | 'vertex' | 'custom';
-        code = await generateCodeFromLib(nodes, edges, framework);
+        code = await generateCode(nodes, edges, framework);
       }
       
       code = cleanGeneratedCode(code);
@@ -399,11 +292,6 @@ export function CodeGenerationModal({
         title: "Code regenerated",
         description: "The code has been regenerated and saved."
       });
-      
-      // Auto-execute the code if enabled
-      if (autoExecute && code) {
-        executeInSandbox(code);
-      }
     } catch (error) {
       console.error('Error regenerating code:', error);
       setError(error instanceof Error ? error.message : 'Failed to regenerate code');
@@ -416,11 +304,6 @@ export function CodeGenerationModal({
         description: "Error occurred. Using local code generation instead.",
         variant: "default"
       });
-      
-      // Auto-execute the fallback code if enabled
-      if (autoExecute && cleanedCode) {
-        executeInSandbox(cleanedCode);
-      }
     } finally {
       setLoading(false);
     }
@@ -433,21 +316,6 @@ export function CodeGenerationModal({
     
     setIsExecuting(true);
     setSandboxOutput('');
-    setAgentUrl('');
-    setShowOpenLink(false);
-
-    // Setup alternative endpoints to try if primary fails
-    const endpoints = [
-      API_CONFIG.executeUrl,
-      'https://agent-flow-builder-api.onrender.com/api/execute',
-     
-    ];
-    
-    // Remove duplicates
-    const uniqueEndpoints = [...new Set(endpoints)];
-    
-    let lastError = null;
-    let responseData = null;
 
     try {
       // Input validation
@@ -455,138 +323,44 @@ export function CodeGenerationModal({
         throw new Error('No code provided to execute');
       }
 
-      // Check if we can make a request now
-      if (!rateLimiter.canMakeRequest()) {
-        throw new Error("Rate limit protection active. Please wait 10-15 seconds and try again.");
-      }
-
       // Split the code into agent.py and __init__.py
       const agentCode = code;
       const initCode = 'from .agent import root_agent\n__all__ = ["root_agent"]';
 
-      // Try each endpoint with exponential backoff for rate limits
-      let apiResponse = null;
-      const MAX_RETRIES = 3;
-      
-      // Record that we're starting a request
-      rateLimiter.startRequest();
-      
-      for (const apiUrl of uniqueEndpoints) {
-        let retries = 0;
-        let shouldRetry = true;
-        
-        while (shouldRetry && retries < MAX_RETRIES) {
-          try {
-            // Calculate backoff delay with much longer intervals (500ms, 2s, 4.5s)
-            const backoffDelay = retries > 0 ? (Math.pow(2, retries) - 1) * 500 : 0;
-            
-            if (backoffDelay > 0) {
-              console.log(`⏱️ Rate limit encountered. Retrying in ${backoffDelay}ms (attempt ${retries + 1}/${MAX_RETRIES})...`);
-              await new Promise(resolve => setTimeout(resolve, backoffDelay));
-            }
-            
-            console.log(`📝 Trying API endpoint: ${apiUrl}${retries > 0 ? ` (retry ${retries}/${MAX_RETRIES})` : ''}`);
-            
-            apiResponse = await fetch(apiUrl, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                files: {
-                  'agent.py': agentCode,
-                  '__init__.py': initCode
-                }
-              }),
-            });
-            
-            if (apiResponse.ok) {
-              console.log('✅ API endpoint succeeded:', apiUrl);
-              rateLimiter.recordSuccess();
-              shouldRetry = false;
-              break; // Found a working endpoint
-            } else {
-              const errorStatus = apiResponse.status;
-              const errorText = await apiResponse.text().catch(() => "No error details available");
-              
-              // Check if it's a rate limit error (429 or 500 with rate limit message)
-              const isRateLimitError = 
-                errorStatus === 429 || 
-                (errorStatus === 500 && errorText.toLowerCase().includes('rate limit'));
-              
-              if (isRateLimitError && retries < MAX_RETRIES - 1) {
-                console.warn(`⚠️ Rate limit detected (${errorStatus}): Will retry with longer delay`);
-                retries++;
-                shouldRetry = true;
-                // Continue retry loop
-              } else {
-                console.warn(`⚠️ API endpoint failed (${errorStatus}):`, apiUrl, errorText);
-                lastError = new Error(`API Error (${errorStatus}): ${errorText || "No details available"}`);
-                shouldRetry = false;
-                apiResponse = null; // Reset for next endpoint
-                break;
-              }
-            }
-          } catch (fetchError) {
-            console.warn(`⚠️ Fetch error with endpoint:`, apiUrl, fetchError);
-            lastError = fetchError;
-            shouldRetry = false;
-            break;
+      console.log('📝 Preparing files for sandbox execution...');
+      console.log('🔗 Sending request to:', 'https://agent-flow-builder-api.onrender.com/api/execute');
+
+      // Call our API endpoint with both files
+      const response = await fetch('https://agent-flow-builder-api.onrender.com/api/execute', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          files: {
+            'agent.py': agentCode,
+            '__init__.py': initCode
           }
-        }
-        
-        if (apiResponse?.ok) {
-          break; // Successfully got a response, exit the endpoint loop
-        }
-      }
-      
-      // Record failure if no successful response
-      if (!apiResponse || !apiResponse.ok) {
-        rateLimiter.recordFailure();
-        
-        // Provide more helpful error messages based on the specific situation
-        if (IS_CIRCUIT_OPEN) {
-          throw new Error("Service temporarily unavailable due to rate limiting. Please wait 10-15 seconds before trying again.");
-        } else if (lastError && typeof lastError === 'object' && 'message' in lastError && 
-            typeof lastError.message === 'string' && lastError.message.toLowerCase().includes('rate limit')) {
-          throw new Error("Rate limit exceeded. Please wait a minute and try again.");
-        } else {
-          throw lastError || new Error("All API endpoints failed");
-        }
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      responseData = await apiResponse.json();
-      
-      // Check if the response contains openUrl and showOpenLink fields
-      if (responseData.openUrl) {
-        // Append query parameter to select our agent package
-        const url = new URL(responseData.openUrl);
-        if (!url.searchParams.has('app')) {
-          url.searchParams.set('app', 'agent_package');
-        }
-        setAgentUrl(url.toString());
-        setShowOpenLink(responseData.showOpenLink || true);
-      } else if (responseData.executionDetails?.serverUrl) {
-        // Fallback to serverUrl if openUrl is not available
-        const url = new URL(responseData.executionDetails.serverUrl);
-        if (!url.searchParams.has('app')) {
-          url.searchParams.set('app', 'agent_package');
-        }
-        setAgentUrl(url.toString());
-        setShowOpenLink(true);
-      }
+      const result = await response.json();
       
       // Format and display the output
       const executionTime = performance.now() - startTime;
       const formattedOutput = [
         `✨ Execution completed in ${executionTime.toFixed(2)}ms`,
         '📤 Output:',
-        responseData.output || 'No output generated',
-        responseData.error ? `\n❌ Error:\n${responseData.error}` : '',
+        result.output || 'No output generated',
+        result.error ? `\n❌ Error:\n${result.error}` : '',
         '\n📊 Execution Details:',
-        `• Status: ${responseData.executionDetails?.status || 'unknown'}`,
-        `• Exit Code: ${responseData.executionDetails?.exitCode}`,
-        `• Memory Usage: ${responseData.memoryUsage?.toFixed(2)}MB`,
+        `• Status: ${result.executionDetails?.status || 'unknown'}`,
+        `• Exit Code: ${result.executionDetails?.exitCode}`,
+        `• Memory Usage: ${result.memoryUsage?.toFixed(2)}MB`,
       ].join('\n');
 
       setSandboxOutput(formattedOutput);
@@ -614,7 +388,7 @@ export function CodeGenerationModal({
     const hasTools = nodes.some(node => node.data.type === 'tool');
     const agentInstruction = nodes.find(n => n.data.type === 'agent')?.data.instruction || 'Respond helpfully and concisely to the user\'s question. Use Google Search if needed.';
     
-     const code = `from google.adk.agents import LlmAgent
+    const code = `from google.adk.agents import LlmAgent
 from google.adk.tools import google_search
 
 # Define a simple agent that answers user questions using an LLM and optional tools
@@ -630,11 +404,9 @@ root_agent = LlmAgent(
   }, [nodes]);
 
   useEffect(() => {
-    if (autoExecute) {
     const code = generateCode();
     executeInSandbox(code);
-    }
-  }, [generateCode, autoExecute]);
+  }, [generateCode]);
 
   return (
     <Dialog open={open} onOpenChange={(newOpen) => {
@@ -652,24 +424,7 @@ root_agent = LlmAgent(
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs 
-          defaultValue="adk" 
-          value={activeTab} 
-          onValueChange={(newTab) => {
-            // Reset execution state when changing tabs
-            if (isExecuting) {
-              setIsExecuting(false);
-              setSandboxOutput('Execution stopped due to tab change.');
-              setShowOpenLink(false);
-              toast({
-                title: "Execution Stopped",
-                description: "Code execution was stopped due to tab change.",
-                variant: "default"
-              });
-            }
-            setActiveTab(newTab);
-          }}
-        >
+        <Tabs defaultValue="adk" value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="adk">Google ADK</TabsTrigger>
             <TabsTrigger value="vertex">Vertex AI</TabsTrigger>
@@ -696,31 +451,6 @@ root_agent = LlmAgent(
                       (MCP nodes detected in diagram)
                     </span>
                   )}
-                </div>
-            <div className="flex items-center gap-2 ml-6">
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  className="sr-only peer"
-                  checked={autoExecute}
-                  onChange={() => {
-                    const newValue = !autoExecute;
-                    setAutoExecute(newValue);
-                    toast({
-                      title: newValue ? "Auto-Execute Enabled" : "Auto-Execute Disabled",
-                      description: newValue 
-                        ? "Code will automatically execute when generated." 
-                        : "Code will only execute when you click the Execute button.",
-                      variant: "default"
-                    });
-                  }}
-                />
-                <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                <span className="ms-3 text-sm font-medium">Auto-Execute Code</span>
-              </label>
-              <div className="text-xs text-muted-foreground ml-14 mt-1">
-                When disabled, code will not automatically run in the browser
-              </div>
                 </div>
                 
                 <Button 
@@ -781,7 +511,7 @@ root_agent = LlmAgent(
                         size="sm"
                         variant="ghost"
                         className="bg-gray-800/70 hover:bg-gray-800/90 flex items-center gap-2"
-                        onClick={handleExecuteClick}
+                        onClick={() => executeInSandbox(generatedCode)}
                         disabled={loading || isExecuting}
                       >
                         {isExecuting ? (
@@ -810,11 +540,6 @@ root_agent = LlmAgent(
                   </div>
                   
                   <SandboxOutput output={sandboxOutput} />
-                  
-                  {/* Add the OpenLinkButton component */}
-                  {showOpenLink && agentUrl && (
-                    <OpenLinkButton url={agentUrl} label="Open Agent UI" />
-                  )}
                 </>
               )}
             </div>
@@ -852,7 +577,6 @@ root_agent = LlmAgent(
   );
 }
 
-
 // Code generation functions
 function generateAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
   console.log('generateAgentCode: Generating ADK code for', { 
@@ -870,10 +594,7 @@ function generateAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
   const mcpToolNodes = nodes.filter(node => node.data.type === 'mcp-tool');
   
   // Initialize imports
-  let code = `import os\nfrom google.adk.agents import Agent\n\n`;
-  
-  // Add API key setup
-  code += `# Set Google API key\nos.environ["GOOGLE_API_KEY"] = "AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY"\n\n`;
+  let code = `from google.adk.agents import Agent\n`;
   
   // Add tool imports
   if (toolNodes.length > 0) {
@@ -939,7 +660,7 @@ function generateAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
     });
   }
 
-  // Generate MCP tool codes
+  // Generate MCP tool code
   if (mcpToolNodes.length > 0) {
     code += `\n# MCP Tools\n`;
     mcpToolNodes.forEach(node => {
@@ -986,8 +707,7 @@ function generateAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
     code += `    model="${modelName}",\n`;
     code += `    description="${mainAgent.data.description || 'An AI agent'}",\n`;
     code += `    instruction="${mainAgent.data.instruction || 'I am a helpful assistant.'}",\n`;
-    code += `    tools=${toolList},\n`;
-    code += `    api_key="AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY"  # Provide API key directly\n`;
+    code += `    tools=${toolList}\n`;
     code += `)\n`;
     
     // Add usage example
@@ -1012,8 +732,7 @@ function generateAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
     code += `    model="gemini-2.0-flash",\n`;
     code += `    description="A helpful assistant agent that can answer questions.",\n`;
     code += `    instruction="I am a helpful assistant that provides accurate and detailed information.",\n`;
-    code += `    tools=[],\n`;
-    code += `    api_key="AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY"  # Provide API key directly\n`;
+    code += `    tools=[]\n`;
     code += `)\n\n`;
     code += `# Example usage\n`;
     code += `response = example_agent.generate("Hello, how can I assist you today?")\n`;
@@ -1501,20 +1220,19 @@ async function generateCodeWithOpenAI(nodes: Node<BaseNodeData>[], edges: Edge[]
     const agentInstruction = nodes.find(n => n.data.type === 'agent')?.data.instruction || 'Respond helpfully and concisely to the user\'s question. Use Google Search if needed.';
     const toolsConfig = hasTools ? '[google_search]' : 'None';
     
-   const code = [
-  "from google.adk.agents import LlmAgent",
-  "from google.adk.tools import google_search",
-  "",
-  "# Define a simple agent that answers user questions using an LLM and optional tools",
-  "root_agent = LlmAgent(",
-  "    model=\"gemini-2.0-flash-exp\",  # Use your preferred model",
-  "    name=\"question_answer_agent\",",
-  "    description=\"A helpful assistant agent that can answer general questions.\",",
-  "    instruction=\"${agentInstruction}\",",
-  "    tools=[google_search] if ${hasTools} else None",
-  ")"
-].join('\n');
-
+    const code = [
+      'from google.adk.agents import LlmAgent',
+      'from google.adk.tools import google_search',
+      '',
+      '# Define a simple agent that answers user questions using an LLM and optional tools',
+      'root_agent = LlmAgent(',
+      '    model="gemini-2.0-flash-exp",  # Use your preferred model',
+      '    name="question_answer_agent",',
+      '    description="A helpful assistant agent that can answer general questions.",',
+      `    instruction="${agentInstruction}",`,
+      `    tools=${toolsConfig}`,
+      ')'
+    ].join('\n');
 
     return code;
   } catch (error) {
