@@ -943,7 +943,7 @@ function generateAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
     });
   }
 
-  // Generate MCP tool code
+  // Generate MCP tool codes
   if (mcpToolNodes.length > 0) {
     code += `\n# MCP Tools\n`;
     mcpToolNodes.forEach(node => {

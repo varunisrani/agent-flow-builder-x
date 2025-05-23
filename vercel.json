@@ -37,6 +37,7 @@
     }
   ],
   "env": {
-    "NODE_ENV": "production"
+    "NODE_ENV": "production",
+    "OPENAI_API_KEY": "@openai_api_key"
   }
 } 
