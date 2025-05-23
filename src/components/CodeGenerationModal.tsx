@@ -438,6 +438,7 @@ export function CodeGenerationModal({
 
     // Setup alternative endpoints to try if primary fails
     const endpoints = [
+      API_CONFIG.executeUrl,
       'https://agent-flow-builder-api.onrender.com/api/execute',
      
     ];
