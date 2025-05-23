@@ -852,6 +852,7 @@ root_agent = LlmAgent(
   );
 }
 
+
 // Code generation functions
 function generateAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
   console.log('generateAgentCode: Generating ADK code for', { 
@@ -1500,24 +1501,20 @@ async function generateCodeWithOpenAI(nodes: Node<BaseNodeData>[], edges: Edge[]
     const agentInstruction = nodes.find(n => n.data.type === 'agent')?.data.instruction || 'Respond helpfully and concisely to the user\'s question. Use Google Search if needed.';
     const toolsConfig = hasTools ? '[google_search]' : 'None';
     
-    const code = [
-      'import os',
-      'from google.adk.agents import LlmAgent',
-      'from google.adk.tools import google_search',
-      '',
-      '# Set Google API key',
-      'os.environ["GOOGLE_API_KEY"] = "AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY"',
-      '',
-      '# Define a simple agent that answers user questions using an LLM and optional tools',
-      'root_agent = LlmAgent(',
-      '    model="gemini-2.0-flash-exp",  # Use your preferred model',
-      '    name="question_answer_agent",',
-      '    description="A helpful assistant agent that can answer general questions.",',
-      `    instruction="${agentInstruction}",`,
-      `    tools=${toolsConfig},`,
-      '    api_key="AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY"  # Provide API key directly',
-      ')'
-    ].join('\n');
+   const code = [
+  "from google.adk.agents import LlmAgent",
+  "from google.adk.tools import google_search",
+  "",
+  "# Define a simple agent that answers user questions using an LLM and optional tools",
+  "root_agent = LlmAgent(",
+  "    model=\"gemini-2.0-flash-exp\",  # Use your preferred model",
+  "    name=\"question_answer_agent\",",
+  "    description=\"A helpful assistant agent that can answer general questions.\",",
+  "    instruction=\"${agentInstruction}\",",
+  "    tools=[google_search] if ${hasTools} else None",
+  ")"
+].join('\n');
+
 
     return code;
   } catch (error) {
