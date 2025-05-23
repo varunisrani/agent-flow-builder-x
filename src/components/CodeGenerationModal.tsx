@@ -436,11 +436,10 @@ export function CodeGenerationModal({
     setAgentUrl('');
     setShowOpenLink(false);
 
-    // Setup alternative endpoints to try if primary fails
+    // Always use the Render.com API endpoint first
     const endpoints = [
-      API_CONFIG.executeUrl,
       'https://agent-flow-builder-api.onrender.com/api/execute',
-     
+      API_CONFIG.executeUrl,
     ];
     
     // Remove duplicates
