@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import {
+import type {
   Node,
   Edge
 } from '@xyflow/react';
@@ -144,30 +144,95 @@ function storeCode(flowKey: string, framework: string, code: string): void {
   localStorage.setItem(key, code);
 }
 
-// Add a helper function to clean generated code
+// Helper function to clean generated code
 function cleanGeneratedCode(code: string): string {
-  // Remove any "Note:" or comment blocks at the end
-  const noteIndex = code.indexOf('\nNote:');
-  if (noteIndex !== -1) {
-    code = code.substring(0, noteIndex);
-  }
-  
-  // Remove any trailing comments that might be added by the model
-  const lines = code.split('\n');
-  while (lines.length > 0 && (
-    lines[lines.length - 1].trim().startsWith('#') || 
-    lines[lines.length - 1].trim() === ''
-  )) {
-    lines.pop();
-  }
-  
   // Remove any markdown code block indicators
-  code = lines.join('\n').trim();
   code = code.replace(/```python\n/g, '');
   code = code.replace(/```\n?/g, '');
-  
+  code = code.trim();
+
+  // If code doesn't have the basic structure, use the template
+  if (!code.includes('from google.adk.agents') || !code.includes('google_search')) {
+    code = generateDefaultSearchAgentCode();
+  }
+
   return code;
 }
+
+// Helper function to generate code based on framework
+const getLocallyGeneratedCode = (nodes: Node<BaseNodeData>[], edges: Edge[], framework: string): string => {
+  const agentNode = nodes.find(n => n.data.type === 'agent');
+  if (!agentNode) {
+    return generateDefaultSearchAgentCode();
+  }
+
+  // Extract all node data - prioritize node-specific data
+  const agentName = agentNode.data.label?.toLowerCase().replace(/\s+/g, '_') || 'search_agent';
+  const agentPrompt = agentNode.data.prompt || agentNode.data.instruction || agentNode.data.description;
+  const agentDescription = agentNode.data.description || 
+    (agentPrompt ? `Agent that ${agentPrompt.split('\n')[0].toLowerCase()}` : 'Search agent');
+  const agentInstruction = agentNode.data.instruction || agentPrompt || 'Use Google Search to find accurate and up-to-date information. Always cite your sources and provide context from search results.';
+
+  switch (framework) {
+    case 'adk':
+      return `from google.adk.agents import Agent
+from google.adk.tools import google_search
+
+root_agent = Agent(
+    model="gemini-2.0-flash",
+    name="${agentName}",
+    description="${agentDescription}",
+    instruction="${agentInstruction}",
+    tools=[google_search]
+)
+
+__all__ = ["root_agent"]`;
+    case 'vertex':
+      return `from google.cloud import aiplatform
+
+# Initialize Vertex AI
+aiplatform.init(project="your-project-id")
+
+agent = aiplatform.Agent.create(
+    display_name="${agentName}",
+    description="${agentDescription}",
+    tools=["google_search"]
+)`;
+    case 'custom':
+      return `import openai
+from typing import Dict, Any
+
+class Agent:
+    def __init__(self):
+        self.name = "${agentName}"
+        self.description = "${agentDescription}"
+        self.instruction = "${agentInstruction}"
+        
+    def search(self, query: str) -> Dict[str, Any]:
+        # Implement search functionality
+        pass
+        
+agent = Agent()`;
+    default:
+      return generateDefaultSearchAgentCode();
+  }
+};
+
+// Helper function to generate default search agent code
+const generateDefaultSearchAgentCode = (): string => {
+  return `from google.adk.agents import Agent
+from google.adk.tools import google_search
+
+root_agent = Agent(
+    model="gemini-2.0-flash",
+    name="search_agent",
+    description="An agent that uses Google Search to find and provide information.",
+    instruction="Use Google Search to find accurate and up-to-date information. Always cite your sources and provide context from search results.",
+    tools=[google_search]
+)
+
+__all__ = ["root_agent"]`;
+};
 
 // Add a helper function to format the code for display
 function formatCodeForDisplay(code: string): string {
@@ -220,6 +285,79 @@ async function callOpenRouter(endpoint: string, body: {
   } catch (error) {
     console.error('Fetch error:', error);
     throw error;
+  }
+}
+
+// Helper function to customize prompts based on user requirements
+function customizePrompts(userPrompt: string, nodeType: string): string {
+  // Extract key information from user prompt
+  const isSearchRelated = /search|find|look up|query/i.test(userPrompt);
+  const isAnalysisRelated = /analyze|evaluate|assess|review/i.test(userPrompt);
+  const isFactChecking = /fact|verify|validate|check/i.test(userPrompt);
+  
+  switch (nodeType) {
+    case 'agent':
+      if (isSearchRelated) {
+        return `Act as an expert researcher using Google Search to find accurate and comprehensive information. ${userPrompt}
+Focus on:
+- Finding authoritative sources
+- Cross-referencing information
+- Providing context and citations
+- Summarizing findings clearly`;
+      } else if (isAnalysisRelated) {
+        return `Act as an analytical expert using Google Search to evaluate and analyze information. ${userPrompt}
+Focus on:
+- Deep analysis of search results
+- Comparing different perspectives
+- Identifying trends and patterns
+- Drawing well-supported conclusions`;
+      } else if (isFactChecking) {
+        return `Act as a fact-checking expert using Google Search to verify information. ${userPrompt}
+Focus on:
+- Verifying claims against reliable sources
+- Identifying primary sources
+- Checking multiple sources
+- Providing evidence-based conclusions`;
+      }
+      return `Act as an expert assistant using Google Search to help with: ${userPrompt}
+Focus on:
+- Finding relevant information
+- Providing accurate answers
+- Citing sources
+- Explaining context`;
+      
+    case 'google_search':
+      if (isSearchRelated) {
+        return `Perform targeted searches to find specific information about: ${userPrompt}
+Search strategy:
+- Use precise search terms
+- Focus on authoritative sources
+- Look for recent information
+- Cross-reference findings`;
+      } else if (isAnalysisRelated) {
+        return `Conduct comprehensive searches to gather data for analysis about: ${userPrompt}
+Search strategy:
+- Look for data-rich sources
+- Find comparative information
+- Seek expert opinions
+- Gather diverse perspectives`;
+      } else if (isFactChecking) {
+        return `Execute focused searches to verify facts related to: ${userPrompt}
+Search strategy:
+- Prioritize primary sources
+- Check official documentation
+- Find independent verification
+- Look for fact-checking resources`;
+      }
+      return `Perform intelligent searches to address: ${userPrompt}
+Search strategy:
+- Find relevant information
+- Use reliable sources
+- Get recent data
+- Verify findings`;
+      
+    default:
+      return userPrompt;
   }
 }
 
@@ -330,20 +468,6 @@ export function CodeGenerationModal({
       title: "Code copied!",
       description: "The generated code has been copied to your clipboard.",
     });
-  };
-
-  // Fallback code generation function that uses local logic if the API fails
-  const getLocallyGeneratedCode = (nodes: Node<BaseNodeData>[], edges: Edge[], framework: string) => {
-    switch (framework) {
-      case 'adk':
-        return generateAgentCode(nodes, edges);
-      case 'vertex':
-        return generateVertexCode(nodes, edges);
-      case 'custom':
-        return generateCustomAgentCode(nodes, edges);
-      default:
-        return generateAgentCode(nodes, edges);
-    }
   };
 
   const handleExecuteClick = () => {
@@ -637,37 +761,130 @@ export function CodeGenerationModal({
 
 // Code generation functions
 function generateAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
-  console.log('generateAgentCode: Generating ADK code for', { 
+  console.log('generateAgentCode: Analyzing all nodes and edges for code generation', { 
     nodeCount: nodes.length, 
     edgeCount: edges.length 
   });
   
-  // Get agent instruction if available, otherwise use default
-  const agentInstruction = nodes.find(n => n.data.type === 'agent')?.data.instruction || 'Respond helpfully and concisely to the user\'s question. Use Google Search if needed.';
+  // Get agent node and its details
+  const agentNode = nodes.find(n => n.data.type === 'agent');
+  if (!agentNode) {
+    console.warn('No agent node found, using default agent configuration');
+    return generateDefaultSearchAgentCode();
+  }
+
+  // Validate node data and only fall back if absolutely necessary
+  if (!agentNode.data.prompt && !agentNode.data.instruction && !agentNode.data.description) {
+    console.warn('Agent node missing all prompt data, using default configuration');
+    return generateDefaultSearchAgentCode();
+  }
+
+  // Extract all node data - prioritize node-specific data
+  const agentName = agentNode.data.label?.toLowerCase().replace(/\s+/g, '_') || 'search_agent';
   
-  // Generate simplified code using the required template
-  const code = [
-    '"""',
-    'Agent implementation using Google ADK.',
-    'This module exports the root_agent that will be used by the ADK runtime.',
-    '"""',
-    '',
-    'from google.adk.agents.llm_agent import LlmAgent',
-    'from google.adk.tools import FunctionTool',
-    '',
-    '# Create and export the agent',
-    'root_agent = LlmAgent(',
-    '    model="gemini-2.0-flash",',
-    '    name="question_answer_agent",', 
-    '    description="A helpful assistant agent that can answer general questions.",',
-    `    instruction="${agentInstruction}",`,
-    '    tools=[]  # No tools configured',
-    ')',
-    '',
-    '# This is required to expose the agent to ADK',
-    '__all__ = ["root_agent"]'
-  ].join('\n');
+  // Prioritize prompt over instruction over description
+  const agentPrompt = agentNode.data.prompt || agentNode.data.instruction || agentNode.data.description;
   
+  // Use description if available, otherwise generate from prompt
+  const agentDescription = agentNode.data.description || 
+    (agentPrompt ? `Agent that ${agentPrompt.split('\n')[0].toLowerCase()}` : 'Search agent');
+  
+  // Use explicit instruction if available, otherwise use prompt
+  const agentInstruction = agentNode.data.instruction || agentPrompt;
+
+  // Find all connected tools and inputs
+  const connectedNodes = new Set<string>();
+  edges.forEach(edge => {
+    connectedNodes.add(edge.source);
+    connectedNodes.add(edge.target);
+  });
+
+  // Get all tool nodes that are connected
+  const toolNodes = nodes.filter(node => 
+    (node.data.type === 'tool' || node.data.type === 'input') && 
+    connectedNodes.has(node.id)
+  );
+
+  let code = `from google.adk.agents import Agent
+from google.adk.tools import google_search
+from typing import Dict, Any, List
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+`;
+
+  // Generate tool functions for each tool node
+  toolNodes.forEach(toolNode => {
+    // Ensure we have a valid tool name
+    const toolName = toolNode.data.label?.toLowerCase().replace(/\s+/g, '_');
+    if (!toolName) {
+      console.warn(`Tool node ${toolNode.id} missing label, skipping`);
+      return;
+    }
+
+    // Get tool prompt, prioritizing explicit prompt
+    const toolPrompt = toolNode.data.prompt || toolNode.data.description;
+    if (!toolPrompt) {
+      console.warn(`Tool node ${toolNode.id} (${toolName}) missing prompt and description`);
+      return;
+    }
+    
+    code += `def ${toolName}(params: Dict[str, Any]) -> Dict[str, Any]:
+    """${toolPrompt}"""
+    logger.info(f"Executing ${toolName} with params: {params}")
+    # TODO: Implement ${toolNode.data.label} functionality
+    return {"result": f"Executed ${toolName} with {params}"}\n\n`;
+  });
+
+  // Configure the Google Search tool with the agent's exact prompt
+  code += `# Configure Google Search tool with agent's prompt
+SEARCH_TOOL_CONFIG = {
+    "instruction": """${agentPrompt || 'Search and provide accurate information'}""",
+    "examples": [
+        {"input": "${agentPrompt ? agentPrompt.split('\n')[0] : 'Search query'}", "output": "Detailed search results with context and sources"},
+        {"input": "Follow-up question about ${agentPrompt ? agentPrompt.split('\n')[0] : 'the topic'}", "output": "Additional information with citations"}
+    ]
+}
+
+# Create a configured search tool
+configured_search = google_search.with_config(SEARCH_TOOL_CONFIG)
+logger.info("Configured Google Search tool with agent-specific prompt")\n\n`;
+
+  // Create the agent with all tools
+  code += `# Create and configure the agent
+root_agent = Agent(
+    model="gemini-2.0-flash",
+    name="${agentName}",
+    description="${agentDescription}",
+    instruction="${agentInstruction}",
+    tools=[
+        configured_search,  # Use the configured search tool
+        ${toolNodes
+          .filter(node => node.data.label)
+          .map(node => node.data.label.toLowerCase().replace(/\s+/g, '_'))
+          .join(',\n        ')}
+    ],
+    prompt="""${agentPrompt}"""
+)
+
+logger.info(f"Created agent '{agentName}' with {toolNodes.length + 1} tools")
+
+__all__ = ["root_agent"]
+
+# Example usage:
+if __name__ == "__main__":
+    try:
+        # Test the agent with the first line of the prompt as a query
+        test_query = "${agentPrompt ? agentPrompt.split('\n')[0] : 'How can I help you?'}"
+        logger.info(f"Testing agent with query: {test_query}")
+        response = root_agent.chat(test_query)
+        print("Agent Response:", response)
+    except Exception as e:
+        logger.error(f"Error testing agent: {e}")`;
+
   return code;
 }
 
@@ -1131,173 +1348,78 @@ from model_context_protocol.server import MCP_Server
   return code;
 }
 
-// Update the generateCodeWithOpenAI function to use the new helper
+// Update the generateCodeWithOpenAI function to prioritize node data
 async function generateCodeWithOpenAI(nodes: Node<BaseNodeData>[], edges: Edge[], mcpEnabled: boolean): Promise<string> {
   try {
     if (!OPENROUTER_API_KEY) {
-      throw new Error('OpenRouter API key is not configured. Please add VITE_OPENROUTER_API_KEY to your .env file.');
+      throw new Error('OpenRouter API key not configured. Please add VITE_OPENROUTER_API_KEY to your .env file.');
     }
 
-    // Get agent instruction and details from nodes
+    // Get agent node and its details
     const agentNode = nodes.find(n => n.data.type === 'agent');
     if (!agentNode) {
-      throw new Error('No agent node found in the flow. Please add an agent node.');
+      console.warn('No agent node found, using default agent configuration');
+      return generateDefaultSearchAgentCode();
     }
 
-    // Get connected tools and their details
-    const toolNodes = nodes.filter(node => 
-      node.data.type === 'tool' &&
-      edges.some(edge => 
-        (edge.source === agentNode.id && edge.target === node.id) ||
-        (edge.target === agentNode.id && edge.source === node.id)
-      )
-    );
-
-    // Get connected model and its details
-    const modelNode = nodes.find(node => 
-      node.data.type === 'model' &&
-      edges.some(edge => 
-        (edge.source === agentNode.id && edge.target === node.id) ||
-        (edge.target === agentNode.id && edge.source === node.id)
-      )
-    );
+    // Extract all node data - prioritize node-specific data
+    const agentName = agentNode.data.label?.toLowerCase().replace(/\s+/g, '_') || 'search_agent';
+    const agentPrompt = agentNode.data.prompt || agentNode.data.instruction || agentNode.data.description;
+    const agentDescription = agentNode.data.description || 
+      (agentPrompt ? `Agent that ${agentPrompt.split('\n')[0].toLowerCase()}` : 'Search agent');
+    const agentInstruction = agentNode.data.instruction || agentPrompt || 'Use Google Search to find accurate and up-to-date information. Always cite your sources and provide context from search results.';
 
     // Create a detailed prompt with actual node data
     const messages = [
       {
         role: "system",
-        content: `You are a Google ADK expert. Generate Python code for an agent using the Google ADK framework.
-Follow these requirements:
-1. Use proper imports (google.adk.agents.llm_agent, google.adk.tools)
-2. Define tools with proper type hints and docstrings
-3. Create an agent with proper configuration
-4. Do not include any environment setup or os imports
-5. Generate runnable code that works out of the box
-6. Ensure the agent is properly exported as root_agent`
+        content: `You are a Google ADK expert. Generate Python code for a search agent using the Google ADK framework.
+The code must use the exact configuration provided - do not add default behaviors.
+Generate clean, minimal code that follows the standard Google ADK pattern.`
       },
       {
         role: "user",
-        content: `Generate a Google ADK agent with these exact specifications from the flow diagram:
+        content: `Generate a Google ADK agent with this exact configuration:
 
-Agent Name: ${agentNode.data.label || 'root_agent'}
-Instruction: ${agentNode.data.instruction || 'No instruction provided'}
-Description: ${agentNode.data.description || 'No description provided'}
-Model: ${modelNode?.data.modelType || 'gemini-2.0-flash'}
+Name: ${agentName}
+Description: ${agentDescription}
+Instruction: ${agentInstruction}
 
-${toolNodes.length > 0 ? `Connected Tools:
-${toolNodes.map(tool => `- ${tool.data.label}: ${tool.data.description || 'No description'}
-  Type: ${tool.data.toolType || 'custom'}
-  Parameters: ${JSON.stringify(tool.data.parameters || {})}
-  Returns: ${tool.data.returns || 'dict'}`).join('\n')}` : 'No tools connected'}
-
-Generate complete, runnable Google ADK code that exactly matches this configuration. Use the actual node data provided above, do not add any default tools or configurations that aren't specified in the nodes.
-
-The code should follow this structure but use the exact data from the nodes:
-\`\`\`python
-"""
-Agent implementation using Google ADK.
-This module exports the root_agent that will be used by the ADK runtime.
-"""
-
-from google.adk.agents.llm_agent import LlmAgent
-from google.adk.tools import FunctionTool
-
-# Tool definitions (only if tools are connected)
-[Tool definitions based on actual connected tools]
-
-# Create and export the agent with exact node data
-root_agent = LlmAgent(
-    model="[Use actual model from model node]",
-    name="[Use actual agent name]",
-    instruction="[Use actual instruction]",
-    description="[Use actual description]",
-    tools=[Only include actually connected tools]
-)
-
-# Required export
-__all__ = ["root_agent"]
-\`\`\`
-
-Generate the complete code using the exact node data provided above.`
+Requirements:
+1. Use the exact configuration provided above
+2. Use the google_search tool from google.adk.tools
+3. Use the gemini-2.0-flash model
+4. Generate clean, minimal code following the standard pattern`
       }
     ];
 
-    // Call OpenRouter API using the helper function
+    // Call OpenRouter API
     const result = await callOpenRouter('/chat/completions', {
       model: 'openai/gpt-4.1-mini',
       messages: messages,
       temperature: 0.2,
-      max_tokens: 2000,
-      stop: ['```']
+      max_tokens: 1000
     });
 
     let code = result.choices[0].message.content;
-
-    // Clean up the code
-    code = code.replace(/```python\n/g, '');
-    code = code.replace(/```\n?/g, '');
-    code = code.trim();
-
-    // Validate the code has necessary components
-    if (!code.includes('from google.adk.agents')) {
-      // Fallback to template if the generated code is invalid
-      code = [
-        '"""',
-        'Agent implementation using Google ADK.',
-        'This module exports the root_agent that will be used by the ADK runtime.',
-        '"""',
-        '',
-        'from google.adk.agents.llm_agent import LlmAgent',
-        'from google.adk.tools import FunctionTool',
-        '',
-        toolNodes.length > 0 ? '# Tool definitions' : '',
-        ...toolNodes.map(tool => {
-          const toolName = tool.data.label.toLowerCase().replace(/\s+/g, '_');
-          return `def ${toolName}(params: dict) -> dict:
-    """${tool.data.description || `Implementation for ${tool.data.label}`}
+    code = cleanGeneratedCode(code);
     
-    Args:
-        params: Parameters for the tool
-        
-    Returns:
-        Result of the tool execution
-    """
-    # TODO: Implement ${tool.data.label} functionality
-    return {"result": f"Executed ${toolName} with {params}"}`
-        }),
-        '',
-        toolNodes.length > 0 ? '# Create tools list' : '',
-        toolNodes.length > 0 ? `tools = [
-    ${toolNodes.map(tool => {
-      const toolName = tool.data.label.toLowerCase().replace(/\s+/g, '_');
-      return `FunctionTool(
-        name="${toolName}",
-        description="${tool.data.description || `Implementation for ${tool.data.label}`}",
-        function=${toolName}
-    )`;
-    }).join(',\n    ')}
-]` : '',
-        '',
-        '# Create and export the agent',
-        `root_agent = LlmAgent(`,
-        `    model="${modelNode?.data.modelType || 'gemini-2.0-flash'}",`,
-        `    name="${agentNode.data.label.toLowerCase().replace(/\s+/g, '_')}",`,
-        `    description="${agentNode.data.description || 'A helpful assistant agent'}",`,
-        `    instruction="${agentNode.data.instruction || 'Help users with their requests'}",`,
-        toolNodes.length > 0 ? '    tools=tools' : '    tools=[]  # No tools configured',
-        ')',
-        '',
-        '# This is required to expose the agent to ADK',
-        '__all__ = ["root_agent"]'
-      ].join('\n');
+    // If the generated code doesn't look right, use local generation
+    if (!code.includes('google_search') || !code.includes('Agent(')) {
+      console.log('Generated code missing required elements, using local generation');
+      return getLocallyGeneratedCode(nodes, edges, 'adk');
     }
 
+    // Validate that the code uses the correct configuration
+    if (!code.includes(agentDescription) || !code.includes(agentInstruction)) {
+      console.log('Generated code not using provided configuration, using local generation');
+      return getLocallyGeneratedCode(nodes, edges, 'adk');
+    }
+    
     return code;
   } catch (error) {
     console.error('Error generating code with OpenRouter:', error);
-    if (error instanceof Error) {
-      throw new Error(`Failed to generate code: ${error.message}`);
-    }
-    throw error;
+    // Fallback to local generation
+    return getLocallyGeneratedCode(nodes, edges, 'adk');
   }
 }

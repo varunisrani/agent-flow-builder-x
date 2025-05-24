@@ -115,7 +115,7 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
       >
         <div className="flex items-center gap-2">
           <PanelTop className="w-4 h-4 text-primary" />
-          <h3 className="text-sm font-medium">Natural Language Builder</h3>
+          <h3 className="text-sm font-medium">Google Search Agent Builder</h3>
         </div>
         <div className="w-4 h-4 rounded-full bg-primary/50" />
       </div>
@@ -123,7 +123,7 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
       {expanded && (
         <div className="p-4">
           <p className="text-xs text-muted-foreground mb-3">
-            Describe your agent workflow in natural language, including the tools, models, and connections it should have.
+            Describe your Google ADK agent that uses the Google Search tool to find and process information.
           </p>
           
           <form onSubmit={handleSubmit}>
@@ -135,7 +135,7 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
                   console.log('NaturalLanguageInput: Prompt updated, length:', e.target.value.length);
                   setPrompt(e.target.value);
                 }}
-                placeholder="Create a Google ADK agent that uses the google_search tool to find information, processes it with gemini-2.0-flash model, and provides a summary..."
+                placeholder="Create a Google ADK agent that uses the google_search tool to find information about specific topics and provide summaries using the gemini-2.0-flash model..."
                 className={cn(
                   "w-full h-24 bg-background rounded-md border p-3 text-sm resize-none",
                   error ? "border-red-500" : "border-border",
@@ -176,7 +176,7 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
                 )}
               >
                 {isGenerating && <Loader2 className="w-4 h-4 animate-spin" />}
-                {isGenerating ? "Generating..." : "Generate Flow"}
+                {isGenerating ? "Generating..." : "Generate Search Agent"}
               </button>
             </div>
           </form>
@@ -185,9 +185,10 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
             <div className="mt-3 text-xs text-muted-foreground">
               <strong>Tips:</strong>
               <ul className="list-disc list-inside mt-1">
-                <li>Use official Google ADK tools like google_search, calculator, file_tool, etc.</li>
-                <li>Specify Gemini models (e.g., gemini-2.0-flash, gemini-2.0-pro)</li>
-                <li>Describe how tools should connect to your agent</li>
+                <li>The agent will use the official google_search tool from Google ADK</li>
+                <li>Specify how you want the agent to process search results</li>
+                <li>The agent will use the gemini-2.0-flash model for processing</li>
+                <li>Include any specific search topics or domains to focus on</li>
               </ul>
             </div>
           )}

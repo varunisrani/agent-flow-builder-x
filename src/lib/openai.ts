@@ -104,7 +104,7 @@ export async function generateFlow(prompt: string): Promise<{ nodes: Node<BaseNo
 
     // Define the system message to shape the AI's response
     const systemMessage = `
-      You are an expert in building Google ADK agent workflows.
+      You are an expert in building Google ADK agents with Google Search integration.
       When given a description of an agent system, you will output a JSON representation of nodes and edges for a flow-based diagram.
       
       For each node, include:
@@ -114,17 +114,16 @@ export async function generateFlow(prompt: string): Promise<{ nodes: Node<BaseNo
       - description (longer description of what it does)
       - data (an object with additional properties)
       
-      The node types must follow Google ADK conventions:
+      The node types must follow these specific rules:
       - agent: An LlmAgent that uses Google ADK's LlmAgent class
-      - tool: A FunctionTool from google.adk.tools (e.g., google_search, calculator)
-      - model: A model supported by Google ADK (e.g., "gemini-2.0-flash", "gemini-2.0-pro")
+      - tool: ONLY use the google_search tool from google.adk.tools
+      - model: ONLY use "gemini-2.0-flash" model
       
-      For tools, only use official Google ADK tools:
-      - google_search: Web search tool
-      - calculator: Basic math operations
-      - file_tool: File operations
-      - http_tool: HTTP requests
-      - system_tool: System operations
+      For the google_search tool, include these properties in data:
+      - toolType: "google_search"
+      - description: "Google Search tool for web search capabilities"
+      - parameters: { "query": "string" }
+      - returns: "dict"
       
       For edges, include:
       - id (string)
@@ -149,7 +148,7 @@ export async function generateFlow(prompt: string): Promise<{ nodes: Node<BaseNo
         },
         {
           role: 'user',
-          content: `Create a Google ADK agent flow from this description: ${prompt}. Only use official Google ADK tools and models.`,
+          content: `Create a Google ADK agent flow that uses the google_search tool to search and provide information. ${prompt}`,
         },
       ],
       response_format: { type: 'json_object' },

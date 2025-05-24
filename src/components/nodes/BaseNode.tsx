@@ -10,6 +10,7 @@ export interface BaseNodeData extends Record<string, unknown> {
   type: 'agent' | 'tool' | 'input' | 'output' | 'model' | 'mcp-client' | 'mcp-server' | 'mcp-tool';
   description?: string;
   instruction?: string;
+  prompt?: string;
   modelType?: string;
   mcpUrl?: string;
   mcpToolId?: string;
