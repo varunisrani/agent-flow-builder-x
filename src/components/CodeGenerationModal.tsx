@@ -387,6 +387,7 @@ export function CodeGenerationModal({
     // Generate the Google ADK code
     const hasTools = nodes.some(node => node.data.type === 'tool');
     const agentInstruction = nodes.find(n => n.data.type === 'agent')?.data.instruction || 'Respond helpfully and concisely to the user\'s question. Use Google Search if needed.';
+    const toolsConfig = hasTools ? '[google_search]' : 'None';
     
     const code = `from google.adk.agents import LlmAgent
 from google.adk.tools import google_search
@@ -397,7 +398,7 @@ root_agent = LlmAgent(
     name="question_answer_agent",
     description="A helpful assistant agent that can answer general questions.",
     instruction="${agentInstruction}",
-    tools=[google_search] if ${hasTools} else None
+    tools=${toolsConfig}
 )`;
 
     return code;
@@ -594,7 +595,7 @@ function generateAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
   const mcpToolNodes = nodes.filter(node => node.data.type === 'mcp-tool');
   
   // Initialize imports
-  let code = `from google.adk.agents import Agent\n`;
+  let code = `from google.adk.agents import LlmAgent\n`;
   
   // Add tool imports
   if (toolNodes.length > 0) {
@@ -702,7 +703,7 @@ function generateAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
       ? `[${connectedTools.map(tool => tool?.data.label.toLowerCase().replace(/\s+/g, '_')).join(', ')}]` 
       : '[]';
     
-    code += `${mainAgent.data.label.toLowerCase().replace(/\s+/g, '_')} = Agent(\n`;
+    code += `${mainAgent.data.label.toLowerCase().replace(/\s+/g, '_')} = LlmAgent(\n`;
     code += `    name="${mainAgent.data.label.toLowerCase().replace(/\s+/g, '_')}",\n`;
     code += `    model="${modelName}",\n`;
     code += `    description="${mainAgent.data.description || 'An AI agent'}",\n`;
@@ -727,7 +728,7 @@ function generateAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
   } else {
     code += `# No agent nodes found in your flow. Add an agent node to generate code.\n`;
     code += `\n# Example agent code\n`;
-    code += `example_agent = Agent(\n`;
+    code += `example_agent = LlmAgent(\n`;
     code += `    name="example_agent",\n`;
     code += `    model="gemini-2.0-flash",\n`;
     code += `    description="A helpful assistant agent that can answer questions.",\n`;
