@@ -21,12 +21,12 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 // OpenRouter configuration from environment variables
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-const OPENROUTER_API_BASE = process.env.OPENROUTER_API_BASE || 'https://openrouter.ai/api/v1';
+const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
+const OPENROUTER_API_BASE = import.meta.env.VITE_OPENROUTER_API_BASE || 'https://openrouter.ai/api/v1';
 
 // Validate API key is present
 if (!OPENROUTER_API_KEY) {
-  console.error('OpenRouter API key not found in environment variables. Please add OPENROUTER_API_KEY to your .env file.');
+  console.error('OpenRouter API key not found in environment variables. Please add VITE_OPENROUTER_API_KEY to your .env file.');
 }
 
 // Define proper type for newOpen parameter
@@ -179,6 +179,48 @@ function formatCodeForDisplay(code: string): string {
   code = code.trim();
   
   return code;
+}
+
+// Helper function to make OpenRouter API calls
+async function callOpenRouter(endpoint: string, body: {
+  model: string;
+  messages: Array<{
+    role: string;
+    content: string;
+  }>;
+  temperature?: number;
+  max_tokens?: number;
+  stop?: string[];
+}) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+    'HTTP-Referer': window.location.origin, // Required by OpenRouter
+    'X-Title': 'Agent Flow Builder' // Optional but recommended
+  };
+
+  try {
+    const response = await fetch(`${OPENROUTER_API_BASE}${endpoint}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('OpenRouter API Error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText
+      });
+      throw new Error(`OpenRouter API error (${response.status}): ${errorText}`);
+    }
+
+    return response.json();
+  } catch (error) {
+    console.error('Fetch error:', error);
+    throw error;
+  }
 }
 
 export function CodeGenerationModal({
@@ -1089,9 +1131,13 @@ from model_context_protocol.server import MCP_Server
   return code;
 }
 
-// Update the generateCodeWithOpenAI function to use OpenRouter
+// Update the generateCodeWithOpenAI function to use the new helper
 async function generateCodeWithOpenAI(nodes: Node<BaseNodeData>[], edges: Edge[], mcpEnabled: boolean): Promise<string> {
   try {
+    if (!OPENROUTER_API_KEY) {
+      throw new Error('OpenRouter API key is not configured. Please add VITE_OPENROUTER_API_KEY to your .env file.');
+    }
+
     // Get agent instruction and details from nodes
     const agentNode = nodes.find(n => n.data.type === 'agent');
     if (!agentNode) {
@@ -1176,29 +1222,15 @@ Generate the complete code using the exact node data provided above.`
       }
     ];
 
-    // Call OpenRouter API
-    const response = await fetch(`${OPENROUTER_API_BASE}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': window.location.origin,
-        'X-Title': 'Agent Flow Builder'
-      },
-      body: JSON.stringify({
-        model: 'openai/gpt-4.1-mini',
-        messages: messages,
-        temperature: 0.2,
-        max_tokens: 2000,
-        stop: ['```']
-      })
+    // Call OpenRouter API using the helper function
+    const result = await callOpenRouter('/chat/completions', {
+      model: 'openai/gpt-4.1-mini',
+      messages: messages,
+      temperature: 0.2,
+      max_tokens: 2000,
+      stop: ['```']
     });
 
-    if (!response.ok) {
-      throw new Error(`OpenRouter API error: ${response.statusText}`);
-    }
-
-    const result = await response.json();
     let code = result.choices[0].message.content;
 
     // Clean up the code
@@ -1263,6 +1295,9 @@ Generate the complete code using the exact node data provided above.`
     return code;
   } catch (error) {
     console.error('Error generating code with OpenRouter:', error);
+    if (error instanceof Error) {
+      throw new Error(`Failed to generate code: ${error.message}`);
+    }
     throw error;
   }
 }

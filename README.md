@@ -119,11 +119,13 @@ Before running the application, you need to set up your environment variables:
 1. Create a `.env` file in the root directory
 2. Add the following variables:
 ```env
-OPENROUTER_API_KEY=your-openrouter-api-key
-OPENROUTER_API_BASE=https://openrouter.ai/api/v1
+VITE_OPENROUTER_API_KEY=your-openrouter-api-key
+VITE_OPENROUTER_API_BASE=https://openrouter.ai/api/v1
 ```
 
 Replace `your-openrouter-api-key` with your actual OpenRouter API key.
+
+Note: In Vite projects, environment variables must be prefixed with `VITE_` to be exposed to the client-side code.
 
 ## Usage
 

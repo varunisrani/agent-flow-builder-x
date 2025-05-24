@@ -2,12 +2,12 @@ import { Node, Edge } from '@xyflow/react';
 import { BaseNodeData } from '@/components/nodes/BaseNode';
 
 // OpenRouter configuration from environment variables
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-const OPENROUTER_API_BASE = process.env.OPENROUTER_API_BASE || 'https://openrouter.ai/api/v1';
+const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
+const OPENROUTER_API_BASE = import.meta.env.VITE_OPENROUTER_API_BASE || 'https://openrouter.ai/api/v1';
 
 // Validate API key is present
 if (!OPENROUTER_API_KEY) {
-  console.error('OpenRouter API key not found in environment variables. Please add OPENROUTER_API_KEY to your .env file.');
+  console.error('OpenRouter API key not found in environment variables. Please add VITE_OPENROUTER_API_KEY to your .env file.');
 }
 
 // Type definitions
@@ -23,6 +23,21 @@ interface APINodeResponse {
   description?: string;
   position?: Position;
   data?: Record<string, unknown>;
+}
+
+// Type for OpenRouter API request body
+interface OpenRouterRequestBody {
+  model: string;
+  messages: Array<{
+    role: string;
+    content: string;
+  }>;
+  response_format?: {
+    type: string;
+  };
+  temperature?: number;
+  max_tokens?: number;
+  stop?: string[];
 }
 
 // Helper function to generate a unique ID
@@ -47,9 +62,46 @@ const calculateNodePositions = (nodes: Node<BaseNodeData>[]) => {
   });
 };
 
+// Helper function to make OpenRouter API calls
+async function callOpenRouter(endpoint: string, body: OpenRouterRequestBody) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+    'HTTP-Referer': window.location.origin, // Required by OpenRouter
+    'X-Title': 'Agent Flow Builder' // Optional but recommended
+  };
+
+  try {
+    const response = await fetch(`${OPENROUTER_API_BASE}${endpoint}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('OpenRouter API Error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText
+      });
+      throw new Error(`OpenRouter API error (${response.status}): ${errorText}`);
+    }
+
+    return response.json();
+  } catch (error) {
+    console.error('Fetch error:', error);
+    throw error;
+  }
+}
+
 // Main function to generate a flow from a natural language prompt
 export async function generateFlow(prompt: string): Promise<{ nodes: Node<BaseNodeData>[]; edges: Edge[] }> {
   try {
+    if (!OPENROUTER_API_KEY) {
+      throw new Error('OpenRouter API key is not configured. Please add VITE_OPENROUTER_API_KEY to your .env file.');
+    }
+
     // Define the system message to shape the AI's response
     const systemMessage = `
       You are an expert in building Google ADK agent workflows.
@@ -88,36 +140,22 @@ export async function generateFlow(prompt: string): Promise<{ nodes: Node<BaseNo
     `;
 
     // Make the OpenRouter API call
-    const response = await fetch(`${OPENROUTER_API_BASE}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': window.location.origin,
-        'X-Title': 'Agent Flow Builder'
-      },
-      body: JSON.stringify({
-        model: 'openai/gpt-4.1-mini',
-        messages: [
-          {
-            role: 'system',
-            content: systemMessage,
-          },
-          {
-            role: 'user',
-            content: `Create a Google ADK agent flow from this description: ${prompt}. Only use official Google ADK tools and models.`,
-          },
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0.2
-      })
+    const result = await callOpenRouter('/chat/completions', {
+      model: 'openai/gpt-4.1-mini',
+      messages: [
+        {
+          role: 'system',
+          content: systemMessage,
+        },
+        {
+          role: 'user',
+          content: `Create a Google ADK agent flow from this description: ${prompt}. Only use official Google ADK tools and models.`,
+        },
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.2
     });
 
-    if (!response.ok) {
-      throw new Error(`OpenRouter API error: ${response.statusText}`);
-    }
-
-    const result = await response.json();
     const responseContent = result.choices[0].message.content || '{"nodes":[], "edges":[]}';
     const parsedResponse = JSON.parse(responseContent);
 
@@ -143,6 +181,9 @@ export async function generateFlow(prompt: string): Promise<{ nodes: Node<BaseNo
     };
   } catch (error) {
     console.error('Error calling OpenRouter API:', error);
+    if (error instanceof Error) {
+      throw new Error(`Failed to generate flow: ${error.message}`);
+    }
     throw new Error('Failed to generate flow. Please check your API key and try again.');
   }
 } 
