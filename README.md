@@ -119,8 +119,8 @@ Before running the application, you need to set up your environment variables:
 1. Create a `.env` file in the root directory
 2. Add the following variables:
 ```env
-NEXT_PUBLIC_OPENROUTER_API_KEY=your-openrouter-api-key
-NEXT_PUBLIC_OPENROUTER_API_BASE=https://openrouter.ai/api/v1
+OPENROUTER_API_KEY=your-openrouter-api-key
+OPENROUTER_API_BASE=https://openrouter.ai/api/v1
 ```
 
 Replace `your-openrouter-api-key` with your actual OpenRouter API key.

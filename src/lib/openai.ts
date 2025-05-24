@@ -2,12 +2,12 @@ import { Node, Edge } from '@xyflow/react';
 import { BaseNodeData } from '@/components/nodes/BaseNode';
 
 // OpenRouter configuration from environment variables
-const OPENROUTER_API_KEY = process.env.NEXT_PUBLIC_OPENROUTER_API_KEY;
-const OPENROUTER_API_BASE = process.env.NEXT_PUBLIC_OPENROUTER_API_BASE || 'https://openrouter.ai/api/v1';
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const OPENROUTER_API_BASE = process.env.OPENROUTER_API_BASE || 'https://openrouter.ai/api/v1';
 
 // Validate API key is present
 if (!OPENROUTER_API_KEY) {
-  console.error('OpenRouter API key not found in environment variables. Please add NEXT_PUBLIC_OPENROUTER_API_KEY to your .env file.');
+  console.error('OpenRouter API key not found in environment variables. Please add OPENROUTER_API_KEY to your .env file.');
 }
 
 // Type definitions
