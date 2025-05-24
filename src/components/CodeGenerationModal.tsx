@@ -19,13 +19,15 @@ import { toast } from '@/hooks/use-toast.js';
 import { generateCode } from '@/lib/codeGenerator.js';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import OpenAI from 'openai';
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: import.meta.env.VITE_OPENAI_API_KEY,
-  dangerouslyAllowBrowser: true // Enable client-side usage
-});
+// OpenRouter configuration from environment variables
+const OPENROUTER_API_KEY = process.env.NEXT_PUBLIC_OPENROUTER_API_KEY;
+const OPENROUTER_API_BASE = process.env.NEXT_PUBLIC_OPENROUTER_API_BASE || 'https://openrouter.ai/api/v1';
+
+// Validate API key is present
+if (!OPENROUTER_API_KEY) {
+  console.error('OpenRouter API key not found in environment variables. Please add NEXT_PUBLIC_OPENROUTER_API_KEY to your .env file.');
+}
 
 // Define proper type for newOpen parameter
 function useModalState(initialState = false): [boolean, (newOpen: boolean) => void] {
@@ -422,31 +424,6 @@ export function CodeGenerationModal({
     }
   };
 
-  const generateCode = useCallback(() => {
-    // Get agent instruction if available, otherwise use default
-    const agentInstruction = nodes.find(n => n.data.type === 'agent')?.data.instruction || 'Respond helpfully and concisely to the user\'s question. Use Google Search if needed.';
-    
-    // Generate simplified code using the required template
-    const code = [
-      'from google.adk.agents import LlmAgent',
-      '',
-      'root_agent = LlmAgent(',
-      '    model="gemini-2.0-flash-exp",',
-      '    name="question_answer_agent",',
-      '    description="A helpful assistant agent that can answer general questions.",',
-      `    instruction="${agentInstruction}",`,
-      '    tools=[]  # Using empty list instead of None',
-      ')'
-    ].join('\n');
-
-    return code;
-  }, [nodes]);
-
-  useEffect(() => {
-    const code = generateCode();
-    executeInSandbox(code);
-  }, [generateCode]);
-
   return (
     <Dialog open={open} onOpenChange={(newOpen) => {
       console.log('CodeGenerationModal: Dialog state changing to', newOpen);
@@ -628,15 +605,25 @@ function generateAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
   
   // Generate simplified code using the required template
   const code = [
-    'from google.adk.agents import LlmAgent',
+    '"""',
+    'Agent implementation using Google ADK.',
+    'This module exports the root_agent that will be used by the ADK runtime.',
+    '"""',
     '',
+    'from google.adk.agents.llm_agent import LlmAgent',
+    'from google.adk.tools import FunctionTool',
+    '',
+    '# Create and export the agent',
     'root_agent = LlmAgent(',
-    '    model="gemini-2.0-flash-exp",',
+    '    model="gemini-2.0-flash",',
     '    name="question_answer_agent",', 
     '    description="A helpful assistant agent that can answer general questions.",',
     `    instruction="${agentInstruction}",`,
-    '    tools=[]  # Using empty list instead of None',
-    ')'
+    '    tools=[]  # No tools configured',
+    ')',
+    '',
+    '# This is required to expose the agent to ADK',
+    '__all__ = ["root_agent"]'
   ].join('\n');
   
   return code;
@@ -1102,28 +1089,180 @@ from model_context_protocol.server import MCP_Server
   return code;
 }
 
-// Add the missing generateCodeWithOpenAI function
+// Update the generateCodeWithOpenAI function to use OpenRouter
 async function generateCodeWithOpenAI(nodes: Node<BaseNodeData>[], edges: Edge[], mcpEnabled: boolean): Promise<string> {
   try {
-    // Get agent instruction if available, otherwise use default
-    const agentInstruction = nodes.find(n => n.data.type === 'agent')?.data.instruction || 'Respond helpfully and concisely to the user\'s question. Use Google Search if needed.';
+    // Get agent instruction and details from nodes
+    const agentNode = nodes.find(n => n.data.type === 'agent');
+    if (!agentNode) {
+      throw new Error('No agent node found in the flow. Please add an agent node.');
+    }
+
+    // Get connected tools and their details
+    const toolNodes = nodes.filter(node => 
+      node.data.type === 'tool' &&
+      edges.some(edge => 
+        (edge.source === agentNode.id && edge.target === node.id) ||
+        (edge.target === agentNode.id && edge.source === node.id)
+      )
+    );
+
+    // Get connected model and its details
+    const modelNode = nodes.find(node => 
+      node.data.type === 'model' &&
+      edges.some(edge => 
+        (edge.source === agentNode.id && edge.target === node.id) ||
+        (edge.target === agentNode.id && edge.source === node.id)
+      )
+    );
+
+    // Create a detailed prompt with actual node data
+    const messages = [
+      {
+        role: "system",
+        content: `You are a Google ADK expert. Generate Python code for an agent using the Google ADK framework.
+Follow these requirements:
+1. Use proper imports (google.adk.agents.llm_agent, google.adk.tools)
+2. Define tools with proper type hints and docstrings
+3. Create an agent with proper configuration
+4. Do not include any environment setup or os imports
+5. Generate runnable code that works out of the box
+6. Ensure the agent is properly exported as root_agent`
+      },
+      {
+        role: "user",
+        content: `Generate a Google ADK agent with these exact specifications from the flow diagram:
+
+Agent Name: ${agentNode.data.label || 'root_agent'}
+Instruction: ${agentNode.data.instruction || 'No instruction provided'}
+Description: ${agentNode.data.description || 'No description provided'}
+Model: ${modelNode?.data.modelType || 'gemini-2.0-flash'}
+
+${toolNodes.length > 0 ? `Connected Tools:
+${toolNodes.map(tool => `- ${tool.data.label}: ${tool.data.description || 'No description'}
+  Type: ${tool.data.toolType || 'custom'}
+  Parameters: ${JSON.stringify(tool.data.parameters || {})}
+  Returns: ${tool.data.returns || 'dict'}`).join('\n')}` : 'No tools connected'}
+
+Generate complete, runnable Google ADK code that exactly matches this configuration. Use the actual node data provided above, do not add any default tools or configurations that aren't specified in the nodes.
+
+The code should follow this structure but use the exact data from the nodes:
+\`\`\`python
+"""
+Agent implementation using Google ADK.
+This module exports the root_agent that will be used by the ADK runtime.
+"""
+
+from google.adk.agents.llm_agent import LlmAgent
+from google.adk.tools import FunctionTool
+
+# Tool definitions (only if tools are connected)
+[Tool definitions based on actual connected tools]
+
+# Create and export the agent with exact node data
+root_agent = LlmAgent(
+    model="[Use actual model from model node]",
+    name="[Use actual agent name]",
+    instruction="[Use actual instruction]",
+    description="[Use actual description]",
+    tools=[Only include actually connected tools]
+)
+
+# Required export
+__all__ = ["root_agent"]
+\`\`\`
+
+Generate the complete code using the exact node data provided above.`
+      }
+    ];
+
+    // Call OpenRouter API
+    const response = await fetch(`${OPENROUTER_API_BASE}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': window.location.origin,
+        'X-Title': 'Agent Flow Builder'
+      },
+      body: JSON.stringify({
+        model: 'openai/gpt-4.1-mini',
+        messages: messages,
+        temperature: 0.2,
+        max_tokens: 2000,
+        stop: ['```']
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`OpenRouter API error: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    let code = result.choices[0].message.content;
+
+    // Clean up the code
+    code = code.replace(/```python\n/g, '');
+    code = code.replace(/```\n?/g, '');
+    code = code.trim();
+
+    // Validate the code has necessary components
+    if (!code.includes('from google.adk.agents')) {
+      // Fallback to template if the generated code is invalid
+      code = [
+        '"""',
+        'Agent implementation using Google ADK.',
+        'This module exports the root_agent that will be used by the ADK runtime.',
+        '"""',
+        '',
+        'from google.adk.agents.llm_agent import LlmAgent',
+        'from google.adk.tools import FunctionTool',
+        '',
+        toolNodes.length > 0 ? '# Tool definitions' : '',
+        ...toolNodes.map(tool => {
+          const toolName = tool.data.label.toLowerCase().replace(/\s+/g, '_');
+          return `def ${toolName}(params: dict) -> dict:
+    """${tool.data.description || `Implementation for ${tool.data.label}`}
     
-    // Use the simplified template as required
-    const code = [
-      'from google.adk.agents import LlmAgent',
-      '',
-      'root_agent = LlmAgent(',
-      '    model="gemini-2.0-flash-exp",',
-      '    name="question_answer_agent",', 
-      '    description="A helpful assistant agent that can answer general questions.",',
-      `    instruction="${agentInstruction}",`,
-      '    tools=[]  # Using empty list instead of None',
-      ')'
-    ].join('\n');
+    Args:
+        params: Parameters for the tool
+        
+    Returns:
+        Result of the tool execution
+    """
+    # TODO: Implement ${tool.data.label} functionality
+    return {"result": f"Executed ${toolName} with {params}"}`
+        }),
+        '',
+        toolNodes.length > 0 ? '# Create tools list' : '',
+        toolNodes.length > 0 ? `tools = [
+    ${toolNodes.map(tool => {
+      const toolName = tool.data.label.toLowerCase().replace(/\s+/g, '_');
+      return `FunctionTool(
+        name="${toolName}",
+        description="${tool.data.description || `Implementation for ${tool.data.label}`}",
+        function=${toolName}
+    )`;
+    }).join(',\n    ')}
+]` : '',
+        '',
+        '# Create and export the agent',
+        `root_agent = LlmAgent(`,
+        `    model="${modelNode?.data.modelType || 'gemini-2.0-flash'}",`,
+        `    name="${agentNode.data.label.toLowerCase().replace(/\s+/g, '_')}",`,
+        `    description="${agentNode.data.description || 'A helpful assistant agent'}",`,
+        `    instruction="${agentNode.data.instruction || 'Help users with their requests'}",`,
+        toolNodes.length > 0 ? '    tools=tools' : '    tools=[]  # No tools configured',
+        ')',
+        '',
+        '# This is required to expose the agent to ADK',
+        '__all__ = ["root_agent"]'
+      ].join('\n');
+    }
 
     return code;
   } catch (error) {
-    console.error('Error generating code with OpenAI:', error);
+    console.error('Error generating code with OpenRouter:', error);
     throw error;
   }
 }

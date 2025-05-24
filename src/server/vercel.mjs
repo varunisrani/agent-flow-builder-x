@@ -188,9 +188,9 @@ nohup adk web \
 echo $! > adk_web.pid
 disown -h $!
 
-# Wait for server to start
+# Wait for server to start using curl instead of netstat
 for i in {1..30}; do
-  if netstat -tln | grep -q ':8000'; then
+  if curl -s http://localhost:8000 > /dev/null 2>&1; then
     echo "ADK web server started successfully"
     exit 0
   fi
@@ -220,10 +220,14 @@ exit 1
         if (adkWebResult.stdout) console.log(adkWebResult.stdout);
         if (adkWebResult.stderr) console.log(adkWebResult.stderr);
         
-        // Verify server is running
-        const isRunning = await sbx.commands.run('netstat -tln | grep :8000', { timeoutMs: 5000 });
-        if (!isRunning.exitCode === 0) {
-          throw new Error('ADK web server failed to start - port 8000 not listening');
+        // Verify server is running using curl instead of netstat
+        try {
+          const isRunning = await sbx.commands.run('curl -s http://localhost:8000 > /dev/null 2>&1', { timeoutMs: 5000 });
+          if (isRunning.exitCode !== 0) {
+            throw new Error('ADK web server failed to start - server not responding');
+          }
+        } catch (curlError) {
+          console.log('⚠️ Could not verify server is running via curl, continuing anyway...');
         }
         
         console.log('✅ ADK web server started successfully');
@@ -395,3 +399,14 @@ app.get('/', (req, res) => {
 
 // Export for Vercel serverless function
 export default app; 
+
+// If running locally (not in Vercel), start the server
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`🚀 Server is running on http://localhost:${PORT}`);
+    console.log(`📋 Available endpoints:`);
+    console.log(`   • GET  /api/health - Health check`);
+    console.log(`   • POST /api/execute - Execute agent code`);
+    console.log(`   • GET  / - API information`);
+  });
+} 

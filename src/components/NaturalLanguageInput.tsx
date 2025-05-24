@@ -135,7 +135,7 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
                   console.log('NaturalLanguageInput: Prompt updated, length:', e.target.value.length);
                   setPrompt(e.target.value);
                 }}
-                placeholder="Create an agent that searches the web for information, analyzes the results with GPT-4, and returns a summary..."
+                placeholder="Create a Google ADK agent that uses the google_search tool to find information, processes it with gemini-2.0-flash model, and provides a summary..."
                 className={cn(
                   "w-full h-24 bg-background rounded-md border p-3 text-sm resize-none",
                   error ? "border-red-500" : "border-border",
@@ -183,7 +183,12 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
           
           {!error && (
             <div className="mt-3 text-xs text-muted-foreground">
-              <strong>Tip:</strong> Be specific about the tools and models you want to use, and how they should be connected.
+              <strong>Tips:</strong>
+              <ul className="list-disc list-inside mt-1">
+                <li>Use official Google ADK tools like google_search, calculator, file_tool, etc.</li>
+                <li>Specify Gemini models (e.g., gemini-2.0-flash, gemini-2.0-pro)</li>
+                <li>Describe how tools should connect to your agent</li>
+              </ul>
             </div>
           )}
         </div>

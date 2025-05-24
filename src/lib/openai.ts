@@ -1,13 +1,29 @@
-
-import OpenAI from 'openai';
 import { Node, Edge } from '@xyflow/react';
 import { BaseNodeData } from '@/components/nodes/BaseNode';
 
-// Use environment variable for API key with dangerouslyAllowBrowser flag
-const openai = new OpenAI({
-  apiKey: import.meta.env.VITE_OPENAI_API_KEY || '',
-  dangerouslyAllowBrowser: true, // Enable browser usage (not recommended for production)
-});
+// OpenRouter configuration from environment variables
+const OPENROUTER_API_KEY = process.env.NEXT_PUBLIC_OPENROUTER_API_KEY;
+const OPENROUTER_API_BASE = process.env.NEXT_PUBLIC_OPENROUTER_API_BASE || 'https://openrouter.ai/api/v1';
+
+// Validate API key is present
+if (!OPENROUTER_API_KEY) {
+  console.error('OpenRouter API key not found in environment variables. Please add NEXT_PUBLIC_OPENROUTER_API_KEY to your .env file.');
+}
+
+// Type definitions
+interface Position {
+  x: number;
+  y: number;
+}
+
+interface APINodeResponse {
+  id: string;
+  type: string;
+  label: string;
+  description?: string;
+  position?: Position;
+  data?: Record<string, unknown>;
+}
 
 // Helper function to generate a unique ID
 const generateId = () => `node_${Math.random().toString(36).substring(2, 9)}`;
@@ -31,37 +47,32 @@ const calculateNodePositions = (nodes: Node<BaseNodeData>[]) => {
   });
 };
 
-// Define the shape of node data returned from the API
-interface APINodeResponse {
-  id: string;
-  type: string;
-  label: string;
-  description?: string;
-  position?: { x: number; y: number };
-  data?: Record<string, unknown>;
-}
-
 // Main function to generate a flow from a natural language prompt
 export async function generateFlow(prompt: string): Promise<{ nodes: Node<BaseNodeData>[]; edges: Edge[] }> {
   try {
     // Define the system message to shape the AI's response
     const systemMessage = `
-      You are an expert in building agent workflows.
+      You are an expert in building Google ADK agent workflows.
       When given a description of an agent system, you will output a JSON representation of nodes and edges for a flow-based diagram.
       
       For each node, include:
       - id (string)
-      - type (one of: "agent", "tool", "model", "input", "output")
+      - type (one of: "agent", "tool", "model")
       - label (short display name)
       - description (longer description of what it does)
-      - data (an object with any additional properties relevant to the node type)
+      - data (an object with additional properties)
       
-      The node types are:
-      - agent: An autonomous agent that can use tools and models
-      - tool: A capability an agent can use (e.g., web search, calculator)
-      - model: An AI model (e.g., GPT-4, Claude, etc.)
-      - input: An input source to the flow
-      - output: An output from the flow
+      The node types must follow Google ADK conventions:
+      - agent: An LlmAgent that uses Google ADK's LlmAgent class
+      - tool: A FunctionTool from google.adk.tools (e.g., google_search, calculator)
+      - model: A model supported by Google ADK (e.g., "gemini-2.0-flash", "gemini-2.0-pro")
+      
+      For tools, only use official Google ADK tools:
+      - google_search: Web search tool
+      - calculator: Basic math operations
+      - file_tool: File operations
+      - http_tool: HTTP requests
+      - system_tool: System operations
       
       For edges, include:
       - id (string)
@@ -76,24 +87,38 @@ export async function generateFlow(prompt: string): Promise<{ nodes: Node<BaseNo
       }
     `;
 
-    // Make the OpenAI API call
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: systemMessage,
-        },
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-      response_format: { type: 'json_object' },
+    // Make the OpenRouter API call
+    const response = await fetch(`${OPENROUTER_API_BASE}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': window.location.origin,
+        'X-Title': 'Agent Flow Builder'
+      },
+      body: JSON.stringify({
+        model: 'openai/gpt-4.1-mini',
+        messages: [
+          {
+            role: 'system',
+            content: systemMessage,
+          },
+          {
+            role: 'user',
+            content: `Create a Google ADK agent flow from this description: ${prompt}. Only use official Google ADK tools and models.`,
+          },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.2
+      })
     });
 
-    // Parse the response
-    const responseContent = response.choices[0].message.content || '{"nodes":[], "edges":[]}';
+    if (!response.ok) {
+      throw new Error(`OpenRouter API error: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    const responseContent = result.choices[0].message.content || '{"nodes":[], "edges":[]}';
     const parsedResponse = JSON.parse(responseContent);
 
     // Convert nodes to the proper format with baseNode type
@@ -105,8 +130,8 @@ export async function generateFlow(prompt: string): Promise<{ nodes: Node<BaseNo
         label: node.label,
         type: node.type as BaseNodeData['type'], // Store the semantic type (agent, tool, etc.) in the data object
         description: node.description || '',
-        ...(node.data || {}),
-      } as any,
+        ...(node.data || {})
+      } satisfies BaseNodeData
     }));
 
     // Apply better node positioning
@@ -117,7 +142,7 @@ export async function generateFlow(prompt: string): Promise<{ nodes: Node<BaseNo
       edges: parsedResponse.edges,
     };
   } catch (error) {
-    console.error('Error calling OpenAI API:', error);
+    console.error('Error calling OpenRouter API:', error);
     throw new Error('Failed to generate flow. Please check your API key and try again.');
   }
 } 

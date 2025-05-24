@@ -264,7 +264,7 @@ export function FlowEditor({
         }
         
         code += `\n# ${label} - ${description || 'Agent'}\n`;
-        code += `${varName} = Agent(\n`;
+        code += `${varName} = LlmAgent(\n`;
         code += `    name="${varName}",\n`;
         code += `    model="gemini-2.0-flash",\n`;
         code += `    description="${description || ''}",\n`;
