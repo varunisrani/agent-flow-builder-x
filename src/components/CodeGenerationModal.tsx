@@ -61,14 +61,54 @@ const CodeHighlighter: React.FC<{ code: string }> = ({ code }) => {
   );
 };
 
+// Helper function to extract URLs from text
+const extractUrls = (text: string): string[] => {
+  // Match both localhost URLs and regular http/https URLs
+  const urlRegex = /(https?:\/\/[^\s]+)|(localhost:[0-9]+[^\s]*)/g;
+  return (text.match(urlRegex) || []).map(url => {
+    // Ensure localhost URLs have http:// prefix
+    if (url.startsWith('localhost')) {
+      return `http://${url}`;
+    }
+    return url;
+  });
+};
+
 // Add new component for sandbox output display
 const SandboxOutput: React.FC<{ output: string }> = ({ output }) => {
   if (!output) return null;
+  
+  // Extract URLs from output
+  const urls = extractUrls(output);
   
   return (
     <div className="mt-4 font-mono text-sm">
       <div className="bg-gray-900 rounded-md p-4 overflow-auto max-h-[200px]">
         <pre className="text-gray-200 whitespace-pre-wrap">{output}</pre>
+        
+        {urls.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2 border-t border-gray-700 pt-3">
+            <span className="text-gray-400">Detected URLs:</span>
+            {urls.map((url, index) => (
+              <Button
+                key={index}
+                size="sm"
+                variant="outline"
+                className="bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20"
+                onClick={() => window.open(url, '_blank')}
+              >
+                <span className="mr-1">Open UI</span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" 
+                  stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" 
+                  className="h-3 w-3">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                  <polyline points="15 3 21 3 21 9"></polyline>
+                  <line x1="10" y1="14" x2="21" y2="3"></line>
+                </svg>
+              </Button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -350,6 +390,14 @@ export function CodeGenerationModal({
 
       const result = await response.json();
       
+      // Check if result contains a URL in output or as a dedicated field
+      let urlInfo = '';
+      if (result.url) {
+        urlInfo = `\n🌐 Service URL: ${result.url}`;
+      } else if (result.serviceUrl) {
+        urlInfo = `\n🌐 Service URL: ${result.serviceUrl}`;
+      }
+      
       // Format and display the output
       const executionTime = performance.now() - startTime;
       const formattedOutput = [
@@ -357,6 +405,7 @@ export function CodeGenerationModal({
         '📤 Output:',
         result.output || 'No output generated',
         result.error ? `\n❌ Error:\n${result.error}` : '',
+        urlInfo,
         '\n📊 Execution Details:',
         `• Status: ${result.executionDetails?.status || 'unknown'}`,
         `• Exit Code: ${result.executionDetails?.exitCode}`,
