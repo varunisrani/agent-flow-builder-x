@@ -61,14 +61,54 @@ const CodeHighlighter: React.FC<{ code: string }> = ({ code }) => {
   );
 };
 
+// Helper function to extract URLs from text
+const extractUrls = (text: string): string[] => {
+  // Match both localhost URLs and regular http/https URLs
+  const urlRegex = /(https?:\/\/[^\s]+)|(localhost:[0-9]+[^\s]*)/g;
+  return (text.match(urlRegex) || []).map(url => {
+    // Ensure localhost URLs have http:// prefix
+    if (url.startsWith('localhost')) {
+      return `http://${url}`;
+    }
+    return url;
+  });
+};
+
 // Add new component for sandbox output display
 const SandboxOutput: React.FC<{ output: string }> = ({ output }) => {
   if (!output) return null;
+  
+  // Extract URLs from output
+  const urls = extractUrls(output);
   
   return (
     <div className="mt-4 font-mono text-sm">
       <div className="bg-gray-900 rounded-md p-4 overflow-auto max-h-[200px]">
         <pre className="text-gray-200 whitespace-pre-wrap">{output}</pre>
+        
+        {urls.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2 border-t border-gray-700 pt-3">
+            <span className="text-gray-400">Detected URLs:</span>
+            {urls.map((url, index) => (
+              <Button
+                key={index}
+                size="sm"
+                variant="outline"
+                className="bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20"
+                onClick={() => window.open(url, '_blank')}
+              >
+                <span className="mr-1">Open UI</span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" 
+                  stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" 
+                  className="h-3 w-3">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                  <polyline points="15 3 21 3 21 9"></polyline>
+                  <line x1="10" y1="14" x2="21" y2="3"></line>
+                </svg>
+              </Button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -350,6 +390,14 @@ export function CodeGenerationModal({
 
       const result = await response.json();
       
+      // Check if result contains a URL in output or as a dedicated field
+      let urlInfo = '';
+      if (result.url) {
+        urlInfo = `\n🌐 Service URL: ${result.url}`;
+      } else if (result.serviceUrl) {
+        urlInfo = `\n🌐 Service URL: ${result.serviceUrl}`;
+      }
+      
       // Format and display the output
       const executionTime = performance.now() - startTime;
       const formattedOutput = [
@@ -357,6 +405,7 @@ export function CodeGenerationModal({
         '📤 Output:',
         result.output || 'No output generated',
         result.error ? `\n❌ Error:\n${result.error}` : '',
+        urlInfo,
         '\n📊 Execution Details:',
         `• Status: ${result.executionDetails?.status || 'unknown'}`,
         `• Exit Code: ${result.executionDetails?.exitCode}`,
@@ -374,31 +423,21 @@ export function CodeGenerationModal({
   };
 
   const generateCode = useCallback(() => {
-    // Create a simplified representation of the flow
-    const nodeDescriptions = nodes.map(node => ({
-      id: node.id,
-      type: node.data.type,
-      label: node.data.label,
-      description: node.data.description || '',
-      instruction: node.data.instruction || '',
-      modelType: node.data.modelType || ''
-    }));
-
-    // Generate the Google ADK code
-    const hasTools = nodes.some(node => node.data.type === 'tool');
+    // Get agent instruction if available, otherwise use default
     const agentInstruction = nodes.find(n => n.data.type === 'agent')?.data.instruction || 'Respond helpfully and concisely to the user\'s question. Use Google Search if needed.';
     
-    const code = `from google.adk.agents import LlmAgent
-from google.adk.tools import google_search
-
-# Define a simple agent that answers user questions using an LLM and optional tools
-root_agent = LlmAgent(
-    model="gemini-2.0-flash-exp",  # Use your preferred model
-    name="question_answer_agent",
-    description="A helpful assistant agent that can answer general questions.",
-    instruction="${agentInstruction}",
-    tools=[google_search] if ${hasTools} else None
-)`;
+    // Generate simplified code using the required template
+    const code = [
+      'from google.adk.agents import LlmAgent',
+      '',
+      'root_agent = LlmAgent(',
+      '    model="gemini-2.0-flash-exp",',
+      '    name="question_answer_agent",',
+      '    description="A helpful assistant agent that can answer general questions.",',
+      `    instruction="${agentInstruction}",`,
+      '    tools=[]  # Using empty list instead of None',
+      ')'
+    ].join('\n');
 
     return code;
   }, [nodes]);
@@ -584,160 +623,21 @@ function generateAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
     edgeCount: edges.length 
   });
   
-  // Find agent nodes
-  const agentNodes = nodes.filter(node => node.data.type === 'agent');
-  const modelNodes = nodes.filter(node => node.data.type === 'model');
-  const toolNodes = nodes.filter(node => node.data.type === 'tool');
-  const functionNodes = nodes.filter(node => node.data.type === 'input');
-  const mcpClientNodes = nodes.filter(node => node.data.type === 'mcp-client');
-  const mcpServerNodes = nodes.filter(node => node.data.type === 'mcp-server');
-  const mcpToolNodes = nodes.filter(node => node.data.type === 'mcp-tool');
+  // Get agent instruction if available, otherwise use default
+  const agentInstruction = nodes.find(n => n.data.type === 'agent')?.data.instruction || 'Respond helpfully and concisely to the user\'s question. Use Google Search if needed.';
   
-  // Initialize imports
-  let code = `from google.adk.agents import Agent\n`;
-  
-  // Add tool imports
-  if (toolNodes.length > 0) {
-    code += `from google.adk.tools import google_search\n`;
-  }
-  
-  // Add MCP imports if any MCP nodes exist
-  if (mcpClientNodes.length > 0 || mcpServerNodes.length > 0 || mcpToolNodes.length > 0) {
-    code += `from google.adk.mcp.mcp_client import McpClient\n`;
-    code += `from google.adk.mcp.mcp_server import McpServer\n`;
-    code += `from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters\n`;
-  }
-  
-  if (functionNodes.length > 0) {
-    code += `\n# Custom function definitions\n`;
-    functionNodes.forEach(node => {
-      code += `def ${node.data.label.toLowerCase().replace(/\s+/g, '_')}(input: str) -> dict:\n`;
-      code += `    # Implementation for ${node.data.label}\n`;
-      code += `    return {"status": "success", "result": f"Processed {input}"}\n\n`;
-    });
-  }
-  
-  // Generate MCP server code
-  if (mcpServerNodes.length > 0) {
-    code += `\n# MCP Servers\n`;
-    mcpServerNodes.forEach(node => {
-      const varName = node.data.label.toLowerCase().replace(/\s+/g, '_');
-      code += `${varName} = McpServer(\n`;
-      code += `    name="${varName}",\n`;
-      code += `    host="0.0.0.0",\n`;
-      code += `    port=${node.data.port || 8080}\n`;
-      code += `)\n`;
-      
-      // Find connected tools to expose via MCP
-      const connectedTools = edges
-        .filter(edge => edge.source === node.id || edge.target === node.id)
-        .map(edge => {
-          const targetId = edge.source === node.id ? edge.target : edge.source;
-          const targetNode = nodes.find(n => n.id === targetId);
-          return targetNode?.data?.type === 'tool' || targetNode?.data?.type === 'input' 
-            ? targetNode.data.label.toLowerCase().replace(/\s+/g, '_') 
-            : null;
-        })
-        .filter(Boolean);
-        
-      if (connectedTools.length) {
-        connectedTools.forEach(tool => {
-          code += `${varName}.register_tool(${tool})\n`;
-        });
-      }
-    });
-  }
-  
-  // Generate MCP client code
-  if (mcpClientNodes.length > 0) {
-    code += `\n# MCP Clients\n`;
-    mcpClientNodes.forEach(node => {
-      const varName = node.data.label.toLowerCase().replace(/\s+/g, '_');
-      code += `${varName} = McpClient(\n`;
-      code += `    name="${varName}",\n`;
-      code += `    server_url="${node.data.mcpUrl || 'http:// localhost:8080'}"\n`;
-      code += `)\n`;
-    });
-  }
-
-  // Generate MCP tool code
-  if (mcpToolNodes.length > 0) {
-    code += `\n# MCP Tools\n`;
-    mcpToolNodes.forEach(node => {
-      let clientNode: Node<BaseNodeData> | undefined;
-      edges.forEach(edge => {
-        if (edge.source === node.id || edge.target === node.id) {
-          const connectedId = edge.source === node.id ? edge.target : edge.source;
-          const connected = nodes.find(n => n.id === connectedId && n.data.type === 'mcp-client');
-          if (connected) clientNode = connected;
-        }
-      });
-      
-      const clientVarName = clientNode 
-        ? clientNode.data.label.toLowerCase().replace(/\s+/g, '_')
-        : 'mcp_client';
-      
-      code += `${node.data.label.toLowerCase().replace(/\s+/g, '_')} = ${clientVarName}.get_tool("${node.data.mcpToolId || node.data.label}")\n`;
-    });
-  }
-  
-  // Generate agent code
-  code += `\n# Create agent\n`;
-  if (agentNodes.length > 0) {
-    const mainAgent = agentNodes[0];
-    const connectedModelId = edges.find(edge => edge.source === mainAgent.id)?.target || '';
-    const connectedModel = nodes.find(node => node.id === connectedModelId);
-    const modelName = connectedModel?.data?.modelType || 'gemini-2.0-flash';
-    
-    // Find connected tools (including MCP tools)
-    const connectedToolIds = edges
-      .filter(edge => edge.target === mainAgent.id || edge.source === mainAgent.id)
-      .map(edge => edge.source === mainAgent.id ? edge.target : edge.source);
-    
-    const connectedTools = connectedToolIds
-      .map(id => nodes.find(node => node.id === id))
-      .filter(node => node && (node.data.type === 'tool' || node.data.type === 'input' || node.data.type === 'mcp-tool'));
-    
-    const toolList = connectedTools.length > 0 
-      ? `[${connectedTools.map(tool => tool?.data.label.toLowerCase().replace(/\s+/g, '_')).join(', ')}]` 
-      : '[]';
-    
-    code += `${mainAgent.data.label.toLowerCase().replace(/\s+/g, '_')} = Agent(\n`;
-    code += `    name="${mainAgent.data.label.toLowerCase().replace(/\s+/g, '_')}",\n`;
-    code += `    model="${modelName}",\n`;
-    code += `    description="${mainAgent.data.description || 'An AI agent'}",\n`;
-    code += `    instruction="${mainAgent.data.instruction || 'I am a helpful assistant.'}",\n`;
-    code += `    tools=${toolList}\n`;
-    code += `)\n`;
-    
-    // Add usage example
-    code += `\n# Example usage\ndef main():\n`;
-    code += `    response = ${mainAgent.data.label.toLowerCase().replace(/\s+/g, '_')}.generate("Hello, how can you help me today?")\n`;
-    code += `    print(response)\n\n`;
-    
-    // Add MCP server start if any exist
-    if (mcpServerNodes.length) {
-      const serverVar = mcpServerNodes[0].data.label.toLowerCase().replace(/\s+/g, '_');
-      code += `    # Start MCP server\n`;
-      code += `    ${serverVar}.start()\n\n`;
-    }
-    
-    code += `if __name__ == "__main__":\n`;
-    code += `    main()\n`;
-  } else {
-    code += `# No agent nodes found in your flow. Add an agent node to generate code.\n`;
-    code += `\n# Example agent code\n`;
-    code += `example_agent = Agent(\n`;
-    code += `    name="example_agent",\n`;
-    code += `    model="gemini-2.0-flash",\n`;
-    code += `    description="A helpful assistant agent that can answer questions.",\n`;
-    code += `    instruction="I am a helpful assistant that provides accurate and detailed information.",\n`;
-    code += `    tools=[]\n`;
-    code += `)\n\n`;
-    code += `# Example usage\n`;
-    code += `response = example_agent.generate("Hello, how can I assist you today?")\n`;
-    code += `print(response)\n`;
-  }
+  // Generate simplified code using the required template
+  const code = [
+    'from google.adk.agents import LlmAgent',
+    '',
+    'root_agent = LlmAgent(',
+    '    model="gemini-2.0-flash-exp",',
+    '    name="question_answer_agent",', 
+    '    description="A helpful assistant agent that can answer general questions.",',
+    `    instruction="${agentInstruction}",`,
+    '    tools=[]  # Using empty list instead of None',
+    ')'
+  ].join('\n');
   
   return code;
 }
@@ -1205,32 +1105,19 @@ from model_context_protocol.server import MCP_Server
 // Add the missing generateCodeWithOpenAI function
 async function generateCodeWithOpenAI(nodes: Node<BaseNodeData>[], edges: Edge[], mcpEnabled: boolean): Promise<string> {
   try {
-    // Create a simplified representation of the flow
-    const nodeDescriptions = nodes.map(node => ({
-      id: node.id,
-      type: node.data.type,
-      label: node.data.label,
-      description: node.data.description || '',
-      instruction: node.data.instruction || '',
-      modelType: node.data.modelType || ''
-    }));
-
-    // Generate the Google ADK code
-    const hasTools = nodes.some(node => node.data.type === 'tool');
+    // Get agent instruction if available, otherwise use default
     const agentInstruction = nodes.find(n => n.data.type === 'agent')?.data.instruction || 'Respond helpfully and concisely to the user\'s question. Use Google Search if needed.';
-    const toolsConfig = hasTools ? '[google_search]' : 'None';
     
+    // Use the simplified template as required
     const code = [
       'from google.adk.agents import LlmAgent',
-      'from google.adk.tools import google_search',
       '',
-      '# Define a simple agent that answers user questions using an LLM and optional tools',
       'root_agent = LlmAgent(',
-      '    model="gemini-2.0-flash-exp",  # Use your preferred model',
-      '    name="question_answer_agent",',
+      '    model="gemini-2.0-flash-exp",',
+      '    name="question_answer_agent",', 
       '    description="A helpful assistant agent that can answer general questions.",',
       `    instruction="${agentInstruction}",`,
-      `    tools=${toolsConfig}`,
+      '    tools=[]  # Using empty list instead of None',
       ')'
     ].join('\n');
 
