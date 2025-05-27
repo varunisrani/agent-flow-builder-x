@@ -1,0 +1,10 @@
+Hello! This is a test file that can be accessed by the MCP server.
+
+The file system assistant can:
+1. List files in this directory
+2. Read the contents of files
+3. Create new files
+4. Update existing files
+5. Delete files
+
+Try asking the assistant to perform these operations! 

@@ -1,0 +1,2 @@
+[console_scripts]
+mcp-python = mcp_python:main

@@ -5,11 +5,17 @@ import { generateFlow } from '@/lib/openai.js';
 import { toast } from '@/hooks/use-toast.js';  
 import { Node, Edge } from '@xyflow/react';
 import { BaseNodeData } from './nodes/BaseNode.js';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { MCP_TYPES } from '@/lib/constants';
+import { MCPConfig } from '@/lib/codeGeneration';
 
 interface NaturalLanguageInputProps {
   expanded: boolean;
   onToggle: () => void;
-  onGenerate: (prompt: string, nodes: Node<BaseNodeData>[], edges: Edge[]) => void;
+  onGenerate: (prompt: string, nodes: Node<BaseNodeData>[], edges: Edge[], mcpConfig?: MCPConfig) => void;
 }
 
 export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: NaturalLanguageInputProps) {
@@ -17,6 +23,25 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  
+  // MCP Configuration state
+  const [mcpEnabled, setMcpEnabled] = useState(false);
+  const [selectedMcpType, setSelectedMcpType] = useState<string>('github');
+  const [mcpCommand, setMcpCommand] = useState(MCP_TYPES[0].command);
+  const [mcpArgs, setMcpArgs] = useState<string[]>(MCP_TYPES[0].defaultArgs);
+  const [mcpEnvVars, setMcpEnvVars] = useState<{ [key: string]: string }>(MCP_TYPES[0].defaultEnvVars);
+  const [newEnvKey, setNewEnvKey] = useState('');
+  const [newEnvValue, setNewEnvValue] = useState('');
+  
+  // Update MCP configuration when type changes
+  useEffect(() => {
+    const mcpType = MCP_TYPES.find(t => t.id === selectedMcpType);
+    if (mcpType) {
+      setMcpCommand(mcpType.command);
+      setMcpArgs(mcpType.defaultArgs);
+      setMcpEnvVars(mcpType.defaultEnvVars);
+    }
+  }, [selectedMcpType]);
   
   // Focus the textarea when expanded
   useEffect(() => {
@@ -33,6 +58,25 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
       setError(null);
     }
   }, [prompt, error]);
+  
+  const handleAddEnvVar = () => {
+    if (newEnvKey && newEnvValue) {
+      setMcpEnvVars(prev => ({
+        ...prev,
+        [newEnvKey]: newEnvValue
+      }));
+      setNewEnvKey('');
+      setNewEnvValue('');
+    }
+  };
+  
+  const handleRemoveEnvVar = (key: string) => {
+    setMcpEnvVars(prev => {
+      const newVars = { ...prev };
+      delete newVars[key];
+      return newVars;
+    });
+  };
   
   const handleSubmit = (e: React.FormEvent) => {
     console.log('NaturalLanguageInput: Form submitted');
@@ -52,13 +96,122 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
     try {
       toast({
         title: "Flow Generation Started",
-        description: `Generating agent flow from: "${prompt.substring(0, 50)}${prompt.length > 50 ? '...' : ''}"`,
+        description: `Generating ${mcpEnabled ? 'MCP-enabled ' : ''}agent flow from: "${prompt.substring(0, 50)}${prompt.length > 50 ? '...' : ''}"`,
         duration: 5000,
       });
       
       // Call the OpenAI service to generate the flow
       console.log('NaturalLanguageInput: Calling OpenAI service');
-      const { nodes, edges } = await generateFlow(prompt);
+      let { nodes, edges } = await generateFlow(prompt);
+      
+      // If MCP is enabled, add necessary MCP nodes based on user selection
+      if (mcpEnabled) {
+        const agentNode = nodes.find(n => n.data.type === 'agent');
+        if (agentNode) {
+          // Create MCP client node
+          const mcpClientNode: Node<BaseNodeData> = {
+            id: `node_${Date.now()}_mcp_client`,
+            type: 'baseNode',
+            position: { x: agentNode.position.x + 200, y: agentNode.position.y },
+            data: {
+              label: `${selectedMcpType} Client`,
+              type: 'mcp-client',
+              description: `MCP client for ${selectedMcpType} operations`,
+              mcpUrl: 'http://localhost:8080',
+              mcpType: selectedMcpType // Store the MCP type for later reference
+            },
+            draggable: true
+          };
+          
+          // Create single MCP tool node
+          const mcpToolNode: Node<BaseNodeData> = {
+            id: `node_${Date.now()}_mcp_tool`,
+            type: 'baseNode',
+            position: { 
+              x: mcpClientNode.position.x + 200,
+              y: mcpClientNode.position.y
+            },
+            data: {
+              label: `${selectedMcpType} MCP Tool`,
+              type: 'mcp-tool',
+              description: `MCP tool for ${selectedMcpType} operations`,
+              mcpToolId: selectedMcpType.toLowerCase(),
+              mcpCommand: mcpCommand,
+              mcpArgs: mcpArgs.join(' '),
+              mcpEnvVars: JSON.stringify(mcpEnvVars)
+            },
+            draggable: true
+          };
+          
+          // Add edges to connect nodes
+          const newEdges: Edge[] = [
+            // Connect agent to MCP client
+            {
+              id: `edge_${Date.now()}_agent_client`,
+              source: agentNode.id,
+              target: mcpClientNode.id,
+              type: 'default'
+            },
+            // Connect MCP client to MCP tool
+            {
+              id: `edge_${Date.now()}_client_tool`,
+              source: mcpClientNode.id,
+              target: mcpToolNode.id,
+              type: 'default'
+            }
+          ];
+          
+          // Update nodes and edges
+          nodes = [...nodes, mcpClientNode, mcpToolNode];
+          edges = [...edges, ...newEdges];
+          
+          // Update agent node with MCP-specific information
+          agentNode.data.instruction = getDefaultInstructionForMcpType(selectedMcpType);
+        }
+      }
+      
+      // Only add Google Search if explicitly mentioned in the prompt
+      if (prompt.toLowerCase().includes('google search') || 
+          prompt.toLowerCase().includes('search tool') || 
+          prompt.toLowerCase().includes('web search')) {
+        
+        const agentNode = nodes.find(n => n.data.type === 'agent');
+        if (agentNode) {
+          // Check if we already have a search node
+          const existingSearchNode = nodes.find(n => 
+            n.data.type === 'tool' && 
+            (n.data.label?.toLowerCase().includes('search') || n.data.description?.toLowerCase().includes('search'))
+          );
+          
+          // Only add if not already present
+          if (!existingSearchNode) {
+            const googleSearchNode: Node<BaseNodeData> = {
+              id: `node_${Date.now()}_google_search`,
+              type: 'baseNode',
+              position: { 
+                x: agentNode.position.x + 200, 
+                y: agentNode.position.y + 100 // Position it below any potential MCP nodes
+              },
+              data: {
+                label: 'Google Search',
+                type: 'tool',
+                description: 'Google Search tool for finding information',
+              },
+              draggable: true
+            };
+            
+            const searchEdge: Edge = {
+              id: `edge_${Date.now()}_agent_search`,
+              source: agentNode.id,
+              target: googleSearchNode.id,
+              type: 'default'
+            };
+            
+            nodes = [...nodes, googleSearchNode];
+            edges = [...edges, searchEdge];
+          }
+        }
+      }
       
       console.log('NaturalLanguageInput: Flow generated successfully:', { 
         nodeCount: nodes.length, 
@@ -69,9 +222,18 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
         throw new Error("No nodes were generated. Please try a more detailed description.");
       }
       
+      // Create MCP configuration if enabled
+      const mcpConfig = mcpEnabled ? {
+        enabled: true,
+        type: selectedMcpType,
+        command: mcpCommand,
+        args: mcpArgs,
+        envVars: mcpEnvVars
+      } : undefined;
+      
       // Call the parent callback with the generated flow
       console.log('NaturalLanguageInput: Calling onGenerate callback');
-      onGenerate(prompt, nodes, edges);
+      onGenerate(prompt, nodes, edges, mcpConfig);
       
       toast({
         title: "Flow Generation Complete",
@@ -115,15 +277,111 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
       >
         <div className="flex items-center gap-2">
           <PanelTop className="w-4 h-4 text-primary" />
-          <h3 className="text-sm font-medium">Google Search Agent Builder</h3>
+          <h3 className="text-sm font-medium">Google ADK Agent Builder</h3>
         </div>
         <div className="w-4 h-4 rounded-full bg-primary/50" />
       </div>
       
       {expanded && (
         <div className="p-4">
+          <div className="flex items-center space-x-2 mb-4">
+            <Switch
+              id="mcp-mode"
+              checked={mcpEnabled}
+              onCheckedChange={setMcpEnabled}
+            />
+            <Label htmlFor="mcp-mode">Enable MCP Support</Label>
+          </div>
+          
+          {mcpEnabled && (
+            <div className="space-y-4 mb-4 p-4 bg-gray-900/50 rounded-lg">
+              <div className="space-y-2">
+                <Label>MCP Type</Label>
+                <Select value={selectedMcpType} onValueChange={setSelectedMcpType}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select MCP type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MCP_TYPES.map(type => (
+                      <SelectItem key={type.id} value={type.id}>
+                        {type.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Command</Label>
+                <Input 
+                  value={mcpCommand}
+                  onChange={(e) => setMcpCommand(e.target.value)}
+                  placeholder="Command (e.g., npx, uvx)"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Arguments</Label>
+                <Input 
+                  value={mcpArgs.join(' ')}
+                  onChange={(e) => setMcpArgs(e.target.value.split(' ').filter(Boolean))}
+                  placeholder="Command arguments"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Environment Variables</Label>
+                <div className="space-y-2">
+                  {Object.entries(mcpEnvVars).map(([key, value]) => (
+                    <div key={key} className="flex items-center gap-2">
+                      <Input value={key} disabled className="flex-1" />
+                      <Input 
+                        value={value}
+                        onChange={(e) => setMcpEnvVars(prev => ({
+                          ...prev,
+                          [key]: e.target.value
+                        }))}
+                        className="flex-1"
+                      />
+                      <button
+                        onClick={() => handleRemoveEnvVar(key)}
+                        className="p-2 text-red-500 hover:text-red-400"
+                      >
+                        <XCircle className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                  
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={newEnvKey}
+                      onChange={(e) => setNewEnvKey(e.target.value)}
+                      placeholder="ENV_KEY"
+                      className="flex-1"
+                    />
+                    <Input
+                      value={newEnvValue}
+                      onChange={(e) => setNewEnvValue(e.target.value)}
+                      placeholder="value"
+                      className="flex-1"
+                    />
+                    <button
+                      onClick={handleAddEnvVar}
+                      disabled={!newEnvKey || !newEnvValue}
+                      className="p-2 text-green-500 hover:text-green-400 disabled:opacity-50"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          
           <p className="text-xs text-muted-foreground mb-3">
-            Describe your Google ADK agent that uses the Google Search tool to find and process information.
+            {mcpEnabled 
+              ? `Describe your Google ADK agent that uses ${MCP_TYPES.find(t => t.id === selectedMcpType)?.name || 'MCP'} functionality.`
+              : "Describe your Google ADK agent. Include specific tools needed like Google Search if required."}
           </p>
           
           <form onSubmit={handleSubmit}>
@@ -135,7 +393,13 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
                   console.log('NaturalLanguageInput: Prompt updated, length:', e.target.value.length);
                   setPrompt(e.target.value);
                 }}
-                placeholder="Create a Google ADK agent that uses the google_search tool to find information about specific topics and provide summaries using the gemini-2.0-flash model..."
+                placeholder={mcpEnabled 
+                  ? `Create a Google ADK agent that uses ${selectedMcpType} MCP to ${
+                      selectedMcpType === 'github' ? 'interact with GitHub repositories. For example: "Create an agent that can search for repositories, list issues, and create new issues."' :
+                      selectedMcpType === 'time' ? 'handle time-related operations. For example: "Create an agent that can tell the current time in different timezones and convert times between timezones."' :
+                      selectedMcpType === 'filesystem' ? 'perform filesystem operations. For example: "Create an agent that can read files, write to files, and list directory contents."' :
+                      'perform operations related to ' + selectedMcpType + '."'}`
+                  : "Create a Google ADK agent that handles specific tasks. If you need search functionality, mention 'Google Search' explicitly."}
                 className={cn(
                   "w-full h-24 bg-background rounded-md border p-3 text-sm resize-none",
                   error ? "border-red-500" : "border-border",
@@ -176,7 +440,7 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
                 )}
               >
                 {isGenerating && <Loader2 className="w-4 h-4 animate-spin" />}
-                {isGenerating ? "Generating..." : "Generate Search Agent"}
+                {isGenerating ? "Generating..." : `Generate ${mcpEnabled ? 'MCP ' : ''}Agent`}
               </button>
             </div>
           </form>
@@ -185,10 +449,21 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
             <div className="mt-3 text-xs text-muted-foreground">
               <strong>Tips:</strong>
               <ul className="list-disc list-inside mt-1">
-                <li>The agent will use the official google_search tool from Google ADK</li>
-                <li>Specify how you want the agent to process search results</li>
-                <li>The agent will use the gemini-2.0-flash model for processing</li>
-                <li>Include any specific search topics or domains to focus on</li>
+                {mcpEnabled ? (
+                  <>
+                    <li>The agent will use the selected MCP type ({MCP_TYPES.find(t => t.id === selectedMcpType)?.name})</li>
+                    <li>Available tools for {selectedMcpType}: {getMcpToolDescription(selectedMcpType)}</li>
+                    <li>Configure command arguments and environment variables as needed</li>
+                    <li>The agent will use the gemini-2.0-flash model for processing</li>
+                  </>
+                ) : (
+                  <>
+                    <li>Explicitly mention "Google Search" if you need search functionality</li>
+                    <li>Describe the agent's purpose and capabilities clearly</li>
+                    <li>The agent will use the gemini-2.0-flash model for processing</li>
+                    <li>Include any specific tools or capabilities needed for your use case</li>
+                  </>
+                )}
               </ul>
             </div>
           )}
@@ -197,3 +472,56 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
     </div>
   );
 }
+
+// Function to get default instructions based on MCP type
+const getDefaultInstructionForMcpType = (mcpType: string): string => {
+  switch (mcpType.toLowerCase()) {
+    case 'github':
+      return `GitHub assistant for repository operations.
+Available functions:
+- search_repositories(query="search term")
+- get_repository(owner="owner", repo="repo")
+- list_issues(owner="owner", repo="repo")
+- create_issue(owner="owner", repo="repo", title="", body="")
+- get_user(username="username")
+- list_pull_requests(owner="owner", repo="repo")
+- get_pull_request(owner="owner", repo="repo", pull_number=123)
+- merge_pull_request(owner="owner", repo="repo", pull_number=123)`;
+    case 'time':
+      return `You are a helpful assistant that can perform time-related operations.
+
+Available functions:
+- get_current_time(timezone="IANA timezone name") - Get current time in a specific timezone
+- convert_time(source_timezone="source IANA timezone", time="HH:MM", target_timezone="target IANA timezone") - Convert time between timezones
+
+IMPORTANT RULES:
+1. Always use valid IANA timezone names (e.g., 'America/New_York', 'Europe/London', 'Asia/Tokyo')
+2. Use 24-hour format for time (HH:MM)
+3. Handle timezone conversions carefully`;
+    case 'filesystem':
+      return `Filesystem operations assistant.
+
+Available functions:
+- read_file(path="file path") - Read contents of a file
+- write_file(path="file path", content="content") - Write content to a file
+- list_directory(path="directory path") - List contents of a directory
+- file_exists(path="file path") - Check if a file exists
+- make_directory(path="directory path") - Create a directory`;
+    default:
+      return `MCP assistant for ${mcpType} operations. Use the available tools to help users with their requests.`;
+  }
+};
+
+// Helper function to get MCP tool descriptions
+const getMcpToolDescription = (mcpType: string): string => {
+  switch (mcpType.toLowerCase()) {
+    case 'github':
+      return 'repository search, issues, pull requests, user info';
+    case 'time':
+      return 'current time, timezone conversion';
+    case 'filesystem':
+      return 'read/write files, list directories';
+    default:
+      return `operations related to ${mcpType}`;
+  }
+};

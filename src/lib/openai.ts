@@ -102,9 +102,15 @@ export async function generateFlow(prompt: string): Promise<{ nodes: Node<BaseNo
       throw new Error('OpenRouter API key is not configured. Please add VITE_OPENROUTER_API_KEY to your .env file.');
     }
 
+    // Determine if this is an MCP request based on the prompt
+    const isMcpRequest = prompt.toLowerCase().includes('mcp') || 
+                        prompt.toLowerCase().includes('github') ||
+                        prompt.toLowerCase().includes('time') ||
+                        prompt.toLowerCase().includes('filesystem');
+
     // Define the system message to shape the AI's response
     const systemMessage = `
-      You are an expert in building Google ADK agents with Google Search integration.
+      You are an expert in building Google ADK agents${isMcpRequest ? ' with MCP integration' : ' with Google Search integration'}.
       When given a description of an agent system, you will output a JSON representation of nodes and edges for a flow-based diagram.
       
       For each node, include:
@@ -116,14 +122,18 @@ export async function generateFlow(prompt: string): Promise<{ nodes: Node<BaseNo
       
       The node types must follow these specific rules:
       - agent: An LlmAgent that uses Google ADK's LlmAgent class
-      - tool: ONLY use the google_search tool from google.adk.tools
+      - tool: ${isMcpRequest ? 'ONLY create a single tool node for MCP integration' : 'ONLY use the google_search tool from google.adk.tools'}
       - model: ONLY use "gemini-2.0-flash" model
       
-      For the google_search tool, include these properties in data:
+      ${isMcpRequest ? `For the MCP tool, include these properties in data:
+      - toolType: "mcp"
+      - description: "MCP tool for integration with external services"
+      - mcpType: "${prompt.toLowerCase().includes('github') ? 'github' : prompt.toLowerCase().includes('time') ? 'time' : 'filesystem'}"` 
+      : `For the google_search tool, include these properties in data:
       - toolType: "google_search"
       - description: "Google Search tool for web search capabilities"
       - parameters: { "query": "string" }
-      - returns: "dict"
+      - returns: "dict"`}
       
       For edges, include:
       - id (string)
@@ -148,7 +158,9 @@ export async function generateFlow(prompt: string): Promise<{ nodes: Node<BaseNo
         },
         {
           role: 'user',
-          content: `Create a Google ADK agent flow that uses the google_search tool to search and provide information. ${prompt}`,
+          content: isMcpRequest 
+            ? prompt 
+            : `Create a Google ADK agent flow that uses the google_search tool to search and provide information. ${prompt}`,
         },
       ],
       response_format: { type: 'json_object' },
