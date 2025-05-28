@@ -1,64 +1,68 @@
-"""Time MCP Agent"""
-import os
+"""TIME MCP Agent"""
 import asyncio
 import logging
-from dotenv import load_dotenv
-from google import genai
-from google.genai import types
+import sys
+from contextlib import AsyncExitStack
+
 from google.adk.agents import LlmAgent
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-logger = logging.getLogger("time_agent")
-
-# Load environment variables
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
-
-# Configure Google AI client
-GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
-if not GOOGLE_API_KEY:
-    raise ValueError("GOOGLE_API_KEY environment variable is not set")
-
-# Initialize Google AI client
-genai_client = genai.Client(api_key=GOOGLE_API_KEY)
-
 # Global state
 _tools = None
 _exit_stack = None
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("timeagent")
+
+
 async def get_tools_async():
-    """Gets tools from the Time MCP Server."""
-    tools, exit_stack = await MCPToolset.from_server(
-        connection_params=StdioServerParameters(
-            command='uvx',
-            args=["mcp-server-time", "--local-timezone", "Asia/Kolkata"],
-            env={
-                "NODE_OPTIONS": "--no-warnings --experimental-fetch"
-            }
+    """Gets tools from the TIME MCP Server using CLI arguments for config."""
+    global _tools, _exit_stack
+    _exit_stack = AsyncExitStack()
+    await _exit_stack.__aenter__()
+
+    try:
+        tools, _ = await MCPToolset.create_tools_from_server(
+            connection_params=StdioServerParameters(
+                command="uvx",
+                args=[
+                    "mcp-server-time",
+                    "--timezone",
+                    "Asia/Calcutta"
+                ],
+                env={
+                    "NODE_OPTIONS": "--no-warnings --experimental-fetch"
+                },
+            ),
+            async_exit_stack=_exit_stack,
         )
-    )
-    return tools, exit_stack
+        _tools = tools
+        return tools
+    except Exception as e:
+        logger.error(f"Failed to load MCP tools: {e}", exc_info=True)
+        await _exit_stack.aclose()
+        _exit_stack = None
+        raise
 
-class TimeAgent(LlmAgent):
-    async def _run_async_impl(self, ctx):
-        if not self.tools:
-            global _exit_stack
-            self.tools, _exit_stack = await get_tools_async()
-        async for event in super()._run_async_impl(ctx):
-            yield event
+# Try to initialize tools at import (eager loading)
+try:
+    asyncio.run(get_tools_async())
+    logger.info(f"Initialized TIME MCP tools for the agent.")
+except Exception as e:
+    logger.warning(f"Warning: Failed to initialize TIME tools: {e}")
+    logger.info("Agent will attempt to initialize tools when first used.")
 
-# Create the agent
-root_agent = TimeAgent(
-    model='gemini-2.0-flash',
-    name='TimeAssistant',
-    description="Time operations assistant.",
+# Create the root agent instance
+root_agent = LlmAgent(
+    model="gemini-2.0-flash",
+    name="timeagent",
+    description="An LlmAgent that responds to user queries about the current time using MCP integration.",
     instruction="""You are a helpful assistant that can perform time-related operations.
 
 Available functions:
@@ -70,36 +74,39 @@ IMPORTANT RULES:
 2. Use 24-hour format for time (HH:MM)
 3. Handle timezone conversions carefully
 4. Provide clear explanations for time calculations""",
-    tools=[]
+    tools=_tools or []  # Use empty list if tools not loaded yet
 )
 
 async def main():
-    """Run the agent."""
-    runner = Runner(
-        app_name='time_mcp_app',
-        agent=root_agent,
-        session_service=InMemorySessionService(),
-        inputs={
-            'client': genai_client  # Pass the initialized client
-        }
-    )
-    
+    global _tools, _exit_stack
     try:
-        session = runner.session_service.create_session(
-            state={}, app_name='time_mcp_app', user_id='time_user'
-        )
-        async for event in runner.run_async(
-            session_id=session.id,
-            user_id=session.user_id,
-            new_message=types.Content(
-                role='user',
-                parts=[types.Part(text="What is the current time in Tokyo?")]
-            )
-        ):
-            print(event)
-    finally:
-        if hasattr(root_agent, '_exit_stack'):
-            await root_agent._exit_stack.aclose()
+        if _tools is None:
+            logger.info("Loading MCP tools...")
+            _tools = await get_tools_async()
+            root_agent.tools = _tools
+            logger.info(f"Loaded MCP tools: {[tool.name for tool in _tools]}")
 
-if __name__ == '__main__':
-    asyncio.run(main()) 
+        # Setup session service and runner
+        session_service = InMemorySessionService()
+        runner = Runner(agent=root_agent, session_service=session_service)
+
+        logger.info("Starting agent runner. Press Ctrl+C to exit.")
+        await runner.run_forever()
+
+    except asyncio.CancelledError:
+        logger.info("Agent runner cancelled, shutting down.")
+    except Exception as e:
+        logger.error(f"Unexpected error in main: {e}", exc_info=True)
+    finally:
+        if _exit_stack is not None:
+            await _exit_stack.aclose()
+            _exit_stack = None
+        logger.info("Cleanup complete.")
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Keyboard interrupt received, exiting.")
+        sys.exit(0)

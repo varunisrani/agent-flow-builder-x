@@ -9,9 +9,9 @@ const PORT = process.env.PORT || 3001;
 
 // CORS middleware with proper configuration
 app.use(cors({
-  origin: '*', // Allow all origins
+  origin: ['http://localhost:8080', 'https://cogentx.dev', 'http://localhost:3000', 'http://localhost:5173', 'https://agent-flow-builder.vercel.app'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['X-Requested-With', 'Content-Type', 'Accept', 'Authorization'],
+  allowedHeaders: ['X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'Origin'],
   credentials: true,
   preflightContinue: false,
   optionsSuccessStatus: 204
@@ -19,7 +19,39 @@ app.use(cors({
 
 // Handle OPTIONS requests explicitly
 app.options('*', (req, res) => {
+  // Set specific origins for CORS
+  const allowedOrigins = ['http://localhost:8080', 'https://cogentx.dev', 'http://localhost:3000', 'http://localhost:5173', 'https://agent-flow-builder.vercel.app'];
+  const origin = req.headers.origin;
+  
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else {
+    // If origin is not in our list, use wildcard
+    res.header('Access-Control-Allow-Origin', '*');
+  }
+  
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
   res.status(204).end();
+});
+
+// Add a middleware to ensure CORS headers are set on all responses
+app.use((req, res, next) => {
+  const allowedOrigins = ['http://localhost:8080', 'https://cogentx.dev', 'http://localhost:3000', 'http://localhost:5173', 'https://agent-flow-builder.vercel.app'];
+  const origin = req.headers.origin;
+  
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else {
+    // If origin is not in our list, use wildcard
+    res.header('Access-Control-Allow-Origin', '*');
+  }
+  
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  next();
 });
 
 // Middleware

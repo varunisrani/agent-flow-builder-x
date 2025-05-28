@@ -72,7 +72,7 @@ export function generateMCPCode(nodes: Node<BaseNodeData>[], edges: Edge[], mcpC
   const rootAgent = getRootAgentForMcpType(mcpType, agentClassName, agentName, agentDescription, agentInstruction || '', toolDocs);
   const mainFunction = getMainFunctionForMcpType(mcpType, agentName);
 
-  // Combine all code sections
+  // Combine all code sections with proper exports
   return `"""${mcpType.toUpperCase()} MCP Agent"""
 ${imports}
 
@@ -97,6 +97,9 @@ ${rootAgent}
 
 ${mainFunction}
 
+# Export the root_agent for importing
+__all__ = ["root_agent"]
+
 if __name__ == "__main__":
     asyncio.run(main())`
 }
@@ -119,7 +122,13 @@ function getMcpDefaultCommand(mcpType: string): string {
 function getMcpDefaultArgs(mcpType: string): string[] {
   switch (mcpType.toLowerCase()) {
     case 'github':
-      return ['-y', '@modelcontextprotocol/server-github'];
+      return [
+        "-y",
+        "--node-options=--experimental-fetch",
+        "@modelcontextprotocol/server-github",
+        "--token",
+        "${process.env.GITHUB_PERSONAL_ACCESS_TOKEN || ''}"
+      ];
     case 'time':
       return ['mcp-server-time', '--local-timezone', Intl.DateTimeFormat().resolvedOptions().timeZone];
     case 'filesystem':
@@ -136,10 +145,7 @@ function getMcpDefaultEnvVars(mcpType: string): { [key: string]: string } {
   
   switch (mcpType.toLowerCase()) {
     case 'github':
-      return {
-        ...baseVars,
-        'GITHUB_PERSONAL_ACCESS_TOKEN': ''
-      };
+      return baseVars;
     case 'time':
       return {
         ...baseVars,
@@ -213,30 +219,35 @@ function getToolsAsyncForMcpType(
 ): string {
   const baseFunction = `async def get_tools_async():
     """Gets tools from the ${mcpType.toUpperCase()} MCP Server."""
-    tools, exit_stack = await MCPToolset.from_server(
-        connection_params=StdioServerParameters(
-            command='${command}',
-            args=${JSON.stringify(args)},
-            env=${JSON.stringify(envVars, null, 4)}
-        )
-    )`;
+    global _tools, _exit_stack
+    _exit_stack = AsyncExitStack()
+    await _exit_stack.__aenter__()
 
-  // Add type-specific logic for filtering tools
-  switch (mcpType.toLowerCase()) {
-    case 'github':
-      return `${baseFunction}
-    # Filter out any problematic tools if needed
-    return [t for t in tools if t.name != "create_pull_request_review"], exit_stack`;
-    case 'time':
-      return `${baseFunction}
-    return tools, exit_stack`;
-    case 'filesystem':
-      return `${baseFunction}
-    return tools, exit_stack`;
-    default:
-      return `${baseFunction}
-    return tools, exit_stack`;
-  }
+    try:
+        ${mcpType === 'github' ? `
+        github_token = os.getenv('GITHUB_PERSONAL_ACCESS_TOKEN')
+        if not github_token or not github_token.startswith("ghp_"):
+            raise ValueError("Invalid GitHub token. Must start with 'ghp_'")
+        ` : ''}
+        tools, _ = await MCPToolset.create_tools_from_server(
+            connection_params=StdioServerParameters(
+                command='${command}',
+                args=[
+                    ${args.map(arg => `"${arg}"`).join(',\n                    ')}${mcpType === 'github' ? ',\n                    "--token",\n                    github_token' : ''}
+                ],
+                env=${JSON.stringify(envVars, null, 4)}
+            ),
+            async_exit_stack=_exit_stack
+        )
+        _tools = tools  # Store tools in global state
+        return tools
+    except Exception as e:
+        logger.error(f"Failed to load MCP tools: {e}", exc_info=True)
+        await _exit_stack.aclose()
+        _exit_stack = None
+        raise`;
+
+  return baseFunction;
 }
 
 function getAgentClassForMcpType(mcpType: string, agentClassName: string): string {
@@ -258,54 +269,19 @@ function getRootAgentForMcpType(
   agentInstruction: string, 
   toolDocs: { name: string, description: string, type: string }[]
 ): string {
-  // Get type-specific instructions
-  let instructions = agentInstruction;
-  if (!instructions) {
-    switch (mcpType.toLowerCase()) {
-      case 'github':
-        instructions = `GitHub assistant for repository operations.
-Available functions:
-- search_repositories(query="search term")
-- get_repository(owner="owner", repo="repo")
-- list_issues(owner="owner", repo="repo")
-- create_issue(owner="owner", repo="repo", title="", body="")
-- get_user(username="username")
-- list_pull_requests(owner="owner", repo="repo")
-- get_pull_request(owner="owner", repo="repo", pull_number=123)
-- merge_pull_request(owner="owner", repo="repo", pull_number=123)
+  // Get type-specific instructions if none provided
+  const instructions = agentInstruction || getMcpAgentInstructions(mcpType);
 
-Note: Pull request review functionality is not available.`;
-        break;
-      case 'time':
-        instructions = `You are a helpful assistant that can perform time-related operations.
+  return `# Try to initialize tools at import time (eager loading)
+try:
+    asyncio.run(get_tools_async())
+    logger.info(f"Initialized {mcpType.toUpperCase()} MCP tools for the agent.")
+except Exception as e:
+    logger.warning(f"Warning: Failed to initialize {mcpType.toUpperCase()} tools: {e}")
+    logger.info("Agent will attempt to initialize tools when first used.")
 
-Available functions:
-- get_current_time(timezone="IANA timezone name") - Get current time in a specific timezone
-- convert_time(source_timezone="source IANA timezone", time="HH:MM", target_timezone="target IANA timezone") - Convert time between timezones
-
-IMPORTANT RULES:
-1. Always use valid IANA timezone names (e.g., 'America/New_York', 'Europe/London', 'Asia/Tokyo')
-2. Use 24-hour format for time (HH:MM)
-3. Handle timezone conversions carefully
-4. Provide clear explanations for time calculations`;
-        break;
-      case 'filesystem':
-        instructions = `Filesystem operations assistant.
-
-Available functions:
-- read_file(path="file path") - Read contents of a file
-- write_file(path="file path", content="content") - Write content to a file
-- list_directory(path="directory path") - List contents of a directory
-- file_exists(path="file path") - Check if a file exists
-- make_directory(path="directory path") - Create a directory`;
-        break;
-      default:
-        instructions = `${mcpType} operations assistant. Use the available MCP tools to help users with their requests.`;
-    }
-  }
-
-  return `# Create the agent
-root_agent = ${agentClassName}(
+# Create the root agent instance
+root_agent = LlmAgent(
     model="gemini-2.0-flash",
     name="${agentName}",
     description="${agentDescription}",
@@ -319,67 +295,60 @@ IMPORTANT RULES:
 2. Handle errors gracefully
 3. Provide clear feedback about tool operations
 4. Follow best practices for ${mcpType} operations""",
-    tools=[]  # Tools will be loaded dynamically from MCP server
+    tools=_tools or []  # Use empty list if tools not loaded yet
 )`;
 }
 
 function getMainFunctionForMcpType(mcpType: string, agentName: string): string {
   // Get type-specific default prompt
-  let defaultPrompt: string;
-  switch (mcpType.toLowerCase()) {
-    case 'github':
-      defaultPrompt = 'Search for popular Python libraries';
-      break;
-    case 'time':
-      defaultPrompt = 'What is the current time in Tokyo?';
-      break;
-    case 'filesystem':
-      defaultPrompt = 'List the files in the current directory';
-      break;
-    default:
-      defaultPrompt = `What can you help me with using ${mcpType}?`;
-  }
+  const defaultPrompt = getDefaultPromptForMcpType(mcpType);
 
   return `async def main():
     """Run the agent."""
-    runner = Runner(
-        app_name='${mcpType}_mcp_app',
-        agent=root_agent,
-        session_service=InMemorySessionService(),
-        inputs={
-            'client': genai_client
-        }
-    )
-    
+    global _tools, _exit_stack
     try:
-        session = runner.session_service.create_session(
-            state={}, app_name='${mcpType}_mcp_app', user_id='${mcpType}_user'
-        )
-        async for event in runner.run_async(
-            session_id=session.id,
-            user_id=session.user_id,
-            new_message=types.Content(
-                role='user',
-                parts=[types.Part(text="${defaultPrompt}")]
-            )
-        ):
-            print(event)
-    except KeyboardInterrupt:
-        logger.info("Shutting down gracefully...")
+        if _tools is None:
+            logger.info("Loading MCP tools...")
+            _tools = await get_tools_async()
+            root_agent.tools = _tools
+            logger.info(f"Loaded MCP tools: {[tool.name for tool in _tools]}")
+
+        # Setup session service and runner
+        session_service = InMemorySessionService()
+        runner = Runner(agent=root_agent, session_service=session_service)
+
+        logger.info("Starting agent runner. Press Ctrl+C to exit.")
+        await runner.run_forever()
+
+    except asyncio.CancelledError:
+        logger.info("Agent runner cancelled, shutting down.")
+    except Exception as e:
+        logger.error(f"Unexpected error in main: {e}", exc_info=True)
     finally:
-        if hasattr(root_agent, '_exit_stack'):
-            await root_agent._exit_stack.aclose()`
+        if _exit_stack is not None:
+            await _exit_stack.aclose()
+            _exit_stack = None
+        logger.info("Cleanup complete.")`
 }
 
 export function generateDefaultSearchAgentCode(): string {
   return `"""Default Search Agent"""
+import os
 import logging
+from dotenv import load_dotenv
 from google.adk.agents import Agent
 from google.adk.tools import google_search
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 logger = logging.getLogger("search_agent")
+
+# Load environment variables
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
 
 # Create the agent
 root_agent = Agent(
@@ -390,7 +359,17 @@ root_agent = Agent(
     tools=[google_search]
 )
 
-__all__ = ["root_agent"]`
+# Export the root_agent for importing
+__all__ = ["root_agent"]
+
+# Example usage
+if __name__ == "__main__":
+    try:
+        response = root_agent.chat("What are the latest developments in AI?")
+        print("Agent Response:", response)
+    except Exception as e:
+        logger.error(f"Error running agent: {e}")
+        raise`
 }
 
 // Helper function to detect MCP code
@@ -410,12 +389,52 @@ export function isMcpCode(code: string): boolean {
 
 // Helper function to generate default MCP code (for fallback)
 export function generateFallbackMcpCode(mcpType: string = 'github'): string {
+  // Define hardcoded values for instructions and default prompts
+  let instructions = '';
+  let defaultPrompt = '';
+  
+  // Set instructions based on MCP type
+  if (mcpType === 'github') {
+    instructions = `GitHub assistant for repository operations.
+Available functions:
+- search_repositories(query="search term")
+- get_repository(owner="owner", repo="repo")
+- list_issues(owner="owner", repo="repo")
+- create_issue(owner="owner", repo="repo", title="", body="")
+- get_user(username="username")
+- list_pull_requests(owner="owner", repo="repo")
+- get_pull_request(owner="owner", repo="repo", pull_number=123)
+- merge_pull_request(owner="owner", repo="repo", pull_number=123)
+
+Note: Pull request review functionality is not available.`;
+    defaultPrompt = "Search for popular Python libraries";
+  } else if (mcpType === 'time') {
+    instructions = `You are a helpful assistant that can perform time-related operations.
+
+Available functions:
+- get_current_time(timezone="IANA timezone name") - Get current time in a specific timezone
+- convert_time(source_timezone="source IANA timezone", time="HH:MM", target_timezone="target IANA timezone") - Convert time between timezones`;
+    defaultPrompt = "What is the current time in Tokyo?";
+  } else if (mcpType === 'filesystem') {
+    instructions = `Filesystem operations assistant.
+
+Available functions:
+- read_file(path="file path") - Read contents of a file
+- write_file(path="file path", content="content") - Write content to a file
+- list_directory(path="directory path") - List contents of a directory
+- file_exists(path="file path") - Check if a file exists
+- make_directory(path="directory path") - Create a directory`;
+    defaultPrompt = "List the files in the current directory";
+  } else {
+    instructions = `${mcpType} operations assistant. Use the available MCP tools to help users with their requests.`;
+    defaultPrompt = `What can you help me with using ${mcpType}?`;
+  }
+
   return `"""${mcpType.toUpperCase()} MCP Agent"""
 import os
 import asyncio
 import logging
-from dotenv import load_dotenv
-from google import genai
+from contextlib import AsyncExitStack
 from google.genai import types
 from google.adk.agents import LlmAgent
 from google.adk.runners import Runner
@@ -426,25 +445,35 @@ from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParamet
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("${mcpType}_agent")
 
-# Load environment variables
-load_dotenv()
-
 # Global state
 _tools = None
 _exit_stack = None
+${mcpType === 'github' ? "GITHUB_TOKEN = os.getenv('GITHUB_PERSONAL_ACCESS_TOKEN')" : ''}
 
 async def get_tools_async():
     """Gets tools from the ${mcpType.toUpperCase()} MCP Server."""
-    tools, exit_stack = await MCPToolset.from_server(
+    from contextlib import AsyncExitStack
+    exit_stack = AsyncExitStack()
+    ${mcpType === 'github' ? `
+    # Validate GitHub token
+    if not GITHUB_TOKEN or not GITHUB_TOKEN.startswith("ghp_"):
+        raise ValueError("Invalid GitHub token. Must start with 'ghp_'")
+    ` : ''}
+    tools, _ = await MCPToolset.create_tools_from_server(
         connection_params=StdioServerParameters(
             command='npx',
-            args=['-y', '@modelcontextprotocol/server-${mcpType}'],
+            args=[
+                "-y",
+                "--node-options=--experimental-fetch",
+                "@modelcontextprotocol/server-${mcpType}"${mcpType === 'github' ? ',\n                "--token",\n                GITHUB_TOKEN' : ''}
+            ],
             env={
                 'NODE_OPTIONS': '--no-warnings --experimental-fetch'
             }
-        )
+        ),
+        async_exit_stack=exit_stack
     )
-    return tools, exit_stack
+    ${mcpType === 'github' ? '# Filter out any problematic tools if needed\n    return [t for t in tools if t.name != "create_pull_request_review"], exit_stack' : 'return tools, exit_stack'}
 
 class ${mcpType.charAt(0).toUpperCase() + mcpType.slice(1)}Agent(LlmAgent):
     async def _run_async_impl(self, ctx):
@@ -460,8 +489,8 @@ root_agent = ${mcpType.charAt(0).toUpperCase() + mcpType.slice(1)}Agent(
     model="gemini-2.0-flash",
     name="${mcpType}_agent",
     description="${mcpType} operations assistant",
-    instruction="""${mcpType} operations assistant. Use the available MCP tools to help users with their requests.""",
-    tools=[]
+    instruction="""${instructions}""",
+    tools=[]  # Tools will be loaded dynamically from MCP server
 )
 
 async def main():
@@ -481,16 +510,13 @@ async def main():
             user_id=session.user_id,
             new_message=types.Content(
                 role='user',
-                parts=[types.Part(text="What can you help me with?")]
+                parts=[types.Part(text="${defaultPrompt}")]
             )
         ):
             print(event)
     finally:
         if hasattr(root_agent, '_exit_stack'):
-            await root_agent._exit_stack.aclose()
-
-if __name__ == "__main__":
-    asyncio.run(main())`
+            await root_agent._exit_stack.aclose()`
 }
 
 export function generateADKCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
@@ -707,4 +733,59 @@ function extractMcpConfigFromNodes(nodes: Node<BaseNodeData>[]): MCPConfig {
     args: mcpArgs,
     envVars: mcpEnvVars
   };
+} 
+
+// Helper functions for MCP code generation
+function getMcpAgentInstructions(mcpType: string): string {
+  switch (mcpType.toLowerCase()) {
+    case 'github':
+      return `GitHub assistant for repository operations.
+Available functions:
+- search_repositories(query="search term")
+- get_repository(owner="owner", repo="repo")
+- list_issues(owner="owner", repo="repo")
+- create_issue(owner="owner", repo="repo", title="", body="")
+- get_user(username="username")
+- list_pull_requests(owner="owner", repo="repo")
+- get_pull_request(owner="owner", repo="repo", pull_number=123)
+- merge_pull_request(owner="owner", repo="repo", pull_number=123)
+
+Note: Pull request review functionality is not available.`;
+    case 'time':
+      return `You are a helpful assistant that can perform time-related operations.
+
+Available functions:
+- get_current_time(timezone="IANA timezone name") - Get current time in a specific timezone
+- convert_time(source_timezone="source IANA timezone", time="HH:MM", target_timezone="target IANA timezone") - Convert time between timezones
+
+IMPORTANT RULES:
+1. Always use valid IANA timezone names (e.g., 'America/New_York', 'Europe/London', 'Asia/Tokyo')
+2. Use 24-hour format for time (HH:MM)
+3. Handle timezone conversions carefully
+4. Provide clear explanations for time calculations`;
+    case 'filesystem':
+      return `Filesystem operations assistant.
+
+Available functions:
+- read_file(path="file path") - Read contents of a file
+- write_file(path="file path", content="content") - Write content to a file
+- list_directory(path="directory path") - List contents of a directory
+- file_exists(path="file path") - Check if a file exists
+- make_directory(path="directory path") - Create a directory`;
+    default:
+      return `${mcpType} operations assistant. Use the available MCP tools to help users with their requests.`;
+  }
+}
+
+function getDefaultPromptForMcpType(mcpType: string): string {
+  switch (mcpType.toLowerCase()) {
+    case 'github':
+      return 'Search for popular Python libraries';
+    case 'time':
+      return 'What is the current time in Tokyo?';
+    case 'filesystem':
+      return 'List the files in the current directory';
+    default:
+      return `What can you help me with using ${mcpType}?`;
+  }
 } 

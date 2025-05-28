@@ -1,0 +1,161 @@
+# Spotify MCP Agent Example
+import asyncio
+from dotenv import load_dotenv
+from google.genai import types
+from google.adk.agents import LlmAgent
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.adk.artifacts.in_memory_artifact_service import InMemoryArtifactService
+from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
+
+# Load environment variables from .env file if needed
+load_dotenv('../.env')
+
+# --- Step 1: Configure and Connect to Spotify MCP Server ---
+async def get_tools_async():
+    """Gets tools from the Spotify MCP Server."""
+    print("Attempting to connect to Spotify MCP server...")
+    tools, exit_stack = await MCPToolset.from_server(
+        # Use StdioServerParameters for local process communication
+        connection_params=StdioServerParameters(
+            command='npx',
+            args=[
+                "-y",
+                "@smithery/cli@latest",
+                "run",
+                "@superseoworld/mcp-spotify",
+                "--key",
+                "040afa77-557a-4a7b-9169-3f1f2b9d685f"
+            ]
+        )
+    )
+    print(f"MCP Toolset created successfully with {len(tools)} tools:")
+    # Print information about the available tools to help with debugging
+    for i, tool in enumerate(tools):
+        print(f"  Tool {i+1}: {tool.name}")
+        if hasattr(tool, 'description'):
+            print(f"    Description: {tool.description}")
+    
+    return tools, exit_stack
+
+# --- Step 2: Create the Agent ---
+# Store global references to tools and exit_stack
+_tools = None
+_exit_stack = None
+
+async def get_spotify_tools():
+    """Fetches and caches Spotify tools."""
+    global _tools, _exit_stack
+    if _tools is None:
+        _tools, _exit_stack = await get_tools_async()
+    return _tools
+
+# Create a synchronous function to initialize tools
+# This runs when the module is imported by ADK web
+try:
+    # This is a bit of a hack to allow asyncio initialization in synchronous context
+    spotify_tools = asyncio.run(get_spotify_tools())
+    print(f"Initialized {len(spotify_tools)} Spotify MCP tools for the agent.")
+except Exception as e:
+    print(f"Warning: Failed to initialize Spotify tools: {e}")
+    print("Agent will attempt to initialize tools when first used.")
+    spotify_tools = []
+
+# Create the agent with the tools
+root_agent = LlmAgent(
+    model='gemini-2.0-flash-exp',
+    name='SpotifyAssistant',
+    description="An assistant that can help with Spotify music searches and recommendations.",
+    instruction="""
+    You are a music assistant that can search for songs, artists, and albums on Spotify. 
+    You can also provide music recommendations based on user preferences.
+    
+    IMPORTANT: Do NOT import any modules or libraries. The Spotify tools are already available 
+    to you as functions. Simply call them directly by name when needed.
+    
+    Common Spotify functions you can use:
+    - search_tracks(query="song or artist name") - Search for tracks
+    - search_artists(query="artist name") - Search for artists
+    - search_albums(query="album name") - Search for albums
+    - get_recommendations(seed_tracks=["track id"], seed_artists=["artist id"]) - Get recommendations
+    
+    Always examine the tool response carefully and provide detailed, enthusiastic responses about 
+    the music information you find. Format your responses in a readable way with artist names, 
+    track titles, and other relevant information.
+    """,
+    tools=spotify_tools
+)
+
+# --- Step 3: Main Execution Logic (for direct script execution) ---
+async def async_main():
+    """Run the agent directly for testing purposes."""
+    session_service = InMemorySessionService()
+    artifacts_service = InMemoryArtifactService()
+
+    session = session_service.create_session(
+        state={}, app_name='spotify_mcp_app', user_id='music_lover'
+    )
+
+    query = "Find me some songs by Billie Eilish and tell me about her latest album"
+    print(f"User Query: '{query}'")
+    content = types.Content(role='user', parts=[types.Part(text=query)])
+
+    # Ensure tools are initialized
+    tools = await get_spotify_tools()
+    
+    # Create a new agent instance for this session
+    session_agent = LlmAgent(
+        model='gemini-2.0-flash-exp',
+        name='SpotifyAssistant',
+        description="An assistant that can help with Spotify music searches and recommendations.",
+        instruction="""
+        You are a music assistant that can search for songs, artists, and albums on Spotify. 
+        You can also provide music recommendations based on user preferences.
+        
+        IMPORTANT: Do NOT import any modules or libraries. The Spotify tools are already available 
+        to you as functions. Simply call them directly by name when needed.
+        
+        Common Spotify functions you can use:
+        - search_tracks(query="song or artist name") - Search for tracks
+        - search_artists(query="artist name") - Search for artists
+        - search_albums(query="album name") - Search for albums
+        - get_recommendations(seed_tracks=["track id"], seed_artists=["artist id"]) - Get recommendations
+        
+        Always examine the tool response carefully and provide detailed, enthusiastic responses about 
+        the music information you find. Format your responses in a readable way with artist names, 
+        track titles, and other relevant information.
+        """,
+        tools=tools
+    )
+
+    runner = Runner(
+        app_name='spotify_mcp_app',
+        agent=session_agent,
+        artifact_service=artifacts_service,
+        session_service=session_service,
+    )
+
+    print("Running agent...")
+    events_async = runner.run_async(
+        session_id=session.id, user_id=session.user_id, new_message=content
+    )
+
+    async for event in events_async:
+        print(f"Event received: {event}")
+
+    # Cleanup is handled by the module's exit, but we can force it for testing
+    if _exit_stack:
+        print("Closing MCP server connection...")
+        await _exit_stack.aclose()
+        print("Cleanup complete.")
+
+# Run the agent if this file is executed directly
+if __name__ == '__main__':
+    try:
+        asyncio.run(async_main())
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        # Ensure cleanup even in case of errors
+        if _exit_stack:
+            asyncio.run(_exit_stack.aclose())
+            print("Forced cleanup complete after error.") 

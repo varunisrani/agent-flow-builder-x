@@ -19,7 +19,7 @@ async def get_agent_async():
     
     try:
         # Create and fetch MCP tools
-        tools = await MCPToolset.from_server(
+        tools, _ = await MCPToolset.create_tools_from_server(
             connection_params=StdioServerParameters(
                 command='npx',
                 args=[
@@ -28,7 +28,8 @@ async def get_agent_async():
                     # Using the absolute path to the folder we created
                     os.path.abspath(TARGET_FOLDER_PATH),
                 ],
-            )
+            ),
+            async_exit_stack=exit_stack
         )
         
         # Create the agent with the retrieved tools

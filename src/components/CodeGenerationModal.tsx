@@ -403,40 +403,10 @@ function createDefaultMcpConfig(nodes: Node<BaseNodeData>[]): MCPConfig {
   
   // Determine command and args
   const command = mcpType === 'time' ? 'uvx' : 'npx';
-  let args: string[] = [];
-  
-  switch (mcpType) {
-    case 'github':
-      args = ['-y', '@modelcontextprotocol/server-github'];
-      break;
-    case 'time':
-      args = ['mcp-server-time', '--local-timezone', Intl.DateTimeFormat().resolvedOptions().timeZone];
-      break;
-    case 'filesystem':
-      args = ['-y', '@modelcontextprotocol/server-filesystem'];
-      break;
-    default:
-      args = ['-y', `@modelcontextprotocol/server-${mcpType.toLowerCase()}`];
-      break;
-  }
+  const args = getMcpDefaultArgs(mcpType);
   
   // Create default env vars based on type
-  const baseEnvVars: Record<string, string> = {
-    'NODE_OPTIONS': '--no-warnings --experimental-fetch'
-  };
-  
-  let envVars: Record<string, string> = { ...baseEnvVars };
-  if (mcpType === 'github') {
-    envVars = {
-      ...baseEnvVars,
-      'GITHUB_PERSONAL_ACCESS_TOKEN': ''
-    };
-  } else if (mcpType === 'time') {
-    envVars = {
-      ...baseEnvVars,
-      'LOCAL_TIMEZONE': Intl.DateTimeFormat().resolvedOptions().timeZone
-    };
-  }
+  const envVars = getMcpDefaultEnvVars(mcpType);
   
   // Return the config
   return {
@@ -558,7 +528,7 @@ export function CodeGenerationModal({
       // Fallback to appropriate local generation
       let localCode: string;
       if (mcpEnabled) {
-        // Ensure we have a valid mcpConfig, create one if not provided
+        // Ensure we have a valid mcpConfig
         const validConfig = mcpConfig || createDefaultMcpConfig(nodes);
         localCode = generateMCPCode(nodes, edges, validConfig);
       } else {
@@ -640,7 +610,8 @@ export function CodeGenerationModal({
             } catch (e) {
               console.error('Error parsing mcpEnvVars:', e);
             }
-          } else if (!Object.keys(mcpEnvVars).length) {
+          } 
+          if (Object.keys(mcpEnvVars).length === 0) {
             mcpEnvVars = getMcpDefaultEnvVars(mcpType);
           }
 
@@ -680,7 +651,7 @@ export function CodeGenerationModal({
             envVars: mcpEnvVars
           } : undefined;
           
-          // Call OpenRouter API for code generation
+          // Generate code based on MCP type
           const response = await callOpenRouter('/chat/completions', {
             model: 'openai/gpt-4.1-mini',
             messages: [
@@ -696,7 +667,11 @@ export function CodeGenerationModal({
                      5. Set up main() function with proper async event loop
                      6. Include proper error handling and cleanup
 
-                     IMPORTANT: Follow the exact structure and patterns shown in the example code from the Google ADK documentation.`
+                     IMPORTANT: For GitHub MCP:
+                     1. Pass token via --token CLI argument, not environment variable
+                     2. Validate token starts with 'ghp_'
+                     3. Use AsyncExitStack for proper cleanup
+                     4. Filter out problematic tools like create_pull_request_review`
                   : `You are an expert in building Google ADK agents. Generate Python code for an agent that uses Google Search and other tools.
                      The code should follow this structure:
                      1. Import necessary modules (google.adk.agents, google.adk.tools)
@@ -726,68 +701,101 @@ export function CodeGenerationModal({
                      from google.adk.runners import Runner
                      from google.adk.sessions import InMemorySessionService
                      from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
+                     from contextlib import AsyncExitStack
                      
                      # Global state
                      _tools = None
                      _exit_stack = None
-                     ${getMcpEnvVarDeclarations(mcpType)}
+                     
+                     # Configure logging
+                     logging.basicConfig(
+                         level=logging.INFO,
+                         format='%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s',
+                         datefmt='%Y-%m-%d %H:%M:%S'
+                     )
+                     logger = logging.getLogger("${agentName}")
                      
                      async def get_tools_async():
                          """Gets tools from the ${mcpType.toUpperCase()} MCP Server."""
-                         tools, exit_stack = await MCPToolset.from_server(
-                             connection_params=StdioServerParameters(
-                                 command='${mcpCommand}',
-                                 args=${JSON.stringify(mcpArgs)},
-                                 env=${JSON.stringify(mcpEnvVars, null, 2)}
+                         global _tools, _exit_stack
+                         _exit_stack = AsyncExitStack()
+                         await _exit_stack.__aenter__()
+                         
+                         try:
+                             ${mcpType === 'github' ? `
+                             # Validate GitHub token
+                             github_token = os.getenv("GITHUB_PERSONAL_ACCESS_TOKEN")
+                             if not github_token or not github_token.startswith("ghp_"):
+                                 raise ValueError("Invalid GitHub token. Must start with 'ghp_'")
+                             ` : ''}
+                             tools, _ = await MCPToolset.create_tools_from_server(
+                                 connection_params=StdioServerParameters(
+                                     command='${mcpCommand}',
+                                     args=[
+                                         ${mcpArgs.map(arg => `"${arg}"`).join(',\n                                         ')}${mcpType === 'github' ? ',\n                                         "--token",\n                                         github_token' : ''}
+                                     ],
+                                     env=${JSON.stringify(mcpEnvVars, null, 2)}
+                                 ),
+                                 async_exit_stack=_exit_stack
                              )
-                         )
-                         ${getMcpToolFiltering(mcpType)}
-                         return tools, exit_stack
+                             _tools = tools  # Store tools in global state
+                             return tools
+                         except Exception as e:
+                             logger.error(f"Failed to load MCP tools: {e}", exc_info=True)
+                             await _exit_stack.aclose()
+                             _exit_stack = None
+                             raise
                      
-                     class ${agentClassName}(LlmAgent):
-                         async def _run_async_impl(self, ctx):
-                             if not self.tools:
-                                 global _exit_stack
-                                 self.tools, _exit_stack = await get_tools_async()
-                             async for event in super()._run_async_impl(ctx):
-                                 yield event
+                     # Try to initialize tools at import time (eager loading)
+                     try:
+                         asyncio.run(get_tools_async())
+                         logger.info(f"Initialized {mcpType.toUpperCase()} MCP tools for the agent.")
+                     except Exception as e:
+                         logger.warning(f"Warning: Failed to initialize {mcpType.toUpperCase()} tools: {e}")
+                         logger.info("Agent will attempt to initialize tools when first used.")
                      
-                     # Create the agent
-                     root_agent = ${agentClassName}(
+                     # Create the root agent instance
+                     root_agent = LlmAgent(
                          model="gemini-2.0-flash",
                          name="${agentName}",
                          description="${agentDescription}",
                          instruction="""${agentInstruction}""",
-                         tools=[]
+                         tools=_tools or []  # Use empty list if tools not loaded yet
                      )
                      
                      async def main():
                          """Run the agent."""
-                         runner = Runner(
-                             app_name='${mcpType}_mcp_app',
-                             agent=root_agent,
-                             session_service=InMemorySessionService()
-                         )
-                         
+                         global _tools, _exit_stack
                          try:
-                             session = runner.session_service.create_session(
-                                 state={}, app_name='${mcpType}_mcp_app', user_id='${mcpType}_user'
-                             )
-                             async for event in runner.run_async(
-                                 session_id=session.id,
-                                 user_id=session.user_id,
-                                 new_message=types.Content(
-                                     role='user',
-                                     parts=[types.Part(text="${getDefaultPromptForMcpType(mcpType)}")]
-                                 )
-                             ):
-                                 print(event)
-                         finally:
-                             if hasattr(root_agent, '_exit_stack'):
-                                 await root_agent._exit_stack.aclose()
+                             if _tools is None:
+                                 logger.info("Loading MCP tools...")
+                                 _tools = await get_tools_async()
+                                 root_agent.tools = _tools
+                                 logger.info(f"Loaded MCP tools: {[tool.name for tool in _tools]}")
                      
-                     if __name__ == '__main__':
-                         asyncio.run(main())
+                             # Setup session service and runner
+                             session_service = InMemorySessionService()
+                             runner = Runner(agent=root_agent, session_service=session_service)
+                     
+                             logger.info("Starting agent runner. Press Ctrl+C to exit.")
+                             await runner.run_forever()
+                     
+                         except asyncio.CancelledError:
+                             logger.info("Agent runner cancelled, shutting down.")
+                         except Exception as e:
+                             logger.error(f"Unexpected error in main: {e}", exc_info=True)
+                         finally:
+                             if _exit_stack is not None:
+                                 await _exit_stack.aclose()
+                                 _exit_stack = None
+                             logger.info("Cleanup complete.")
+                     
+                     if __name__ == "__main__":
+                         try:
+                             asyncio.run(main())
+                         except KeyboardInterrupt:
+                             logger.info("Keyboard interrupt received, exiting.")
+                             sys.exit(0)
                      \`\`\`
                      
                      Make sure to include appropriate error handling, logging, and follow the best practices for Google ADK agents.
@@ -1334,7 +1342,13 @@ openai.api_key = os.environ.get("OPENAI_API_KEY", "")
 function getMcpDefaultArgs(mcpType: string): string[] {
   switch (mcpType.toLowerCase()) {
     case 'github':
-      return ['-y', '@modelcontextprotocol/server-github'];
+      return [
+        "-y",
+        "--node-options=--experimental-fetch",
+        "@modelcontextprotocol/server-github",
+        "--token",
+        "${process.env.GITHUB_PERSONAL_ACCESS_TOKEN || ''}"
+      ];
     case 'time':
       return ['mcp-server-time', '--local-timezone', Intl.DateTimeFormat().resolvedOptions().timeZone];
     case 'filesystem':
@@ -1351,10 +1365,7 @@ function getMcpDefaultEnvVars(mcpType: string): { [key: string]: string } {
   
   switch (mcpType.toLowerCase()) {
     case 'github':
-      return {
-        ...baseVars,
-        'GITHUB_PERSONAL_ACCESS_TOKEN': ''
-      };
+      return baseVars;  // No GITHUB_PERSONAL_ACCESS_TOKEN in env vars anymore
     case 'time':
       return {
         ...baseVars,
