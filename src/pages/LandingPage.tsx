@@ -30,7 +30,7 @@ const LandingPage = () => {
     <div className="h-screen flex flex-col bg-gradient-to-b from-background to-background/90 text-foreground">
       {/* Navigation */}
       <header className="h-16 flex-shrink-0 flex items-center justify-between px-4 md:px-8 bg-background/80 backdrop-blur-sm border-b border-white/10">
-        <h1 className="text-xl font-bold text-gradient">CogentX</h1>
+        <h1 className="text-xl font-bold premium-text-gradient">CogentX</h1>
         <div className="flex items-center gap-4">
           {user ? (
             <UserMenu />
@@ -50,7 +50,7 @@ const LandingPage = () => {
       {/* Main scrollable content */}
       <div className="flex-1 overflow-y-auto">
         {/* Hero Section */}
-        <section className="relative flex flex-col items-center pt-24 pb-32 px-4 md:px-6 lg:px-8">
+        <section className="relative flex flex-col items-center pt-24 pb-32 px-4 md:px-6 lg:px-8 animated-grid">
           <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_center,rgba(var(--accent-foreground),0.15),transparent_50%)]"></div>
           
           <motion.div 
@@ -59,7 +59,7 @@ const LandingPage = () => {
             transition={{ duration: 0.6 }}
             className="text-center max-w-4xl mx-auto"
           >
-            <h1 className="text-4xl md:text-6xl font-bold tracking-tight mb-6 bg-gradient-to-br from-white via-white/90 to-primary/70 bg-clip-text text-transparent">
+            <h1 className="text-4xl md:text-6xl font-bold tracking-tight mb-6 premium-text-gradient">
               Build AI Agents Visually
             </h1>
             <p className="text-xl md:text-2xl text-muted-foreground mb-10 max-w-2xl mx-auto">
@@ -98,7 +98,7 @@ const LandingPage = () => {
             transition={{ delay: 0.4, duration: 0.6 }}
             className="mt-16 w-full max-w-4xl mx-auto"
           >
-            <div className="relative glass-card p-5 rounded-xl overflow-hidden border border-white/10">
+            <div className="relative premium-glass p-5 rounded-xl overflow-hidden premium-shadow">
               <div className="absolute top-0 left-0 w-full h-10 bg-background/80 flex items-center px-4 border-b border-white/10">
                 <div className="flex gap-2">
                   <div className="w-3 h-3 rounded-full bg-red-500/70"></div>
@@ -133,7 +133,7 @@ agent = LlmAgent(
         <section className="py-20 px-4 md:px-6 lg:px-8">
           <div className="max-w-6xl mx-auto">
             <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4 text-gradient">Powerful Features</h2>
+              <h2 className="text-3xl md:text-4xl font-bold mb-4 premium-text-gradient">Powerful Features</h2>
               <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
                 Everything you need to build complex AI agents without writing a single line of code
               </p>
@@ -178,7 +178,7 @@ agent = LlmAgent(
                   whileInView={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1, duration: 0.5 }}
                   viewport={{ once: true }}
-                  className="glass-card p-6 rounded-xl border border-white/10 hover:border-primary/30 transition-all duration-300"
+                  className="premium-card p-6"
                 >
                   <div className="mb-4">{feature.icon}</div>
                   <h3 className="text-xl font-medium mb-2">{feature.title}</h3>
@@ -193,7 +193,7 @@ agent = LlmAgent(
         <section className="py-20 px-4 md:px-6 lg:px-8 bg-black/30">
           <div className="max-w-6xl mx-auto">
             <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4 text-gradient">Pricing Plans</h2>
+              <h2 className="text-3xl md:text-4xl font-bold mb-4 premium-text-gradient">Pricing Plans</h2>
               <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
                 Choose the plan that fits your agent development needs
               </p>
@@ -250,7 +250,7 @@ agent = LlmAgent(
                   whileInView={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1, duration: 0.5 }}
                   viewport={{ once: true }}
-                  className={`glass-card p-6 rounded-xl border ${plan.popular ? 'border-primary' : 'border-white/10'} relative`}
+                  className={`premium-card p-6 ${plan.popular ? 'border-primary' : ''} relative`}
                 >
                   {plan.popular && (
                     <div className="absolute -top-4 left-0 right-0 mx-auto w-32 bg-primary text-primary-foreground text-sm py-1 rounded-full text-center">
@@ -292,7 +292,7 @@ agent = LlmAgent(
             viewport={{ once: true }}
             className="max-w-4xl mx-auto text-center"
           >
-            <h2 className="text-3xl md:text-4xl font-bold mb-6 text-gradient">Ready to Build Your Agent?</h2>
+            <h2 className="text-3xl md:text-4xl font-bold mb-6 premium-text-gradient">Ready to Build Your Agent?</h2>
             <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto">
               Join thousands of developers building the next generation of AI assistants with our visual tools.
             </p>
@@ -310,7 +310,7 @@ agent = LlmAgent(
         <footer className="py-10 px-4 md:px-6 lg:px-8 border-t border-white/10">
           <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center">
             <div className="mb-6 md:mb-0">
-              <h2 className="text-2xl font-bold text-gradient">CogentX</h2>
+              <h2 className="text-2xl font-bold premium-text-gradient">CogentX</h2>
               <p className="text-muted-foreground">Build smart agents without code</p>
             </div>
             <div className="flex flex-wrap gap-8">
