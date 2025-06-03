@@ -5,9 +5,19 @@ import { BaseNodeData } from '@/components/nodes/BaseNode';
 const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
 const OPENROUTER_API_BASE = import.meta.env.VITE_OPENROUTER_API_BASE || 'https://openrouter.ai/api/v1';
 
+// Debug environment variables
+console.log('Environment check:', {
+  hasApiKey: !!OPENROUTER_API_KEY,
+  apiKeyLength: OPENROUTER_API_KEY?.length || 0,
+  apiKeyPrefix: OPENROUTER_API_KEY?.substring(0, 10) || 'none',
+  apiBase: OPENROUTER_API_BASE,
+  allEnvVars: Object.keys(import.meta.env).filter(key => key.includes('OPENROUTER'))
+});
+
 // Validate API key is present
 if (!OPENROUTER_API_KEY) {
   console.error('OpenRouter API key not found in environment variables. Please add VITE_OPENROUTER_API_KEY to your .env file.');
+  console.error('Available environment variables:', Object.keys(import.meta.env));
 }
 
 // Type definitions
@@ -64,12 +74,25 @@ const calculateNodePositions = (nodes: Node<BaseNodeData>[]) => {
 
 // Helper function to make OpenRouter API calls
 async function callOpenRouter(endpoint: string, body: OpenRouterRequestBody) {
+  // Check API key before making request
+  if (!OPENROUTER_API_KEY) {
+    throw new Error('OpenRouter API key is not configured. Please check your .env file and ensure VITE_OPENROUTER_API_KEY is set.');
+  }
+
   const headers = {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
     'HTTP-Referer': window.location.origin, // Required by OpenRouter
     'X-Title': 'Agent Flow Builder' // Optional but recommended
   };
+
+  console.log('Making OpenRouter API call:', {
+    endpoint,
+    url: `${OPENROUTER_API_BASE}${endpoint}`,
+    hasApiKey: !!OPENROUTER_API_KEY,
+    apiKeyPrefix: OPENROUTER_API_KEY?.substring(0, 10),
+    model: body.model
+  });
 
   try {
     const response = await fetch(`${OPENROUTER_API_BASE}${endpoint}`, {
@@ -78,28 +101,79 @@ async function callOpenRouter(endpoint: string, body: OpenRouterRequestBody) {
       body: JSON.stringify(body)
     });
 
+    console.log('OpenRouter API response:', {
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok
+    });
+
     if (!response.ok) {
       const errorText = await response.text();
       console.error('OpenRouter API Error:', {
         status: response.status,
         statusText: response.statusText,
-        error: errorText
+        error: errorText,
+        headers: Object.fromEntries(response.headers.entries())
       });
+
+      if (response.status === 401) {
+        throw new Error(`OpenRouter API authentication failed. Please check your API key. Error: ${errorText}`);
+      }
+
       throw new Error(`OpenRouter API error (${response.status}): ${errorText}`);
     }
 
-    return response.json();
+    const result = await response.json();
+    console.log('OpenRouter API success:', {
+      hasChoices: !!result.choices,
+      choicesLength: result.choices?.length || 0
+    });
+
+    return result;
   } catch (error) {
     console.error('Fetch error:', error);
     throw error;
   }
 }
 
+// Function to test OpenRouter API key validity
+export async function testOpenRouterApiKey(): Promise<{ valid: boolean; error?: string }> {
+  try {
+    if (!OPENROUTER_API_KEY) {
+      return { valid: false, error: 'API key not found in environment variables' };
+    }
+
+    // Test with a simple API call
+    const result = await callOpenRouter('/chat/completions', {
+      model: 'openai/gpt-3.5-turbo',
+      messages: [{ role: 'user', content: 'Hello' }],
+      max_tokens: 5
+    });
+
+    return { valid: !!result.choices };
+  } catch (error) {
+    return {
+      valid: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+}
+
+// Function to get API key status for debugging
+export function getApiKeyStatus() {
+  return {
+    hasApiKey: !!OPENROUTER_API_KEY,
+    apiKeyLength: OPENROUTER_API_KEY?.length || 0,
+    apiKeyPrefix: OPENROUTER_API_KEY?.substring(0, 10) || 'none',
+    apiBase: OPENROUTER_API_BASE
+  };
+}
+
 // Main function to generate a flow from a natural language prompt
 export async function generateFlow(prompt: string): Promise<{ nodes: Node<BaseNodeData>[]; edges: Edge[] }> {
   try {
     if (!OPENROUTER_API_KEY) {
-      throw new Error('OpenRouter API key is not configured. Please add VITE_OPENROUTER_API_KEY to your .env file.');
+      throw new Error('OpenRouter API key is not configured. Please check your .env file and restart the development server. Make sure VITE_OPENROUTER_API_KEY is set.');
     }
 
     // Determine if this is an MCP request based on the prompt

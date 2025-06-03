@@ -15,7 +15,7 @@ if not smithery_api_key:
 toolset = MCPToolset(
     connection_params=StdioServerParameters(
         command="npx",
-        args=["-y", "@smithery/cli@latest", "run", "@kazuph/mcp-taskmanager", "--key", smithery_api_key],
+        args=["-y", "@smithery/cli@latest", "run", "@Rudra-ravi/wikipedia-mcp", "--key", smithery_api_key],
         env={"NODE_OPTIONS": "--no-warnings --experimental-fetch", "SMITHERY_API_KEY": smithery_api_key}
     )
 )
@@ -24,19 +24,19 @@ toolset = MCPToolset(
 root_agent = LlmAgent(
     name="search_agent",
     model="gemini-2.0-flash",
-    description="An LlmAgent that manages user tasks using the MCP task manager integration.",
+    description="An LlmAgent that queries Wikipedia information using MCP integration.",
     instruction="You are an agent that can use Smithery MCP to perform operations. Use the Smithery MCP tool to interact with external systems and APIs.",
     tools=[toolset]
 )
 
 # Session service and runner setup - MUST INCLUDE app_name
 session_service = InMemorySessionService()
-runner = Runner(agent=root_agent, session_service=session_service, app_name="Task Manager Agent")
+runner = Runner(agent=root_agent, session_service=session_service, app_name="Wikipedia Info Agent")
 
 async def main():
     # Create a session
     user_id = "user"
-    session = session_service.create_session(state={}, app_name="Task Manager Agent", user_id=user_id)
+    session = session_service.create_session(state={}, app_name="Wikipedia Info Agent", user_id=user_id)
     session_id = session.id
 
     # Create an initial message (Content object)

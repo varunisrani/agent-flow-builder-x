@@ -1,16 +1,134 @@
 import { useState, useRef, useEffect } from 'react';
-import { PanelTop, XCircle, Loader2, AlertCircle } from 'lucide-react';
+import { PanelTop, XCircle, Loader2, AlertCircle, Store, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils.js';
-import { generateFlow } from '@/lib/openai.js';
-import { toast } from '@/hooks/use-toast.js';  
+import { generateFlow, getApiKeyStatus, testOpenRouterApiKey } from '@/lib/openai.js';
+import { toast } from '@/hooks/use-toast.js';
 import { Node, Edge } from '@xyflow/react';
 import { BaseNodeData } from './nodes/BaseNode.js';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 // Select component no longer needed as we only support Smithery MCP
 import { MCP_TYPES } from '@/lib/constants';
 import { MCPConfig } from '@/lib/codeGeneration';
+
+// OpenRouter API Key: Use environment variable (recommended for production)
+// Hardcoded OpenRouter API Key (FOR DEMONSTRATION - NOT RECOMMENDED FOR PRODUCTION)
+// const HARDCODED_OPENROUTER_API_KEY = "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";
+
+// MCP Server Marketplace data
+interface MCPServer {
+  id: string;
+  name: string;
+  package: string;
+  description: string;
+  url: string;
+  category: string;
+  features: string[];
+}
+
+const MCP_SERVERS: MCPServer[] = [
+  {
+    id: 'vibecoder',
+    name: 'VibeCoderMCP',
+    package: '@crazyrabbitLTC/mcp-vibecoder',
+    description: 'AI-powered code generation and development assistance with intelligent code suggestions and automated programming workflows.',
+    url: 'https://smithery.ai/server/@crazyrabbitLTC/mcp-vibecoder',
+    category: 'Development',
+    features: ['Code Generation', 'AI Assistance', 'Development Workflows']
+  },
+  {
+    id: 'biomcp',
+    name: 'BioMCP',
+    package: '@genomoncology/biomcp',
+    description: 'Bioinformatics and genomics data processing server for analyzing biological sequences, genetic data, and molecular information.',
+    url: 'https://smithery.ai/server/@genomoncology/biomcp',
+    category: 'Science',
+    features: ['Genomics', 'Bioinformatics', 'Data Analysis']
+  },
+  {
+    id: 'sequential-thinking',
+    name: 'Sequential Thinking Tools',
+    package: '@xinzhongyouhai/mcp-sequentialthinking-tools',
+    description: 'Advanced reasoning and sequential thinking tools for complex problem-solving and logical analysis workflows.',
+    url: 'https://smithery.ai/server/@xinzhongyouhai/mcp-sequentialthinking-tools',
+    category: 'AI/ML',
+    features: ['Reasoning', 'Problem Solving', 'Logic Analysis']
+  },
+  {
+    id: 'duckduckgo',
+    name: 'DuckDuckGo Search',
+    package: '@nickclyde/duckduckgo-mcp-server',
+    description: 'Privacy-focused web search capabilities using DuckDuckGo search engine for secure information retrieval.',
+    url: 'https://smithery.ai/server/@nickclyde/duckduckgo-mcp-server',
+    category: 'Search',
+    features: ['Web Search', 'Privacy-Focused', 'Information Retrieval']
+  },
+  {
+    id: 'wikipedia',
+    name: 'Wikipedia MCP',
+    package: '@Rudra-ravi/wikipedia-mcp',
+    description: 'Wikipedia integration for accessing and searching encyclopedia content, articles, and knowledge base information.',
+    url: 'https://smithery.ai/server/@Rudra-ravi/wikipedia-mcp',
+    category: 'Knowledge',
+    features: ['Wikipedia Search', 'Knowledge Base', 'Encyclopedia Access']
+  },
+  {
+    id: 'agentic-control',
+    name: 'Agentic Control Framework',
+    package: '@FutureAtoms/agentic-control-framework',
+    description: 'Advanced agent control and coordination framework for managing complex multi-agent systems and workflows.',
+    url: 'https://smithery.ai/server/@FutureAtoms/agentic-control-framework',
+    category: 'AI/ML',
+    features: ['Agent Control', 'Multi-Agent Systems', 'Workflow Management']
+  },
+  {
+    id: 'taskmanager',
+    name: 'Task Manager',
+    package: '@kazuph/mcp-taskmanager',
+    description: 'Comprehensive task management system for organizing, tracking, and managing projects and to-do lists.',
+    url: 'https://smithery.ai/server/@kazuph/mcp-taskmanager',
+    category: 'Productivity',
+    features: ['Task Management', 'Project Organization', 'To-Do Lists']
+  },
+  {
+    id: 'time-mcp',
+    name: 'Time MCP',
+    package: '@yokingma/time-mcp',
+    description: 'Time management and scheduling tools for handling dates, times, timezone conversions, and calendar operations.',
+    url: 'https://smithery.ai/server/@yokingma/time-mcp',
+    category: 'Productivity',
+    features: ['Time Management', 'Timezone Conversion', 'Calendar Operations']
+  },
+  {
+    id: 'context7',
+    name: 'Context7 MCP',
+    package: '@upstash/context7-mcp',
+    description: 'Advanced context management and data storage solutions for maintaining conversation context and data persistence.',
+    url: 'https://smithery.ai/server/@upstash/context7-mcp',
+    category: 'Data',
+    features: ['Context Management', 'Data Storage', 'Persistence']
+  },
+  {
+    id: 'yahoo-finance',
+    name: 'Yahoo Finance MCP',
+    package: '@hwangwoohyun-nav/yahoo-finance-mcp',
+    description: 'Financial data and market information access through Yahoo Finance API for stock prices, market analysis, and financial insights.',
+    url: 'https://smithery.ai/server/@hwangwoohyun-nav/yahoo-finance-mcp',
+    category: 'Finance',
+    features: ['Stock Data', 'Market Analysis', 'Financial Information']
+  },
+  {
+    id: 'geeknews',
+    name: 'GeekNews MCP',
+    package: '@the0807/geeknews-mcp-server',
+    description: 'Technology news aggregation and analysis server for staying updated with the latest tech trends and developments.',
+    url: 'https://smithery.ai/server/@the0807/geeknews-mcp-server',
+    category: 'News',
+    features: ['Tech News', 'News Aggregation', 'Trend Analysis']
+  }
+];
 
 interface NaturalLanguageInputProps {
   expanded: boolean;
@@ -33,10 +151,20 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
   // Smithery-specific state
   const [smitheryMcp, setSmitheryMcp] = useState('');
   const [smitheryApiKey, setSmitheryApiKey] = useState('');
-  
+
   // Environment variable state
   const [newEnvKey, setNewEnvKey] = useState('');
   const [newEnvValue, setNewEnvValue] = useState('');
+
+  // MCP Server Marketplace state
+  const [showMarketplace, setShowMarketplace] = useState(false);
+  const [selectedServer, setSelectedServer] = useState<MCPServer | null>(null);
+  const [searchFilter, setSearchFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('All');
+
+  // API key status state
+  const [apiKeyStatus, setApiKeyStatus] = useState<{ valid: boolean; error?: string } | null>(null);
+  const [checkingApiKey, setCheckingApiKey] = useState(false);
   
   // Initialize Smithery MCP configuration
   useEffect(() => {
@@ -82,6 +210,76 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
       return newVars;
     });
   };
+
+  // MCP Server Marketplace functions
+  const handleSelectServer = (server: MCPServer) => {
+    setSelectedServer(server);
+    setSmitheryMcp(server.package);
+
+    // Update args with the new MCP package name
+    const newArgs = [...mcpArgs];
+    const runIndex = newArgs.indexOf('run');
+    if (runIndex >= 0 && runIndex < newArgs.length - 1) {
+      newArgs[runIndex + 1] = server.package;
+    } else if (runIndex >= 0) {
+      newArgs.push(server.package);
+    }
+    setMcpArgs(newArgs);
+
+    // Close marketplace
+    setShowMarketplace(false);
+
+    toast({
+      title: "MCP Server Selected",
+      description: `Selected ${server.name} (${server.package})`,
+      duration: 3000,
+    });
+  };
+
+  // Filter servers based on search and category
+  const filteredServers = MCP_SERVERS.filter(server => {
+    const matchesSearch = server.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
+                         server.description.toLowerCase().includes(searchFilter.toLowerCase()) ||
+                         server.package.toLowerCase().includes(searchFilter.toLowerCase());
+    const matchesCategory = categoryFilter === 'All' || server.category === categoryFilter;
+    return matchesSearch && matchesCategory;
+  });
+
+  // Get unique categories
+  const categories = ['All', ...Array.from(new Set(MCP_SERVERS.map(server => server.category)))];
+
+  // Check API key status on component mount
+  useEffect(() => {
+    const checkApiKey = async () => {
+      setCheckingApiKey(true);
+      try {
+        // Add console log here to check the env variable
+        console.log('NaturalLanguageInput: VITE_OPENROUTER_API_KEY is set:', !!import.meta.env.VITE_OPENROUTER_API_KEY);
+        console.log('NaturalLanguageInput: VITE_OPENROUTER_API_KEY value (first 5 chars):', String(import.meta.env.VITE_OPENROUTER_API_KEY).substring(0, 5));
+
+        const status = await testOpenRouterApiKey();
+        setApiKeyStatus(status);
+
+        if (!status.valid) {
+          console.error('OpenRouter API key validation failed:', status.error);
+
+          // Show debug information
+          const debugInfo = getApiKeyStatus();
+          console.log('API Key Debug Info:', debugInfo);
+        }
+      } catch (error) {
+        console.error('Error checking API key:', error);
+        setApiKeyStatus({
+          valid: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      } finally {
+        setCheckingApiKey(false);
+      }
+    };
+
+    checkApiKey();
+  }, []);
   
   const handleSubmit = (e: React.FormEvent) => {
     console.log('NaturalLanguageInput: Form submitted');
@@ -331,6 +529,103 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
               </div>
               
               <div className="space-y-4 mt-2 p-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
+                {/* MCP Server Marketplace Section */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="flex items-center gap-2">
+                      <Store className="w-4 h-4" />
+                      MCP Server Marketplace
+                    </Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowMarketplace(!showMarketplace)}
+                      className="text-xs"
+                    >
+                      {showMarketplace ? 'Hide' : 'Browse'} Servers
+                    </Button>
+                  </div>
+
+                  {showMarketplace && (
+                    <div className="space-y-3 p-3 bg-gray-900/50 rounded-lg border border-gray-600/50">
+                      {/* Search and Filter */}
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Search servers..."
+                          value={searchFilter}
+                          onChange={(e) => setSearchFilter(e.target.value)}
+                          className="flex-1 text-xs"
+                        />
+                        <select
+                          value={categoryFilter}
+                          onChange={(e) => setCategoryFilter(e.target.value)}
+                          className="px-2 py-1 text-xs bg-background border border-border rounded-md"
+                        >
+                          {categories.map(category => (
+                            <option key={category} value={category}>{category}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Server Grid */}
+                      <div className="max-h-64 overflow-y-auto space-y-2">
+                        {filteredServers.map(server => (
+                          <div
+                            key={server.id}
+                            className={cn(
+                              "p-3 rounded-lg border cursor-pointer transition-all hover:border-primary/50",
+                              selectedServer?.id === server.id
+                                ? "border-primary bg-primary/10"
+                                : "border-gray-600 bg-gray-800/30"
+                            )}
+                            onClick={() => handleSelectServer(server)}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h4 className="text-sm font-medium text-white truncate">{server.name}</h4>
+                                  <span className="text-xs px-2 py-0.5 bg-primary/20 text-primary rounded-full">
+                                    {server.category}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-gray-300 mb-2 line-clamp-2">{server.description}</p>
+                                <div className="flex flex-wrap gap-1 mb-2">
+                                  {server.features.slice(0, 3).map(feature => (
+                                    <span key={feature} className="text-xs px-1.5 py-0.5 bg-gray-700 text-gray-300 rounded">
+                                      {feature}
+                                    </span>
+                                  ))}
+                                </div>
+                                <code className="text-xs text-blue-400 bg-gray-900/50 px-1.5 py-0.5 rounded">
+                                  {server.package}
+                                </code>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  window.open(server.url, '_blank');
+                                }}
+                                className="p-1 h-auto text-gray-400 hover:text-white"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                        {filteredServers.length === 0 && (
+                          <div className="text-center py-4 text-gray-400 text-sm">
+                            No servers found matching your criteria
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div className="space-y-2">
                   <Label>Smithery MCP Package</Label>
                   <Input
@@ -351,7 +646,7 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
                     placeholder="@username/mcp-name"
                   />
                   <div className="text-xs text-muted-foreground">
-                    Enter the Smithery MCP package name (e.g., @yokingma/time-mcp)
+                    Enter the Smithery MCP package name (e.g., @yokingma/time-mcp) or select from marketplace above
                   </div>
                 </div>
                 
@@ -426,11 +721,48 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
           )}
           
           <p className="text-xs text-muted-foreground mb-3">
-            {mcpEnabled 
+            {mcpEnabled
               ? `Describe your Google ADK agent that uses Smithery MCP functionality.`
               : "Describe your Google ADK agent. Include specific tools needed like Google Search if required."}
           </p>
-          
+
+          {/* API Key Status Indicator */}
+          {(checkingApiKey || apiKeyStatus) && (
+            <div className={cn(
+              "p-3 rounded-lg border text-sm mb-3",
+              checkingApiKey
+                ? "bg-blue-50 border-blue-200 text-blue-800"
+                : apiKeyStatus?.valid
+                  ? "bg-green-50 border-green-200 text-green-800"
+                  : "bg-red-50 border-red-200 text-red-800"
+            )}>
+              <div className="flex items-center gap-2">
+                {checkingApiKey ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Checking OpenRouter API key...</span>
+                  </>
+                ) : apiKeyStatus?.valid ? (
+                  <>
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span>OpenRouter API key is valid</span>
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle className="w-4 h-4" />
+                    <span>OpenRouter API key issue: {apiKeyStatus?.error}</span>
+                  </>
+                )}
+              </div>
+              {!checkingApiKey && !apiKeyStatus?.valid && (
+                <div className="mt-2 text-xs">
+                  <p>Please check your .env file and ensure VITE_OPENROUTER_API_KEY is set correctly.</p>
+                  <p>You may need to restart the development server after updating the .env file.</p>
+                </div>
+              )}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit}>
             <div className="relative">
               <textarea

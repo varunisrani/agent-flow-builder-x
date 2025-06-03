@@ -135,6 +135,7 @@ app.post('/api/execute', async (req, res) => {
       env: {
         GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
         ADK_API_KEY: process.env.ADK_API_KEY,
+        SMITHERY_API_KEY: process.env.SMITHERY_API_KEY,
         PYTHONUNBUFFERED: '1', // Ensure Python output is not buffered
         PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
       },
@@ -253,9 +254,10 @@ app.post('/api/execute', async (req, res) => {
     console.log('⚡ Starting agent with ADK web command...');
     
     try {
-      // Create a .env file with the Google ADK API key
+      // Create a .env file with the Google ADK API key and Smithery API key
       await sbx.files.write('workspace/.env', `GOOGLE_API_KEY=AIzaSyDKYSA-rs_GE5mCqA9b1yw8NFWH9fSn-Vc
 ADK_API_KEY=AIzaSyDKYSA-rs_GE5mCqA9b1yw8NFWH9fSn-Vc
+SMITHERY_API_KEY=10f9abbc-518d-44c0-845a-27aac70347b3
 `);
       
       // Create a Python script to check if port is open
@@ -296,9 +298,10 @@ set -e  # Exit on any error
 # Source virtual environment
 source ./venv/bin/activate
 
-# Set environment variables for Google ADK
+# Set environment variables for Google ADK and Smithery
 export GOOGLE_API_KEY=\${GOOGLE_API_KEY:-$GOOGLE_API_KEY}
 export ADK_API_KEY=\${ADK_API_KEY:-$ADK_API_KEY}
+export SMITHERY_API_KEY=\${SMITHERY_API_KEY:-$SMITHERY_API_KEY}
 
 # Change to workspace directory
 cd /home/user/workspace
@@ -357,12 +360,13 @@ fi`);
       // Execute the startup script with proper error handling
       console.log('⚡ Starting ADK web server...');
       try {
-        const adkWebResult = await sbx.commands.run('cd workspace && ./start_adk.sh', { 
+        const adkWebResult = await sbx.commands.run('cd workspace && ./start_adk.sh', {
           timeoutMs: 60000,  // Increase timeout to 60 seconds
           shell: true,
           env: {
             GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
-            ADK_API_KEY: process.env.ADK_API_KEY
+            ADK_API_KEY: process.env.ADK_API_KEY,
+            SMITHERY_API_KEY: process.env.SMITHERY_API_KEY
           }
         });
         

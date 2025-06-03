@@ -8,6 +8,9 @@ export interface MCPConfig {
   command: string;
   args: string[];
   envVars: { [key: string]: string };
+  smitheryMcp?: string;
+  smitheryApiKey?: string;
+  availableFunctions?: string;
 }
 
 // Generate MCP code for agents
@@ -22,19 +25,36 @@ export function generateMCPCode(nodes: Node<BaseNodeData>[], mcpConfig: MCPConfi
   const agentInstruction = agentNode.data.instruction || agentNode.data.prompt ||
     "You are a helpful assistant that can use MCP tools to assist users.";
 
-  // Extract MCP package name from args for better naming
-  const mcpPackage = mcpConfig.args.find(arg => arg.startsWith('@')) || '@smithery/mcp-example';
+  // Extract MCP package name from multiple sources
+  const mcpPackage = mcpConfig.smitheryMcp ||
+                     mcpConfig.args.find(arg => arg.startsWith('@')) ||
+                     '@smithery/mcp-example';
   const packageName = mcpPackage.split('/').pop() || 'mcp-example';
 
   console.log('Generating MCP code with config:', {
     command: mcpConfig.command,
     args: mcpConfig.args,
     envVars: mcpConfig.envVars,
-    mcpPackage
+    smitheryMcp: mcpConfig.smitheryMcp,
+    smitheryApiKey: mcpConfig.smitheryApiKey,
+    extractedMcpPackage: mcpPackage,
+    packageName
   });
 
-  // Ensure CLI arguments include --key parameter with smithery_api_key
+  // Ensure CLI arguments include the correct MCP package and --key parameter
   let fixedArgs = [...mcpConfig.args];
+
+  // Update the MCP package in args if it's different from what's in smitheryMcp
+  if (mcpConfig.smitheryMcp) {
+    const runIndex = fixedArgs.indexOf('run');
+    if (runIndex !== -1 && runIndex + 1 < fixedArgs.length) {
+      // Replace the package after 'run' with the correct one
+      fixedArgs[runIndex + 1] = mcpConfig.smitheryMcp;
+    } else if (runIndex !== -1) {
+      // Add the package after 'run' if it doesn't exist
+      fixedArgs.splice(runIndex + 1, 0, mcpConfig.smitheryMcp);
+    }
+  }
 
   // If --key is not already in args, add it
   if (!fixedArgs.includes('--key')) {
@@ -158,13 +178,15 @@ export function isMcpCode(code: string): boolean {
 }
 
 // Generate fallback MCP code
-export function generateFallbackMcpCode(): string {
+export function generateFallbackMcpCode(mcpPackage?: string): string {
+  const packageToUse = mcpPackage || '@smithery/mcp-example';
   const defaultConfig: MCPConfig = {
     enabled: true,
     type: 'smithery',
     command: 'npx',
-    args: ['-y', '@smithery/cli@latest', 'run', '@smithery/mcp-example', '--key', 'smithery_api_key'],
-    envVars: { 'NODE_OPTIONS': '--no-warnings --experimental-fetch', 'SMITHERY_API_KEY': 'smithery_api_key' }
+    args: ['-y', '@smithery/cli@latest', 'run', packageToUse, '--key', 'smithery_api_key'],
+    envVars: { 'NODE_OPTIONS': '--no-warnings --experimental-fetch', 'SMITHERY_API_KEY': 'smithery_api_key' },
+    smitheryMcp: packageToUse
   };
 
   return generateMCPCode([], defaultConfig);
@@ -173,19 +195,26 @@ export function generateFallbackMcpCode(): string {
 // Generate ADK code (compatibility function)
 export function generateADKCode(nodes: Node<BaseNodeData>[], _edges: Edge[]): string {
   // Check if there are MCP nodes to determine if we should use MCP
-  const hasMcpNodes = nodes.some(node =>
+  const mcpNodes = nodes.filter(node =>
     node.data.type === 'mcp-client' ||
     node.data.type === 'mcp-server' ||
     node.data.type === 'mcp-tool'
   );
 
-  if (hasMcpNodes) {
+  if (mcpNodes.length > 0) {
+    // Extract MCP package from node data
+    const mcpNode = mcpNodes[0];
+    const mcpPackage = (mcpNode.data.smitheryMcp as string) ||
+                      (mcpNode.data.mcpToolId as string) ||
+                      '@smithery/mcp-example';
+
     const defaultConfig: MCPConfig = {
       enabled: true,
       type: 'smithery',
       command: 'npx',
-      args: ['-y', '@smithery/cli@latest', 'run', '@smithery/mcp-example', '--key', 'smithery_api_key'],
-      envVars: { 'NODE_OPTIONS': '--no-warnings --experimental-fetch', 'SMITHERY_API_KEY': 'smithery_api_key' }
+      args: ['-y', '@smithery/cli@latest', 'run', mcpPackage, '--key', 'smithery_api_key'],
+      envVars: { 'NODE_OPTIONS': '--no-warnings --experimental-fetch', 'SMITHERY_API_KEY': 'smithery_api_key' },
+      smitheryMcp: mcpPackage
     };
     return generateMCPCode(nodes, defaultConfig);
   }

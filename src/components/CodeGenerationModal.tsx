@@ -18,7 +18,9 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { generateMCPCode, MCPConfig, generateFallbackMcpCode, isMcpCode, generateVerifiedCode } from '@/lib/codeGeneration';
 import { type VerificationProgress, type VerificationResult } from '@/lib/codeVerification';
 
-// OpenRouter configuration
+// OpenRouter configuration - Use environment variable for API key
+// Hardcoded OpenRouter API Key (FOR DEMONSTRATION - NOT RECOMMENDED FOR PRODUCTION)
+// const OPENROUTER_API_KEY = "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";
 const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
 const OPENROUTER_API_BASE = import.meta.env.VITE_OPENROUTER_API_BASE || 'https://openrouter.ai/api/v1';
 
@@ -649,8 +651,6 @@ function createDefaultMcpConfig(): MCPConfig {
   };
 }
 
-
-
 export function CodeGenerationModal({
   open,
   onOpenChange,
@@ -1043,4 +1043,3 @@ __all__ = ["root_agent"]`;
     </Dialog>
   );
 }
-
