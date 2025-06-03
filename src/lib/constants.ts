@@ -5,39 +5,21 @@ interface MCPTypeConfig {
   defaultArgs: string[];
   defaultEnvVars: {
     'NODE_OPTIONS': string;
-    'GITHUB_PERSONAL_ACCESS_TOKEN'?: string;
-    'LOCAL_TIMEZONE'?: string;
+    'SMITHERY_API_KEY'?: string;
   };
+  smitheryMcp?: string;
 }
 
 export const MCP_TYPES: MCPTypeConfig[] = [
   { 
-    id: 'github', 
-    name: 'GitHub MCP', 
+    id: 'smithery', 
+    name: 'Smithery MCP', 
     command: 'npx', 
-    defaultArgs: ['-y', '@modelcontextprotocol/server-github'],
+    defaultArgs: ['-y', '@smithery/cli@latest', 'run', ''],
     defaultEnvVars: {
       'NODE_OPTIONS': '--no-warnings --experimental-fetch',
-      'GITHUB_PERSONAL_ACCESS_TOKEN': ''
-    }
-  },
-  { 
-    id: 'time', 
-    name: 'Time MCP', 
-    command: 'uvx', 
-    defaultArgs: ['mcp-server-time'],
-    defaultEnvVars: {
-      'NODE_OPTIONS': '--no-warnings --experimental-fetch',
-      'LOCAL_TIMEZONE': Intl.DateTimeFormat().resolvedOptions().timeZone
-    }
-  },
-  { 
-    id: 'filesystem', 
-    name: 'Filesystem MCP', 
-    command: 'npx', 
-    defaultArgs: ['-y', '@modelcontextprotocol/server-filesystem'],
-    defaultEnvVars: {
-      'NODE_OPTIONS': '--no-warnings --experimental-fetch'
-    }
-  },
+      'SMITHERY_API_KEY': ''
+    },
+    smitheryMcp: ''
+  }
 ]; 

@@ -1,8 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import type {
-  Node,
-  Edge
-} from '@xyflow/react';
+import React, { useState, useEffect } from 'react';
+import type { Node, Edge } from '@xyflow/react';
 import {
   Dialog,
   DialogContent,
@@ -14,30 +11,16 @@ import {
 import { Button } from '@/components/ui/button.js';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.js';
 import { BaseNodeData } from './nodes/BaseNode.js';
-import { Copy, AlertCircle, Loader2, Play, HelpCircle } from 'lucide-react';
+import { Copy, AlertCircle, Loader2, Play } from 'lucide-react';
 import { toast } from '@/hooks/use-toast.js';
-import { generateCode } from '@/lib/codeGenerator.js';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { generateMCPCode, generateADKCode, MCPConfig, isMcpCode, generateFallbackMcpCode } from '@/lib/codeGeneration';
+import { generateMCPCode, MCPConfig, generateFallbackMcpCode, isMcpCode, generateVerifiedCode } from '@/lib/codeGeneration';
+import { type VerificationProgress, type VerificationResult } from '@/lib/codeVerification';
 
-// OpenRouter configuration from environment variables
+// OpenRouter configuration
 const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
 const OPENROUTER_API_BASE = import.meta.env.VITE_OPENROUTER_API_BASE || 'https://openrouter.ai/api/v1';
-
-// Validate API key is present
-if (!OPENROUTER_API_KEY) {
-  console.error('OpenRouter API key not found in environment variables. Please add VITE_OPENROUTER_API_KEY to your .env file.');
-}
-
-// Define proper type for newOpen parameter
-function useModalState(initialState = false): [boolean, (newOpen: boolean) => void] {
-  const [state, setState] = useState(initialState);
-  const toggle = useCallback((newOpen: boolean) => {
-    setState(newOpen);
-  }, []);
-  return [state, toggle];
-}
 
 // Define proper type for code parameter
 const CodeHighlighter: React.FC<{ code: string }> = ({ code }) => {
@@ -77,7 +60,32 @@ const extractUrls = (text: string): string[] => {
   });
 };
 
-// Add new component for sandbox output display
+// Component for verification progress display
+const VerificationProgress: React.FC<{ progress: VerificationProgress | null }> = ({ progress }) => {
+  if (!progress) return null;
+
+  return (
+    <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+      <div className="flex items-center gap-2 mb-2">
+        <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+        <span className="text-sm font-medium text-blue-800">{progress.message}</span>
+      </div>
+      <div className="w-full bg-blue-200 rounded-full h-2">
+        <div
+          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+          style={{ width: `${progress.progress}%` }}
+        ></div>
+      </div>
+      {progress.errors && progress.errors.length > 0 && (
+        <div className="mt-2 text-xs text-blue-700">
+          Found and fixed {progress.errors.length} error(s)
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Component for sandbox output display
 const SandboxOutput: React.FC<{ output: string }> = ({ output }) => {
   if (!output) return null;
   
@@ -122,12 +130,11 @@ interface CodeGenerationModalProps {
   onOpenChange: (open: boolean) => void;
   nodes: Node<BaseNodeData>[];
   edges: Edge[];
-  mcpConfig?: MCPConfig;  // Add MCP configuration
+  mcpConfig?: MCPConfig;
 }
 
-// Add a helper function to get a unique key for the flow
+// Helper function to get a unique key for the flow
 function getFlowKey(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
-  // Create a hash of the flow structure
   const flowData = {
     nodes: nodes.map(n => ({ id: n.id, type: n.data.type, label: n.data.label })),
     edges: edges.map(e => ({ source: e.source, target: e.target }))
@@ -135,7 +142,7 @@ function getFlowKey(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
   return btoa(JSON.stringify(flowData));
 }
 
-// Add a helper function to get/set code from localStorage
+// Helper functions for localStorage
 function getStoredCode(flowKey: string, framework: string): string | null {
   const key = `flow_code_${flowKey}_${framework}`;
   return localStorage.getItem(key);
@@ -148,92 +155,32 @@ function storeCode(flowKey: string, framework: string, code: string): void {
 
 // Helper function to clean generated code
 function cleanGeneratedCode(code: string, forceMcp: boolean = false): string {
-  // Remove any markdown code block indicators
-  code = code.replace(/```python\n/g, '');
-  code = code.replace(/```\n?/g, '');
-  code = code.trim();
+  code = code.replace(/```python\n/g, '').replace(/```\n?/g, '').trim();
 
-  // If MCP is forced but code doesn't look like MCP code, use the fallback
+  // If MCP is forced and code doesn't contain MCP indicators, generate MCP code
   if (forceMcp && !isMcpCode(code)) {
-    console.log('Code does not contain MCP indicators but MCP is required, using fallback');
+    console.log('Force MCP enabled but code is not MCP, generating fallback MCP code');
     return generateFallbackMcpCode();
   }
 
-  // If code doesn't have the basic structure, use the template
-  if (!code.includes('from google.adk.agents')) {
-    code = generateDefaultSearchAgentCode();
+  // Only fallback to search agent if MCP is not forced and no ADK imports found
+  if (!forceMcp && !code.includes('from google.adk.agents')) {
+    console.log('No ADK imports found and MCP not forced, generating search agent');
+    return generateDefaultSearchAgentCode();
   }
 
   return code;
 }
-
-// Helper function to generate code based on framework
-const getLocallyGeneratedCode = (nodes: Node<BaseNodeData>[], edges: Edge[], framework: string): string => {
-  const agentNode = nodes.find(n => n.data.type === 'agent');
-  if (!agentNode) {
-    return generateDefaultSearchAgentCode();
-  }
-
-  // Extract all node data - prioritize node-specific data
-  const agentName = agentNode.data.label?.toLowerCase().replace(/\s+/g, '_') || 'search_agent';
-  const agentPrompt = agentNode.data.prompt || agentNode.data.instruction || agentNode.data.description;
-  const agentDescription = agentNode.data.description || 
-    (agentPrompt ? `Agent that ${agentPrompt.split('\n')[0].toLowerCase()}` : 'Search agent');
-  const agentInstruction = agentNode.data.instruction || agentPrompt || 'Use Google Search to find accurate and up-to-date information. Always cite your sources and provide context from search results.';
-
-  switch (framework) {
-    case 'adk':
-      return `from google.adk.agents import Agent
-from google.adk.tools import google_search
-
-root_agent = Agent(
-    model="gemini-2.0-flash",
-    name="${agentName}",
-    description="${agentDescription}",
-    instruction="${agentInstruction}",
-    tools=[google_search]
-)
-
-__all__ = ["root_agent"]`;
-    case 'vertex':
-      return `from google.cloud import aiplatform
-
-# Initialize Vertex AI
-aiplatform.init(project="your-project-id")
-
-agent = aiplatform.Agent.create(
-    display_name="${agentName}",
-    description="${agentDescription}",
-    tools=["google_search"]
-)`;
-    case 'custom':
-      return `import openai
-from typing import Dict, Any
-
-class Agent:
-    def __init__(self):
-        self.name = "${agentName}"
-        self.description = "${agentDescription}"
-        self.instruction = "${agentInstruction}"
-        
-    def search(self, query: str) -> Dict[str, Any]:
-        # Implement search functionality
-        pass
-        
-agent = Agent()`;
-    default:
-      return generateDefaultSearchAgentCode();
-  }
-};
 
 // Helper function to generate default search agent code
 const generateDefaultSearchAgentCode = (): string => {
   return `from google.adk.agents import Agent
 from google.adk.tools import google_search
 
+# FIXED: Use correct parameter order for Agent constructor
 root_agent = Agent(
-    model="gemini-2.0-flash",
     name="search_agent",
+    model="gemini-2.0-flash",
     description="An agent that uses Google Search to find and provide information.",
     instruction="Use Google Search to find accurate and up-to-date information. Always cite your sources and provide context from search results.",
     tools=[google_search]
@@ -242,201 +189,474 @@ root_agent = Agent(
 __all__ = ["root_agent"]`;
 };
 
-// Add a helper function to format the code for display
+// Helper function to format the code for display
 function formatCodeForDisplay(code: string): string {
-  // Remove any markdown code block indicators if they exist
-  code = code.replace(/```python\n/g, '');
-  code = code.replace(/```\n?/g, '');
-  
-  // Remove any leading/trailing whitespace
-  code = code.trim();
-  
-  return code;
+  return code.replace(/```python\n/g, '').replace(/```\n?/g, '').trim();
 }
 
 // Helper function to make OpenRouter API calls
-async function callOpenRouter(endpoint: string, body: {
-  model: string;
-  messages: Array<{
-    role: string;
-    content: string;
-  }>;
-  temperature?: number;
-  max_tokens?: number;
-  stop?: string[];
-}) {
-  const headers = {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-    'HTTP-Referer': window.location.origin, // Required by OpenRouter
-    'X-Title': 'Agent Flow Builder' // Optional but recommended
-  };
+async function callOpenRouter(messages: Array<{ role: string; content: string }>) {
+  if (!OPENROUTER_API_KEY) {
+    throw new Error('OpenRouter API key not configured');
+  }
 
-  try {
-    const response = await fetch(`${OPENROUTER_API_BASE}${endpoint}`, {
+  const response = await fetch(`${OPENROUTER_API_BASE}/chat/completions`, {
       method: 'POST',
-      headers,
-      body: JSON.stringify(body)
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+      'HTTP-Referer': window.location.origin,
+      'X-Title': 'Agent Flow Builder'
+    },
+    body: JSON.stringify({
+      model: 'openai/gpt-4o-mini',
+      messages,
+      temperature: 0.2,
+      max_tokens: 3000
+    })
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('OpenRouter API Error:', {
-        status: response.status,
-        statusText: response.statusText,
-        error: errorText
-      });
       throw new Error(`OpenRouter API error (${response.status}): ${errorText}`);
     }
 
-    return response.json();
-  } catch (error) {
-    console.error('Fetch error:', error);
-    throw error;
-  }
+  const result = await response.json();
+  return result.choices[0]?.message?.content || '';
 }
 
-// Helper function to customize prompts based on user requirements
-function customizePrompts(userPrompt: string, nodeType: string): string {
-  // Extract key information from user prompt
-  const isSearchRelated = /search|find|look up|query/i.test(userPrompt);
-  const isAnalysisRelated = /analyze|evaluate|assess|review/i.test(userPrompt);
-  const isFactChecking = /fact|verify|validate|check/i.test(userPrompt);
-  
-  switch (nodeType) {
-    case 'agent':
-      if (isSearchRelated) {
-        return `Act as an expert researcher using Google Search to find accurate and comprehensive information. ${userPrompt}
-Focus on:
-- Finding authoritative sources
-- Cross-referencing information
-- Providing context and citations
-- Summarizing findings clearly`;
-      } else if (isAnalysisRelated) {
-        return `Act as an analytical expert using Google Search to evaluate and analyze information. ${userPrompt}
-Focus on:
-- Deep analysis of search results
-- Comparing different perspectives
-- Identifying trends and patterns
-- Drawing well-supported conclusions`;
-      } else if (isFactChecking) {
-        return `Act as a fact-checking expert using Google Search to verify information. ${userPrompt}
-Focus on:
-- Verifying claims against reliable sources
-- Identifying primary sources
-- Checking multiple sources
-- Providing evidence-based conclusions`;
+// Function to extract MCP configuration from nodes
+function extractMcpConfigFromNodes(nodes: Node<BaseNodeData>[]): MCPConfig {
+  // Find MCP-related nodes
+  const mcpNodes = nodes.filter(n =>
+    n.data.type === 'mcp-client' ||
+    n.data.type === 'mcp-server' ||
+    n.data.type === 'mcp-tool'
+  );
+
+  if (mcpNodes.length === 0) {
+    return createDefaultMcpConfig();
+  }
+
+  // Extract configuration from the first MCP node
+  const mcpNode = mcpNodes[0];
+  const nodeData = mcpNode.data;
+
+  // Extract MCP command and args
+  const mcpCommand = (nodeData.mcpCommand as string) || 'npx';
+
+  // Parse MCP args - could be string or array
+  let mcpArgs: string[];
+  if (nodeData.mcpArgs) {
+    if (typeof nodeData.mcpArgs === 'string') {
+      mcpArgs = nodeData.mcpArgs.split(' ').filter(Boolean);
+    } else if (Array.isArray(nodeData.mcpArgs)) {
+      mcpArgs = nodeData.mcpArgs;
+    } else {
+      mcpArgs = ['-y', '@smithery/cli@latest', 'run', '@smithery/mcp-example', '--key', 'smithery_api_key'];
+    }
+  } else {
+    mcpArgs = ['-y', '@smithery/cli@latest', 'run', '@smithery/mcp-example', '--key', 'smithery_api_key'];
+  }
+
+  // Parse environment variables
+  let envVars: { [key: string]: string };
+  if (nodeData.mcpEnvVars) {
+    if (typeof nodeData.mcpEnvVars === 'string') {
+      try {
+        envVars = JSON.parse(nodeData.mcpEnvVars);
+      } catch {
+        envVars = { 'NODE_OPTIONS': '--no-warnings --experimental-fetch' };
       }
-      return `Act as an expert assistant using Google Search to help with: ${userPrompt}
-Focus on:
-- Finding relevant information
-- Providing accurate answers
-- Citing sources
-- Explaining context`;
-      
-    case 'google_search':
-      if (isSearchRelated) {
-        return `Perform targeted searches to find specific information about: ${userPrompt}
-Search strategy:
-- Use precise search terms
-- Focus on authoritative sources
-- Look for recent information
-- Cross-reference findings`;
-      } else if (isAnalysisRelated) {
-        return `Conduct comprehensive searches to gather data for analysis about: ${userPrompt}
-Search strategy:
-- Look for data-rich sources
-- Find comparative information
-- Seek expert opinions
-- Gather diverse perspectives`;
-      } else if (isFactChecking) {
-        return `Execute focused searches to verify facts related to: ${userPrompt}
-Search strategy:
-- Prioritize primary sources
-- Check official documentation
-- Find independent verification
-- Look for fact-checking resources`;
+    } else if (typeof nodeData.mcpEnvVars === 'object') {
+      envVars = nodeData.mcpEnvVars as { [key: string]: string };
+    } else {
+      envVars = { 'NODE_OPTIONS': '--no-warnings --experimental-fetch' };
+    }
+  } else {
+    envVars = { 'NODE_OPTIONS': '--no-warnings --experimental-fetch' };
+  }
+
+  // Extract MCP tool ID or package name - prioritize smitheryMcp over mcpToolId
+  const smitheryMcp = (nodeData.smitheryMcp as string) || '';
+  const mcpToolId = (nodeData.mcpToolId as string) || '';
+  const mcpPackage = smitheryMcp || mcpToolId || '@smithery/mcp-example';
+
+  // Extract Smithery API key
+  const smitheryApiKey = (nodeData.smitheryApiKey as string) || '';
+
+  // Update args to use the correct package name and API key
+  if (mcpArgs.includes('@smithery/mcp-example') && mcpPackage !== '@smithery/mcp-example') {
+    mcpArgs = mcpArgs.map(arg => arg === '@smithery/mcp-example' ? mcpPackage : arg);
+  }
+
+  // Ensure --key parameter is included in MCP args
+  if (!mcpArgs.includes('--key')) {
+    mcpArgs.push('--key', 'smithery_api_key');
+  }
+
+  // Fix CLI arguments to avoid "too many arguments" error
+  // Remove duplicate --key parameters and ensure clean args
+  const cleanedArgs: string[] = [];
+  let skipNext = false;
+  for (let i = 0; i < mcpArgs.length; i++) {
+    if (skipNext) {
+      skipNext = false;
+      continue;
+    }
+    if (mcpArgs[i] === '--key') {
+      // Skip duplicate --key entries
+      if (cleanedArgs.includes('--key')) {
+        skipNext = true; // Skip the next argument (the key value)
+        continue;
       }
-      return `Perform intelligent searches to address: ${userPrompt}
-Search strategy:
-- Find relevant information
-- Use reliable sources
-- Get recent data
-- Verify findings`;
-      
-    default:
-      return userPrompt;
+    }
+    cleanedArgs.push(mcpArgs[i]);
   }
-}
+  mcpArgs = cleanedArgs;
 
-// Function to generate code with OpenAI
-async function generateCodeWithOpenAI(
-  nodes: Node<BaseNodeData>[], 
-  edges: Edge[], 
-  mcpEnabled: boolean,
-  mcpConfig?: MCPConfig
-): Promise<string> {
-  // If MCP is enabled and configuration is provided, generate MCP code
-  if (mcpEnabled) {
-    // Ensure we have a valid mcpConfig, create one if not provided
-    const validConfig = mcpConfig || createDefaultMcpConfig(nodes);
-    return generateMCPCode(nodes, edges, validConfig);
+  // Ensure API key is in args if provided
+  if (smitheryApiKey && !mcpArgs.includes(smitheryApiKey)) {
+    // Replace 'smithery_api_key' placeholder with actual key
+    mcpArgs = mcpArgs.map(arg => arg === 'smithery_api_key' ? smitheryApiKey : arg);
   }
-  
-  // Otherwise generate standard ADK code with proper tool detection
-  return generateADKCode(nodes, edges);
-}
 
-// Helper function to create a default MCP config from nodes if possible
-function createDefaultMcpConfig(nodes: Node<BaseNodeData>[]): MCPConfig {
-  // Check for MCP nodes to determine type
-  const mcpToolNodes = nodes.filter(n => n.data.type === 'mcp-tool');
-  const mcpClientNodes = nodes.filter(n => n.data.type === 'mcp-client');
-  
-  // Determine MCP type from nodes
-  let mcpType = 'github'; // Default type
-  if (mcpToolNodes.length > 0 && mcpToolNodes[0].data.mcpToolId) {
-    mcpType = mcpToolNodes[0].data.mcpToolId as string;
-  } else if (mcpClientNodes.length > 0 && mcpClientNodes[0].data.mcpType) {
-    mcpType = mcpClientNodes[0].data.mcpType as string;
-  }
-  
-  // Determine command and args
-  const command = mcpType === 'time' ? 'uvx' : 'npx';
-  const args = getMcpDefaultArgs(mcpType);
-  
-  // Create default env vars based on type
-  const envVars = getMcpDefaultEnvVars(mcpType);
-  
-  // Return the config
+  console.log('Extracted MCP config from nodes:', {
+    command: mcpCommand,
+    args: mcpArgs,
+    envVars,
+    mcpPackage,
+    mcpToolId,
+    smitheryMcp,
+    smitheryApiKey: smitheryApiKey ? '***' : 'not provided'
+  });
+
   return {
     enabled: true,
-    type: mcpType,
-    command,
-    args,
+    type: 'smithery',
+    command: mcpCommand,
+    args: mcpArgs,
     envVars
   };
 }
 
-// Add a Tooltip component
-const Tooltip = ({ message, children }: { message: string, children: React.ReactNode }) => {
-  return (
-    <div className="relative flex group">
-      {children}
-      <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 w-64 z-50 pointer-events-none">
-        {message}
-        <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 rotate-45 w-2 h-2 bg-gray-800"></div>
-      </div>
-    </div>
+// Function to generate code with OpenAI/OpenRouter based on node data
+async function generateCodeWithOpenAI(
+  nodes: Node<BaseNodeData>[], 
+  mcpEnabled: boolean,
+  mcpConfig?: MCPConfig
+): Promise<string> {
+  // Extract actual MCP configuration from nodes if MCP is enabled
+  const actualMcpConfig = mcpEnabled ?
+    (mcpConfig || extractMcpConfigFromNodes(nodes)) :
+    createDefaultMcpConfig();
+
+  console.log('Using MCP config for generation:', actualMcpConfig);
+
+  // Prepare node data for the AI prompt including MCP-specific data
+  const nodeData = nodes.map(node => ({
+    id: node.id,
+    type: node.data.type,
+    label: node.data.label,
+    description: node.data.description || '',
+    instruction: node.data.instruction || '',
+    prompt: node.data.prompt || '',
+    modelType: node.data.modelType || '',
+    mcpCommand: node.data.mcpCommand || '',
+    mcpArgs: node.data.mcpArgs || '',
+    mcpEnvVars: node.data.mcpEnvVars || '',
+    mcpToolId: node.data.mcpToolId || '',
+    smitheryMcp: node.data.smitheryMcp || '',
+    smitheryApiKey: node.data.smitheryApiKey ? '***HIDDEN***' : '',
+    mcpType: node.data.mcpType || '',
+    position: node.position
+  }));
+
+  // Find agent nodes to get main configuration
+  const agentNodes = nodes.filter(n => n.data.type === 'agent');
+  const mcpNodes = nodes.filter(n =>
+    n.data.type === 'mcp-client' ||
+    n.data.type === 'mcp-server' ||
+    n.data.type === 'mcp-tool'
   );
-};
+  console.log('MCP nodes found:', mcpNodes.length);
+
+  // Create system prompt based on whether MCP is enabled
+  const systemPrompt = mcpEnabled ?
+    `You are an expert Python developer specializing in Google ADK (Agent Development Kit) with MCP (Model Context Protocol) integration using Smithery.
+
+    CRITICAL: Generate MCP-enabled agent code, NOT Google Search code.
+
+    ABSOLUTELY FORBIDDEN:
+    - NEVER use "from google_adk import" (this doesn't exist)
+    - NEVER use "from mcp_toolset import" (this doesn't exist)
+    - NEVER use "from llm_agent import" (this doesn't exist)
+    - NEVER create custom classes like "class DocQueryAgent(Agent)" or "class TimeManagerAgent(LlmAgent)"
+    - NEVER use non-existent classes like MCPClient, MCPTool, Model
+    - NEVER use StdioServerParameters(agent=...) (wrong usage)
+    - NEVER import sys for MCP agents
+
+    MANDATORY CORRECT STRUCTURE:
+    - MUST use "from google.adk.agents import LlmAgent"
+    - MUST create root_agent = LlmAgent(...) directly (no custom classes)
+    - MUST use MCPToolset with StdioServerParameters for Smithery MCP integration
+    - MUST include Runner and InMemorySessionService
+    - MUST use proper async pattern with run_async (NOT run_forever)
+    - MUST include SMITHERY_API_KEY environment variable handling
+
+    CRITICAL ERROR PREVENTION (LlmAgent Validation Errors):
+    1. LlmAgent constructor MUST use these exact parameter names in this order:
+       - name (string) - SIMPLE, non-empty string like "search_agent" (NOT complex/long names)
+       - model (string) - ALWAYS "gemini-2.0-flash" (NEVER None or empty)
+       - description (string) - CONCISE, 10-100 chars like "Agent that uses Gemini 2.0 model and Smithery MCP tool"
+       - instruction (string) - REASONABLE length, NOT "instructions" (misspelling)
+       - tools (list) - MUST be list [toolset] (NOT "toolset=" or None)
+    2. Runner constructor MUST include app_name parameter: Runner(agent=root_agent, session_service=session_service, app_name="search_agent")
+    3. SYNCHRONIZE app_name: Use SAME app_name in Runner and session_service.create_session() calls
+    4. NEVER pass session_service to LlmAgent constructor
+    5. ALWAYS include SMITHERY_API_KEY validation check after os.getenv()
+    6. MCP args MUST include --key parameter: ["--key", smithery_api_key]
+    7. Environment variables MUST include SMITHERY_API_KEY
+    8. NEVER write "tools=tools=[toolset]" - use only "tools=[toolset]" (no duplicate tools=)
+    9. Use run_async() NOT run_forever() with proper async pattern
+    10. Include required imports: from google.genai import types, import asyncio
+
+    EXACT REQUIRED IMPORTS:
+    - from google.adk.agents import LlmAgent
+    - from google.adk.runners import Runner
+    - from google.adk.sessions import InMemorySessionService
+    - from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
+    - from google.genai import types
+    - import asyncio
+    - import os
+
+    EXACT REQUIRED PATTERN:
+    1. Import statements (as above)
+    2. Environment variable setup (smithery_api_key = os.getenv("SMITHERY_API_KEY"))
+    3. MCPToolset configuration with StdioServerParameters
+    4. root_agent = LlmAgent(...) with correct parameters
+    5. session_service = InMemorySessionService()
+    6. runner = Runner(...) with app_name
+    7. async def main() function with proper run_async pattern
+    8. __all__ = ["root_agent"]` :
+
+    `You are an expert Python developer specializing in Google ADK (Agent Development Kit).
+    Generate clean, production-ready Python code for an agent based on the provided node configuration.
+
+    CRITICAL ERROR PREVENTION:
+    1. Agent constructor MUST use these exact parameter names in this order:
+       - name (string)
+       - model (string)
+       - description (string)
+       - instruction (string)
+       - tools (list)
+    2. ALWAYS include model parameter in Agent (use "gemini-2.0-flash")
+    3. Use Agent class (not LlmAgent) for non-MCP agents
+    4. ALWAYS include __all__ = ["root_agent"] export
+
+    Generate code that:
+    1. Imports all necessary modules
+    2. Sets up proper logging
+    3. Loads environment variables
+    4. Uses google_search tool for search capabilities
+    5. Defines the agent with proper configuration
+    6. Includes example usage
+    7. Exports the agent properly`;
+
+  // Create user prompt with node data
+  const userPrompt = mcpEnabled ?
+    `Generate a Google ADK agent with MCP Smithery integration based on this flow:
+
+**Nodes:**
+${JSON.stringify(nodeData, null, 2)}
+
+**Agent Configuration:**
+${agentNodes.length > 0 ? `
+- Agent Name: ${agentNodes[0].data.label || 'mcp_agent'}
+- Description: ${agentNodes[0].data.description || 'MCP-enabled agent'}
+- Instructions: ${agentNodes[0].data.instruction || agentNodes[0].data.prompt || 'Use MCP tools to assist users'}
+` : 'Create default MCP agent'}
+
+**ACTUAL MCP CONFIGURATION FROM NODES:**
+- Command: ${actualMcpConfig.command}
+- Args: ${JSON.stringify(actualMcpConfig.args)}
+- Environment Variables: ${JSON.stringify(actualMcpConfig.envVars)}
+- MCP Package: ${actualMcpConfig.args.find(arg => arg.startsWith('@')) || '@smithery/mcp-example'}
+
+**CRITICAL MCP REQUIREMENTS:**
+- Generate MCP Smithery agent code (NOT Google Search code)
+- Use LlmAgent, Runner, InMemorySessionService
+- Include MCPToolset with StdioServerParameters
+- Use the EXACT MCP configuration provided above
+- Include SMITHERY_API_KEY environment variable
+- Use asyncio.run(runner.run_forever()) pattern
+
+**MANDATORY ERROR PREVENTION (Prevents "1 validation error for LlmAgent"):**
+1. LlmAgent constructor parameters in EXACT order: name, model, description, instruction, tools
+   - name: SIMPLE string like "search_agent" (NOT complex/long names, NEVER None/empty)
+   - model: ALWAYS "gemini-2.0-flash" (NEVER None or empty string)
+   - description: CONCISE 10-100 chars like "Agent that uses Gemini 2.0 model and Smithery MCP tool"
+   - instruction: REASONABLE length (NOT "instructions" misspelling, NEVER None/empty)
+   - tools: MUST be list [toolset] (NOT "toolset=" or None)
+2. Runner MUST include app_name: Runner(agent=root_agent, session_service=session_service, app_name="search_agent")
+3. SYNCHRONIZE app_name: Use SAME app_name in Runner and session_service.create_session() calls
+4. NEVER pass session_service to LlmAgent
+5. ALWAYS include SMITHERY_API_KEY validation: if not smithery_api_key: raise ValueError(...)
+6. Environment variables MUST include SMITHERY_API_KEY
+7. MCP args should be clean without duplicate --key parameters
+8. NEVER write "tools=tools=[toolset]" - use only "tools=[toolset]" (no duplicate tools=)
+9. Use run_async() NOT run_forever() with proper async pattern
+10. Include all required imports: from google.genai import types, import asyncio
+
+**EXACT TEMPLATE TO FOLLOW (Use ACTUAL node data for dynamic values):**
+\`\`\`python
+from google.adk.agents import LlmAgent
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
+from google.genai import types  # For Content/Part
+import asyncio
+import os
+
+# Set the Smithery API key from environment variable
+smithery_api_key = os.getenv("SMITHERY_API_KEY")
+if not smithery_api_key:
+    raise ValueError("SMITHERY_API_KEY environment variable is not set")
+
+# MCP toolset configuration - USE ACTUAL NODE DATA
+toolset = MCPToolset(
+    connection_params=StdioServerParameters(
+        command="${actualMcpConfig.command}",
+        args=${JSON.stringify(actualMcpConfig.args)},
+        env=${JSON.stringify(actualMcpConfig.envVars)}
+    )
+)
+
+# LlmAgent with MCP tools - USE ACTUAL AGENT NODE DATA
+root_agent = LlmAgent(
+    name="${agentNodes.length > 0 ? agentNodes[0].data.label || 'mcp_agent' : 'mcp_agent'}",
+    model="gemini-2.0-flash",
+    description="${agentNodes.length > 0 ? agentNodes[0].data.description || 'MCP-enabled agent' : 'MCP-enabled agent'}",
+    instruction="${agentNodes.length > 0 ? agentNodes[0].data.instruction || agentNodes[0].data.prompt || 'Use MCP tools to assist users' : 'Use MCP tools to assist users'}",
+    tools=[toolset]
+)
+
+# Session service and runner setup - USE ACTUAL AGENT NAME
+session_service = InMemorySessionService()
+runner = Runner(agent=root_agent, session_service=session_service, app_name="${agentNodes.length > 0 ? agentNodes[0].data.label || 'mcp_agent' : 'mcp_agent'}")
+
+async def main():
+    # Create a session
+    user_id = "user"
+    session = session_service.create_session(state={}, app_name="${agentNodes.length > 0 ? agentNodes[0].data.label || 'mcp_agent' : 'mcp_agent'}", user_id=user_id)
+    session_id = session.id
+
+    # Create an initial message (Content object)
+    new_message = types.Content(
+        role="user",
+        parts=[types.Part(text="Hello, agent!")]
+    )
+
+    # Run the agent
+    async for event in runner.run_async(
+        user_id=user_id,
+        session_id=session_id,
+        new_message=new_message
+    ):
+        print(event)
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
+__all__ = ["root_agent"]
+\`\`\`
+
+CRITICAL: Follow this EXACT structure. Do NOT create custom classes. Do NOT use wrong imports.
+Return ONLY the complete Python code following this template, no explanations.` :
+
+    `Generate a Google ADK agent based on this flow configuration:
+
+**Nodes:**
+${JSON.stringify(nodeData, null, 2)}
+
+**Agent Configuration:**
+${agentNodes.length > 0 ? `
+- Agent Name: ${agentNodes[0].data.label || 'search_agent'}
+- Description: ${agentNodes[0].data.description || 'AI agent for task automation'}
+- Instructions: ${agentNodes[0].data.instruction || agentNodes[0].data.prompt || 'Use available tools to help users'}
+` : 'No agent nodes found - create a default search agent'}
+
+**Requirements:**
+- Use Agent class with google_search tool
+- Include complete, runnable Python code
+- Add proper error handling and logging
+- Follow Google ADK patterns and best practices
+- Include __all__ export
+
+Return ONLY the Python code, no explanations.`;
+
+  try {
+    // Call OpenRouter API
+    const generatedCode = await callOpenRouter([
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ]);
+
+    // Clean and validate the generated code
+    const cleanedCode = formatCodeForDisplay(generatedCode);
+
+    // If the generated code doesn't look valid, fall back to local generation
+    if (!cleanedCode || cleanedCode.length < 100) {
+      console.warn('Generated code too short, falling back to local generation');
+      return fallbackToLocalGeneration(nodes, mcpEnabled, mcpConfig);
+    }
+
+    return cleanedCode;
+  } catch (error) {
+    console.error('Error calling OpenRouter API:', error);
+    // Fall back to local generation on API error
+    return fallbackToLocalGeneration(nodes, mcpEnabled, mcpConfig);
+  }
+}
+
+// Fallback function for local code generation
+function fallbackToLocalGeneration(
+  nodes: Node<BaseNodeData>[],
+  mcpEnabled: boolean,
+  mcpConfig?: MCPConfig
+): string {
+  console.log('Falling back to local generation, MCP enabled:', mcpEnabled);
+
+  if (mcpEnabled) {
+    // Extract actual MCP config from nodes if not provided
+    const validConfig = mcpConfig || extractMcpConfigFromNodes(nodes);
+    console.log('Generating MCP code with config:', validConfig);
+    return generateMCPCode(nodes, validConfig);
+  }
+
+  console.log('Generating default search agent code');
+  return generateDefaultSearchAgentCode();
+}
+
+// Create a default MCP config
+function createDefaultMcpConfig(): MCPConfig {
+  return {
+    enabled: true,
+    type: 'smithery',
+    command: 'npx',
+    args: ['-y', '@smithery/cli@latest', 'run', '@smithery/mcp-example', '--key', 'smithery_api_key'],
+    envVars: { 'NODE_OPTIONS': '--no-warnings --experimental-fetch', 'SMITHERY_API_KEY': 'smithery_api_key' }
+  };
+}
+
+
 
 export function CodeGenerationModal({
   open,
   onOpenChange,
   nodes,
   edges,
-  mcpConfig,  // Add MCP configuration
+  mcpConfig,
 }: CodeGenerationModalProps) {
   const [activeTab, setActiveTab] = useState<string>('adk');
   const [generatedCode, setGeneratedCode] = useState<string>('');
@@ -446,12 +666,17 @@ export function CodeGenerationModal({
   const [isFirstGeneration, setIsFirstGeneration] = useState(true);
   const [sandboxOutput, setSandboxOutput] = useState<string>('');
   const [isExecuting, setIsExecuting] = useState(false);
+  const [verificationProgress, setVerificationProgress] = useState<VerificationProgress | null>(null);
+  const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null);
 
-  // Check if there are MCP nodes in the diagram
+  // Check if there are MCP nodes in the diagram or if MCP is explicitly enabled
   const hasMcpNodes = nodes.some(node => 
     node.data.type === 'mcp-client' || 
     node.data.type === 'mcp-server' || 
-    node.data.type === 'mcp-tool'
+    node.data.type === 'mcp-tool' ||
+    node.data.label?.toLowerCase().includes('mcp') ||
+    node.data.description?.toLowerCase().includes('mcp') ||
+    node.data.description?.toLowerCase().includes('smithery')
   );
 
   // Get unique key for current flow
@@ -459,10 +684,12 @@ export function CodeGenerationModal({
 
   // When the modal opens or when nodes/edges change, auto-set MCP toggle based on nodes
   useEffect(() => {
+    console.log('MCP detection:', { hasMcpNodes, nodes: nodes.map(n => ({ type: n.data.type, label: n.data.label, description: n.data.description })) });
     if (hasMcpNodes) {
+      console.log('MCP nodes detected, enabling MCP');
       setMcpEnabled(true);
     }
-  }, [hasMcpNodes, open]);
+  }, [hasMcpNodes, open, nodes]);
 
   // Check localStorage when modal opens or framework changes
   useEffect(() => {
@@ -470,7 +697,6 @@ export function CodeGenerationModal({
 
     const storedCode = getStoredCode(flowKey, activeTab);
     if (storedCode) {
-      console.log('CodeGenerationModal: Loading code from localStorage');
       setGeneratedCode(storedCode);
       setIsFirstGeneration(false);
       return;
@@ -478,78 +704,59 @@ export function CodeGenerationModal({
 
     // If no stored code, generate new code
     if (isFirstGeneration) {
-      console.log('CodeGenerationModal: No stored code found, generating new code');
       generateInitialCode();
     }
   }, [open, activeTab, flowKey]);
 
-  // Function to generate initial code
+  // Function to generate initial code with verification
   const generateInitialCode = async () => {
-    console.log('CodeGenerationModal: Generating initial code');
     setLoading(true);
     setError(null);
+    setVerificationProgress(null);
+    setVerificationResult(null);
 
     try {
       let generatedCode: string;
       if (activeTab === 'adk') {
-        try {
-          generatedCode = await generateCodeWithOpenAI(nodes, edges, mcpEnabled, mcpConfig);
-          generatedCode = cleanGeneratedCode(generatedCode, mcpEnabled);
-        } catch (openaiError) {
-          console.error('OpenAI error generating code:', openaiError);
-          if (mcpEnabled) {
-            // Ensure we have a valid mcpConfig, create one if not provided
-            const validConfig = mcpConfig || createDefaultMcpConfig(nodes);
-            generatedCode = generateMCPCode(nodes, edges, validConfig);
+        // Use the new verified code generation
+        generatedCode = await generateVerifiedCode(
+          nodes,
+          edges,
+          mcpEnabled,
+          OPENROUTER_API_KEY,
+          (progress) => setVerificationProgress(progress)
+        );
           } else {
-            generatedCode = getLocallyGeneratedCode(nodes, edges, activeTab);
-          }
-          toast({
-            title: "Using Local Generation",
-            description: "OpenAI API error. Using local code generation instead.",
-            variant: "default"
-          });
-        }
-      } else {
-        const framework = activeTab as 'adk' | 'vertex' | 'custom';
-        const rawCode = await generateCode(nodes, edges, framework);
-        generatedCode = cleanGeneratedCode(rawCode);
+        generatedCode = generateDefaultSearchAgentCode();
       }
 
       const formattedCode = formatCodeForDisplay(generatedCode);
       setGeneratedCode(formattedCode);
       storeCode(flowKey, activeTab, formattedCode);
       setIsFirstGeneration(false);
-      console.log('CodeGenerationModal: Code generated and stored successfully');
+      setVerificationProgress(null);
     } catch (error) {
       console.error('Error generating code:', error);
       setError(error instanceof Error ? error.message : 'An error occurred generating code');
       
-      // Fallback to appropriate local generation
-      let localCode: string;
-      if (mcpEnabled) {
-        // Ensure we have a valid mcpConfig
-        const validConfig = mcpConfig || createDefaultMcpConfig(nodes);
-        localCode = generateMCPCode(nodes, edges, validConfig);
-      } else {
-        localCode = getLocallyGeneratedCode(nodes, edges, activeTab);
-      }
-      
-      const cleanedCode = cleanGeneratedCode(localCode, mcpEnabled);
+      // Fallback to default generation
+      const defaultCode = generateDefaultSearchAgentCode();
+      const cleanedCode = cleanGeneratedCode(defaultCode, mcpEnabled);
       setGeneratedCode(cleanedCode);
       storeCode(flowKey, activeTab, cleanedCode);
+
       toast({
-        title: "Using Local Generation",
-        description: "Error occurred. Using local code generation instead.",
+        title: "Using Default Generation",
+        description: "Error occurred. Using default code generation instead.",
         variant: "default"
       });
     } finally {
       setLoading(false);
+      setVerificationProgress(null);
     }
   };
 
   const handleCopyCode = () => {
-    console.log('CodeGenerationModal: Copying code to clipboard');
     navigator.clipboard.writeText(generatedCode);
     toast({
       title: "Code copied!",
@@ -557,363 +764,78 @@ export function CodeGenerationModal({
     });
   };
 
-  const handleExecuteClick = () => {
-    toast({
-      title: "Code Preview",
-      description: "This is a preview of the generated code. To execute, please copy and run in your development environment.",
-    });
-  };
-
-  // Update the regenerate button click handler
+  // Update the regenerate button click handler with verification
   const handleRegenerate = async () => {
-    console.log('CodeGenerationModal: Regenerating code with OpenAI');
     setLoading(true);
     setError(null);
     setSandboxOutput('');
+    setVerificationProgress(null);
+    setVerificationResult(null);
     
     try {
       let generatedCode: string;
       if (activeTab === 'adk') {
-        try {
-          // Detect MCP nodes and tools
-          const mcpClientNode = nodes.find(n => n.data.type === 'mcp-client');
-          const mcpToolNodes = nodes.filter(n => n.data.type === 'mcp-tool');
-          const agentNode = nodes.find(n => n.data.type === 'agent');
-          const hasMcpComponents = mcpClientNode || mcpToolNodes.length > 0;
-          
           // If we have MCP components, enable MCP mode
-          if (hasMcpComponents && !mcpEnabled) {
+        if (hasMcpNodes && !mcpEnabled) {
             setMcpEnabled(true);
           }
           
-          // Determine MCP type from config or from nodes
-          const mcpType = mcpConfig?.type || 
-            (mcpConfig?.mcpType) || 
-            (mcpToolNodes.length > 0 ? mcpToolNodes[0].data.mcpToolId as string : 'github') ||
-            (mcpClientNode?.data.mcpType as string);
-            
-          // Extract MCP command and args from node data if available
-          const mcpCommand = mcpConfig?.command || 
-            (mcpToolNodes.length > 0 && mcpToolNodes[0].data.mcpCommand as string) || 
-            (mcpType === 'github' ? 'npx' : mcpType === 'time' ? 'uvx' : 'npx');
-            
-          const mcpArgs = mcpConfig?.args || 
-            (mcpToolNodes.length > 0 && mcpToolNodes[0].data.mcpArgs ? 
-              (mcpToolNodes[0].data.mcpArgs as string).split(' ').filter(Boolean) : 
-              getMcpDefaultArgs(mcpType));
-              
-          // Extract env vars from node data if available
-          let mcpEnvVars = mcpConfig?.envVars || {};
-          if (mcpToolNodes.length > 0 && mcpToolNodes[0].data.mcpEnvVars) {
-            try {
-              mcpEnvVars = JSON.parse(mcpToolNodes[0].data.mcpEnvVars as string);
-            } catch (e) {
-              console.error('Error parsing mcpEnvVars:', e);
-            }
-          } 
-          if (Object.keys(mcpEnvVars).length === 0) {
-            mcpEnvVars = getMcpDefaultEnvVars(mcpType);
-          }
-
-          // Collect all the tool nodes that are not MCP-related
-          const toolNodes = nodes.filter(n => {
-            if (n.data.type === 'tool' || n.data.type === 'input') {
-              return true;
-            }
-            return false;
-          }).filter(n => n.data.type !== 'mcp-tool' && n.data.type !== 'mcp-client');
-          
-          // Find all connected nodes to detect relationships
-          const connectedNodes = new Map<string, string[]>();
-          edges.forEach(edge => {
-            if (!connectedNodes.has(edge.source)) {
-              connectedNodes.set(edge.source, []);
-            }
-            if (!connectedNodes.has(edge.target)) {
-              connectedNodes.set(edge.target, []);
-            }
-            connectedNodes.get(edge.source)?.push(edge.target);
-            connectedNodes.get(edge.target)?.push(edge.source);
-          });
-          
-          // Get agent information
-          const agentName = agentNode?.data.label?.toLowerCase().replace(/\s+/g, '_') || `${mcpType}_agent`;
-          const agentClassName = agentName.charAt(0).toUpperCase() + agentName.slice(1) + 'Agent';
-          const agentDescription = agentNode?.data.description || `${mcpType} operations assistant`;
-          const agentInstruction = agentNode?.data.instruction || getMcpAgentInstructions(mcpType);
-          
-          // Create a temporary MCP config for this specific generation
-          const tempMcpConfig = mcpEnabled ? {
-            enabled: true,
-            type: mcpType,
-            command: mcpCommand,
-            args: mcpArgs,
-            envVars: mcpEnvVars
-          } : undefined;
-          
-          // Generate code based on MCP type
-          const response = await callOpenRouter('/chat/completions', {
-            model: 'openai/gpt-4.1-mini',
-            messages: [
-              {
-                role: 'system',
-                content: mcpEnabled 
-                  ? `You are an expert in building Google ADK agents with MCP integration. Generate Python code for an agent that uses MCP tools.
-                     The code should follow this structure:
-                     1. Import necessary modules (google.adk.agents, google.adk.tools.mcp_tool.mcp_toolset)
-                     2. Set up global state for tools and exit_stack
-                     3. Create get_tools_async() function to load MCP tools
-                     4. Create custom Agent class that inherits from LlmAgent
-                     5. Set up main() function with proper async event loop
-                     6. Include proper error handling and cleanup
-
-                     IMPORTANT: For GitHub MCP:
-                     1. Pass token via --token CLI argument, not environment variable
-                     2. Validate token starts with 'ghp_'
-                     3. Use AsyncExitStack for proper cleanup
-                     4. Filter out problematic tools like create_pull_request_review`
-                  : `You are an expert in building Google ADK agents. Generate Python code for an agent that uses Google Search and other tools.
-                     The code should follow this structure:
-                     1. Import necessary modules (google.adk.agents, google.adk.tools)
-                     2. Define any custom tool functions needed
-                     3. Create the agent with appropriate tools
-                     4. Include proper error handling and logging`
-              },
-              {
-                role: 'user',
-                content: mcpEnabled
-                  ? `Generate an MCP agent with the following configuration:
-                     - MCP Type: ${mcpType}
-                     - Agent Name: ${agentName}
-                     - Agent Class Name: ${agentClassName}
-                     - Description: ${agentDescription}
-                     - Command: ${mcpCommand}
-                     - Args: ${JSON.stringify(mcpArgs)}
-                     - Environment Variables: ${JSON.stringify(mcpEnvVars, null, 2)}
-                     - Agent Instructions: ${agentInstruction}
-                     
-                     The code should be similar to this structure:
-                     \`\`\`python
-                     """${mcpType.toUpperCase()} MCP Agent"""
-                     import asyncio, os
-                     from google.genai import types
-                     from google.adk.agents import LlmAgent
-                     from google.adk.runners import Runner
-                     from google.adk.sessions import InMemorySessionService
-                     from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
-                     from contextlib import AsyncExitStack
-                     
-                     # Global state
-                     _tools = None
-                     _exit_stack = None
-                     
-                     # Configure logging
-                     logging.basicConfig(
-                         level=logging.INFO,
-                         format='%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s',
-                         datefmt='%Y-%m-%d %H:%M:%S'
-                     )
-                     logger = logging.getLogger("${agentName}")
-                     
-                     async def get_tools_async():
-                         """Gets tools from the ${mcpType.toUpperCase()} MCP Server."""
-                         global _tools, _exit_stack
-                         _exit_stack = AsyncExitStack()
-                         await _exit_stack.__aenter__()
-                         
-                         try:
-                             ${mcpType === 'github' ? `
-                             # Validate GitHub token
-                             github_token = os.getenv("GITHUB_PERSONAL_ACCESS_TOKEN")
-                             if not github_token or not github_token.startswith("ghp_"):
-                                 raise ValueError("Invalid GitHub token. Must start with 'ghp_'")
-                             ` : ''}
-                             tools, _ = await MCPToolset.create_tools_from_server(
-                                 connection_params=StdioServerParameters(
-                                     command='${mcpCommand}',
-                                     args=[
-                                         ${mcpArgs.map(arg => `"${arg}"`).join(',\n                                         ')}${mcpType === 'github' ? ',\n                                         "--token",\n                                         github_token' : ''}
-                                     ],
-                                     env=${JSON.stringify(mcpEnvVars, null, 2)}
-                                 ),
-                                 async_exit_stack=_exit_stack
-                             )
-                             _tools = tools  # Store tools in global state
-                             return tools
-                         except Exception as e:
-                             logger.error(f"Failed to load MCP tools: {e}", exc_info=True)
-                             await _exit_stack.aclose()
-                             _exit_stack = None
-                             raise
-                     
-                     # Try to initialize tools at import time (eager loading)
-                     try:
-                         asyncio.run(get_tools_async())
-                         logger.info(f"Initialized {mcpType.toUpperCase()} MCP tools for the agent.")
-                     except Exception as e:
-                         logger.warning(f"Warning: Failed to initialize {mcpType.toUpperCase()} tools: {e}")
-                         logger.info("Agent will attempt to initialize tools when first used.")
-                     
-                     # Create the root agent instance
-                     root_agent = LlmAgent(
-                         model="gemini-2.0-flash",
-                         name="${agentName}",
-                         description="${agentDescription}",
-                         instruction="""${agentInstruction}""",
-                         tools=_tools or []  # Use empty list if tools not loaded yet
-                     )
-                     
-                     async def main():
-                         """Run the agent."""
-                         global _tools, _exit_stack
-                         try:
-                             if _tools is None:
-                                 logger.info("Loading MCP tools...")
-                                 _tools = await get_tools_async()
-                                 root_agent.tools = _tools
-                                 logger.info(f"Loaded MCP tools: {[tool.name for tool in _tools]}")
-                     
-                             # Setup session service and runner
-                             session_service = InMemorySessionService()
-                             runner = Runner(agent=root_agent, session_service=session_service)
-                     
-                             logger.info("Starting agent runner. Press Ctrl+C to exit.")
-                             await runner.run_forever()
-                     
-                         except asyncio.CancelledError:
-                             logger.info("Agent runner cancelled, shutting down.")
-                         except Exception as e:
-                             logger.error(f"Unexpected error in main: {e}", exc_info=True)
-                         finally:
-                             if _exit_stack is not None:
-                                 await _exit_stack.aclose()
-                                 _exit_stack = None
-                             logger.info("Cleanup complete.")
-                     
-                     if __name__ == "__main__":
-                         try:
-                             asyncio.run(main())
-                         except KeyboardInterrupt:
-                             logger.info("Keyboard interrupt received, exiting.")
-                             sys.exit(0)
-                     \`\`\`
-                     
-                     Make sure to include appropriate error handling, logging, and follow the best practices for Google ADK agents.
-                     `
-                  : `Generate a Google ADK agent with the following components:
-                     - Agent Name: ${agentName}
-                     - Description: ${agentDescription}
-                     - Tools: ${JSON.stringify([
-                        ...toolNodes.map(n => ({
-                          name: n.data.label,
-                          type: n.data.type,
-                          description: n.data.description
-                        }))
-                      ])}
-                     
-                     The Google ADK agent should use the google_search tool${toolNodes.length > 0 ? ' and the custom tools above' : ''}.
-                     
-                     Include proper initialization, error handling, and ensure the agent's instruction parameter provides clear guidance for the agent.`
-              }
-            ],
-            temperature: 0.2,
-            max_tokens: 2000
-          });
-
-          const responseCode = response.choices[0].message.content || '';
-          generatedCode = cleanGeneratedCode(responseCode, mcpEnabled);
-          
-          // If MCP is enabled but we got standard search code, regenerate as MCP code
-          if (mcpEnabled && !isMcpCode(generatedCode)) {
-            console.log('Generated code does not include MCP, regenerating with local MCP code generator');
-            const validConfig = tempMcpConfig || createDefaultMcpConfig(nodes);
-            generatedCode = generateMCPCode(nodes, edges, validConfig);
-          }
-          
-        } catch (error) {
-          console.error('Error generating code with OpenRouter:', error);
-          // Fallback to appropriate local generation
-          if (mcpEnabled) {
-            // Create a temporary MCP config if needed
-            const tempMcpConfig = {
-              enabled: true,
-              type: mcpConfig?.type || 'github',
-              command: mcpConfig?.command || 'npx',
-              args: mcpConfig?.args || ['-y', '@modelcontextprotocol/server-github'],
-              envVars: mcpConfig?.envVars || { 'NODE_OPTIONS': '--no-warnings --experimental-fetch' }
-            };
-            generatedCode = generateMCPCode(nodes, edges, tempMcpConfig);
+        // Use the new verified code generation
+        generatedCode = await generateVerifiedCode(
+          nodes,
+          edges,
+          mcpEnabled,
+          OPENROUTER_API_KEY,
+          (progress) => setVerificationProgress(progress)
+        );
           } else {
-            generatedCode = getLocallyGeneratedCode(nodes, edges, activeTab);
-          }
-          toast({
-            title: "Using Local Generation",
-            description: "OpenRouter API error. Using local code generation instead.",
-            variant: "default"
-          });
-        }
-      } else {
-        // For non-ADK frameworks
-        const framework = activeTab as 'adk' | 'vertex' | 'custom';
-        const rawCode = await generateCode(nodes, edges, framework);
-        generatedCode = cleanGeneratedCode(rawCode);
+        generatedCode = generateDefaultSearchAgentCode();
       }
       
       const formattedCode = formatCodeForDisplay(generatedCode);
       setGeneratedCode(formattedCode);
       storeCode(flowKey, activeTab, formattedCode);
+      setVerificationProgress(null);
       toast({
         title: "Code regenerated",
-        description: "The code has been regenerated successfully."
+        description: "The code has been regenerated and verified successfully."
       });
     } catch (error) {
       console.error('Error regenerating code:', error);
       setError(error instanceof Error ? error.message : 'Failed to regenerate code');
       
-      // Fallback to local generation
-      let localCode: string;
-      if (mcpEnabled) {
-        // Ensure we have a valid mcpConfig
-        const validConfig = mcpConfig || createDefaultMcpConfig(nodes);
-        localCode = generateMCPCode(nodes, edges, validConfig);
-      } else {
-        localCode = getLocallyGeneratedCode(nodes, edges, activeTab);
-      }
-      
-      const cleanedCode = cleanGeneratedCode(localCode, mcpEnabled);
+      // Fallback to default generation
+      const defaultCode = generateDefaultSearchAgentCode();
+      const cleanedCode = cleanGeneratedCode(defaultCode, mcpEnabled);
       setGeneratedCode(cleanedCode);
       storeCode(flowKey, activeTab, cleanedCode);
       
       toast({
-        title: "Using Local Generation",
-        description: "Error occurred. Using local code generation instead.",
+        title: "Using Default Generation",
+        description: "Error occurred. Using default code generation instead.",
         variant: "default"
       });
     } finally {
       setLoading(false);
+      setVerificationProgress(null);
     }
   };
 
   const executeInSandbox = async (code: string) => {
     const startTime = performance.now();
-    console.log('\n🚀 Starting code execution...');
-    console.group('Code Execution Details');
-    
     setIsExecuting(true);
     setSandboxOutput('');
 
     try {
-      // Input validation
       if (!code.trim()) {
         throw new Error('No code provided to execute');
       }
 
       // Split the code into agent.py and __init__.py
       const agentCode = code;
-      const initCode = 'from .agent import root_agent\n__all__ = ["root_agent"]';
+      const initCode = `from .agent import root_agent
 
-      console.log('📝 Preparing files for sandbox execution...');
-      console.log('🔗 Sending request to:', 'https://agent-flow-builder-api.onrender.com/api/execute');
+__all__ = ["root_agent"]`;
 
       // Call our API endpoint with both files
       const response = await fetch('https://agent-flow-builder-api.onrender.com/api/execute', {
@@ -963,20 +885,16 @@ export function CodeGenerationModal({
       setSandboxOutput(`❌ Error executing code: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsExecuting(false);
-      console.groupEnd();
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={(newOpen) => {
-      console.log('CodeGenerationModal: Dialog state changing to', newOpen);
-      onOpenChange(newOpen);
-    }}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle>Generated Agent Code</DialogTitle>
           <DialogDescription>
-            This code represents the agent flow you've designed. The code is generated by AI based on your workflow diagram.
+            This code represents the agent flow you've designed. The code is generated based on your workflow diagram.
             {!isFirstGeneration && (
               <span className="text-sm text-muted-foreground"> (Loaded from saved version)</span>
             )}
@@ -1003,7 +921,6 @@ export function CodeGenerationModal({
                         const newValue = !mcpEnabled;
                         setMcpEnabled(newValue);
                         if (newValue && !isFirstGeneration) {
-                          // If switching to MCP, regenerate the code right away
                           toast({
                             title: "MCP Enabled",
                             description: "Regenerating code with MCP support...",
@@ -1017,17 +934,9 @@ export function CodeGenerationModal({
                     <div className={`w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600 ${hasMcpNodes ? 'opacity-60' : ''}`}></div>
                     <span className="ms-3 text-sm font-medium">Enable MCP Integration</span>
                   </label>
-                  <Tooltip message="MCP (Model Context Protocol) enables agents to interact with external services like GitHub, Filesystem, or Time tools. When enabled, this will generate code that uses specialized MCP tooling instead of Google Search.">
-                    <HelpCircle className="h-4 w-4 text-gray-500" />
-                  </Tooltip>
                   {hasMcpNodes && (
                     <span className="text-xs text-yellow-500">
                       (MCP nodes detected in diagram)
-                    </span>
-                  )}
-                  {mcpEnabled && !hasMcpNodes && (
-                    <span className="text-xs text-blue-500">
-                      (Will generate MCP-specific code)
                     </span>
                   )}
                 </div>
@@ -1039,7 +948,7 @@ export function CodeGenerationModal({
                   disabled={loading}
                 >
                   {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Generate with OpenAI
+                  Generate Code
                 </Button>
               </div>
             )}
@@ -1051,10 +960,14 @@ export function CodeGenerationModal({
                   <span>{error}</span>
                 </div>
               )}
+
+              {/* Verification Progress Display */}
+              <VerificationProgress progress={verificationProgress} />
+
               {loading ? (
                 <div className="flex items-center justify-center h-40 gap-2 bg-gray-900 rounded-md text-gray-200">
                   <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                  <span>Generating code...</span>
+                  <span>{verificationProgress ? verificationProgress.message : "Generating code..."}</span>
                 </div>
               ) : (
                 <>
@@ -1103,11 +1016,7 @@ export function CodeGenerationModal({
                 ? `Google's Agent Development Kit${mcpEnabled ? ' with MCP integration' : ' with Google Search'}`
                 : activeTab === 'vertex' 
                   ? "Google Vertex AI"
-                  : "a custom OpenAI-based framework"}.
-              {mcpEnabled && activeTab === 'adk' ? 
-                " MCP (Model Context Protocol) provides specialized tools for interacting with external services." : 
-                " You may need to install the appropriate packages and credentials."
-              }
+                  : "a custom framework"}.
             </div>
           </TabsContent>
         </Tabs>
@@ -1135,359 +1044,3 @@ export function CodeGenerationModal({
   );
 }
 
-// Code generation functions
-function generateAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
-  console.log('generateAgentCode: Analyzing all nodes and edges for code generation', { 
-    nodeCount: nodes.length, 
-    edgeCount: edges.length 
-  });
-  
-  // Get agent node and its details
-  const agentNode = nodes.find(n => n.data.type === 'agent');
-  if (!agentNode) {
-    console.warn('No agent node found, using default agent configuration');
-    return generateDefaultSearchAgentCode();
-  }
-
-  // Validate node data and only fall back if absolutely necessary
-  if (!agentNode.data.prompt && !agentNode.data.instruction && !agentNode.data.description) {
-    console.warn('Agent node missing all prompt data, using default configuration');
-    return generateDefaultSearchAgentCode();
-  }
-
-  // Extract all node data - prioritize node-specific data
-  const agentName = agentNode.data.label?.toLowerCase().replace(/\s+/g, '_') || 'search_agent';
-  
-  // Prioritize prompt over instruction over description
-  const agentPrompt = agentNode.data.prompt || agentNode.data.instruction || agentNode.data.description;
-  
-  // Use description if available, otherwise generate from prompt
-  const agentDescription = agentNode.data.description || 
-    (agentPrompt ? `Agent that ${agentPrompt.split('\n')[0].toLowerCase()}` : 'Search agent');
-  
-  // Use explicit instruction if available, otherwise use prompt
-  const agentInstruction = agentNode.data.instruction || agentPrompt;
-
-  // Find all connected tools and inputs
-  const connectedNodes = new Set<string>();
-  edges.forEach(edge => {
-    connectedNodes.add(edge.source);
-    connectedNodes.add(edge.target);
-  });
-
-  // Get all tool nodes that are connected
-  const toolNodes = nodes.filter(node => 
-    (node.data.type === 'tool' || node.data.type === 'input') && 
-    connectedNodes.has(node.id)
-  );
-
-  let code = `from google.adk.agents import Agent
-from google.adk.tools import google_search
-from typing import Dict, Any, List
-import logging
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-`;
-
-  // Generate tool functions for each tool node
-  toolNodes.forEach(toolNode => {
-    // Ensure we have a valid tool name
-    const toolName = toolNode.data.label?.toLowerCase().replace(/\s+/g, '_');
-    if (!toolName) {
-      console.warn(`Tool node ${toolNode.id} missing label, skipping`);
-      return;
-    }
-
-    // Get tool prompt, prioritizing explicit prompt
-    const toolPrompt = toolNode.data.prompt || toolNode.data.description;
-    if (!toolPrompt) {
-      console.warn(`Tool node ${toolNode.id} (${toolName}) missing prompt and description`);
-      return;
-    }
-    
-    code += `def ${toolName}(params: Dict[str, Any]) -> Dict[str, Any]:
-    """${toolPrompt}"""
-    logger.info(f"Executing ${toolName} with params: {params}")
-    # TODO: Implement ${toolNode.data.label} functionality
-    return {"result": f"Executed ${toolName} with {params}"}\n\n`;
-  });
-
-  // Configure the Google Search tool with the agent's exact prompt
-  code += `# Configure Google Search tool with agent's prompt
-SEARCH_TOOL_CONFIG = {
-    "instruction": """${agentPrompt || 'Search and provide accurate information'}""",
-    "examples": [
-        {"input": "${agentPrompt ? agentPrompt.split('\n')[0] : 'Search query'}", "output": "Detailed search results with context and sources"},
-        {"input": "Follow-up question about ${agentPrompt ? agentPrompt.split('\n')[0] : 'the topic'}", "output": "Additional information with citations"}
-    ]
-}
-
-# Create a configured search tool
-configured_search = google_search.with_config(SEARCH_TOOL_CONFIG)
-logger.info("Configured Google Search tool with agent-specific prompt")\n\n`;
-
-  // Create the agent with all tools
-  code += `# Create and configure the agent
-root_agent = Agent(
-    model="gemini-2.0-flash",
-    name="${agentName}",
-    description="${agentDescription}",
-    instruction="${agentInstruction}",
-    tools=[
-        configured_search,  # Use the configured search tool
-        ${toolNodes
-          .filter(node => node.data.label)
-          .map(node => node.data.label.toLowerCase().replace(/\s+/g, '_'))
-          .join(',\n        ')}
-    ],
-    prompt="""${agentPrompt}"""
-)
-
-logger.info(f"Created agent '{agentName}' with {toolNodes.length + 1} tools")
-
-__all__ = ["root_agent"]
-
-# Example usage:
-if __name__ == "__main__":
-    try:
-        # Test the agent with the first line of the prompt as a query
-        test_query = "${agentPrompt ? agentPrompt.split('\n')[0] : 'How can I help you?'}"
-        logger.info(f"Testing agent with query: {test_query}")
-        response = root_agent.chat(test_query)
-        print("Agent Response:", response)
-    except Exception as e:
-        logger.error(f"Error testing agent: {e}")`;
-
-  return code;
-}
-
-function generateVertexCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
-  console.log('generateVertexCode: Generating Vertex AI code for', { 
-    nodeCount: nodes.length, 
-    edgeCount: edges.length 
-  });
-  
-  // Generate Vertex AI code
-  const codeBuilder: string[] = [];
-  codeBuilder.push(`from google.cloud import aiplatform\n\n`);
-  codeBuilder.push(`# Initialize the Vertex AI SDK\n`);
-  codeBuilder.push(`aiplatform.init(project="your-project-id", location="your-location")\n\n`);
-  
-  // Find agent nodes
-  const agentNodes = nodes.filter(node => node.data.type === 'agent');
-  
-  if (agentNodes.length > 0) {
-    const mainAgent = agentNodes[0];
-    
-    codeBuilder.push(`# Create an agent\n`);
-    codeBuilder.push(`agent = aiplatform.Agent.create(\n`);
-    codeBuilder.push(`    display_name="${mainAgent.data.label}",\n`);
-    codeBuilder.push(`    model="gemini-pro"\n`);
-    codeBuilder.push(`)\n\n`);
-    
-    codeBuilder.push(`# Interact with the agent\n`);
-    codeBuilder.push(`response = agent.chat("Hello, how can I assist you today?")\n`);
-    codeBuilder.push(`print(response)\n`);
-  } else {
-    codeBuilder.push(`# No agent nodes found in your flow. Add an agent node to generate code.\n`);
-    codeBuilder.push(`\n# Example agent code\n`);
-    codeBuilder.push(`agent = aiplatform.Agent.create(\n`);
-    codeBuilder.push(`    display_name="My Vertex AI Agent",\n`);
-    codeBuilder.push(`    model="gemini-pro"\n`);
-    codeBuilder.push(`)\n\n`);
-    codeBuilder.push(`# Interact with the agent\n`);
-    codeBuilder.push(`response = agent.chat("Hello, how can I assist you today?")\n`);
-    codeBuilder.push(`print(response)\n`);
-  }
-  
-  return codeBuilder.join('');
-}
-
-function generateCustomAgentCode(nodes: Node<BaseNodeData>[], edges: Edge[]): string {
-  console.log('generateCustomAgentCode: Generating custom agent code for', { 
-    nodeCount: nodes.length, 
-    edgeCount: edges.length 
-  });
-  
-  // Generate code for a custom agent using tools
-  const functionNodes = nodes.filter(node => node.data.type === 'input' || node.data.type === 'tool');
-  const agentNodes = nodes.filter(node => node.data.type === 'agent');
-  const modelNodes = nodes.filter(node => node.data.type === 'model');
-  const mcpNodes = nodes.filter(node => 
-    node.data.type === 'mcp-client' || 
-    node.data.type === 'mcp-server' || 
-    node.data.type === 'mcp-tool'
-  );
-  
-  // Custom agent code basic structure
-  const code = `import openai
-import json
-from typing import Dict, List, Any, Optional
-import os
-import asyncio
-
-# Get API key from environment variable
-openai.api_key = os.environ.get("OPENAI_API_KEY", "")
-
-`;
-
-  // Return the basic code template - this is a simplified version to fix the parsing issue
-  return code;
-}
-
-// Helper functions for MCP code generation
-function getMcpDefaultArgs(mcpType: string): string[] {
-  switch (mcpType.toLowerCase()) {
-    case 'github':
-      return [
-        "-y",
-        "--node-options=--experimental-fetch",
-        "@modelcontextprotocol/server-github",
-        "--token",
-        "${process.env.GITHUB_PERSONAL_ACCESS_TOKEN || ''}"
-      ];
-    case 'time':
-      return ['mcp-server-time', '--local-timezone', Intl.DateTimeFormat().resolvedOptions().timeZone];
-    case 'filesystem':
-      return ['-y', '@modelcontextprotocol/server-filesystem'];
-    default:
-      return ['-y', `@modelcontextprotocol/server-${mcpType.toLowerCase()}`];
-  }
-}
-
-function getMcpDefaultEnvVars(mcpType: string): { [key: string]: string } {
-  const baseVars = {
-    'NODE_OPTIONS': '--no-warnings --experimental-fetch'
-  };
-  
-  switch (mcpType.toLowerCase()) {
-    case 'github':
-      return baseVars;  // No GITHUB_PERSONAL_ACCESS_TOKEN in env vars anymore
-    case 'time':
-      return {
-        ...baseVars,
-        'LOCAL_TIMEZONE': Intl.DateTimeFormat().resolvedOptions().timeZone
-      };
-    case 'filesystem':
-      return baseVars;
-    default:
-      return baseVars;
-  }
-}
-
-function getMcpEnvVarDeclarations(mcpType: string): string {
-  switch (mcpType.toLowerCase()) {
-    case 'github':
-      return 'GITHUB_TOKEN = os.getenv(\'GITHUB_PERSONAL_ACCESS_TOKEN\')';
-    case 'time':
-      return 'LOCAL_TIMEZONE = os.getenv(\'LOCAL_TIMEZONE\') or Intl.DateTimeFormat().resolvedOptions().timeZone';
-    default:
-      return '';
-  }
-}
-
-function getMcpToolFiltering(mcpType: string): string {
-  switch (mcpType.toLowerCase()) {
-    case 'github':
-      return '# Filter out any problematic tools if needed\nreturn [t for t in tools if t.name != "create_pull_request_review"], exit_stack';
-    default:
-      return 'return tools, exit_stack';
-  }
-}
-
-function getMcpAgentInstructions(mcpType: string): string {
-  switch (mcpType.toLowerCase()) {
-    case 'github':
-      return `GitHub assistant for repository operations.
-Available functions:
-- search_repositories(query="search term")
-- get_repository(owner="owner", repo="repo")
-- list_issues(owner="owner", repo="repo")
-- create_issue(owner="owner", repo="repo", title="", body="")
-- get_user(username="username")
-- list_pull_requests(owner="owner", repo="repo")
-- get_pull_request(owner="owner", repo="repo", pull_number=123)
-- merge_pull_request(owner="owner", repo="repo", pull_number=123)
-
-Note: Pull request review functionality is not available.`;
-    case 'time':
-      return `You are a helpful assistant that can perform time-related operations.
-
-Available functions:
-- get_current_time(timezone="IANA timezone name") - Get current time in a specific timezone
-- convert_time(source_timezone="source IANA timezone", time="HH:MM", target_timezone="target IANA timezone") - Convert time between timezones
-
-IMPORTANT RULES:
-1. Always use valid IANA timezone names (e.g., 'America/New_York', 'Europe/London', 'Asia/Tokyo')
-2. Use 24-hour format for time (HH:MM)
-3. Handle timezone conversions carefully
-4. Provide clear explanations for time calculations`;
-    case 'filesystem':
-      return `Filesystem operations assistant.
-
-Available functions:
-- read_file(path="file path") - Read contents of a file
-- write_file(path="file path", content="content") - Write content to a file
-- list_directory(path="directory path") - List contents of a directory
-- file_exists(path="file path") - Check if a file exists
-- make_directory(path="directory path") - Create a directory`;
-    default:
-      return `${mcpType} operations assistant. Use the available MCP tools to help users with their requests.`;
-  }
-}
-
-function getDefaultPromptForMcpType(mcpType: string): string {
-  switch (mcpType.toLowerCase()) {
-    case 'github':
-      return 'Search for popular Python libraries';
-    case 'time':
-      return 'What is the current time in Tokyo?';
-    case 'filesystem':
-      return 'List the files in the current directory';
-    default:
-      return `What can you help me with using ${mcpType}?`;
-  }
-}
-
-// Helper function to extract MCP config from nodes
-function extractMcpConfigFromNodes(nodes: Node<BaseNodeData>[]): MCPConfig {
-  const mcpClientNode = nodes.find(n => n.data.type === 'mcp-client');
-  const mcpToolNodes = nodes.filter(n => n.data.type === 'mcp-tool');
-  
-  // Determine MCP type from nodes
-  const mcpType = (mcpToolNodes.length > 0 ? mcpToolNodes[0].data.mcpToolId as string : 'github') ||
-    (mcpClientNode?.data.mcpType as string) || 
-    'github';
-  
-  // Extract MCP command and args from node data if available
-  const mcpCommand = (mcpToolNodes.length > 0 && mcpToolNodes[0].data.mcpCommand as string) || 
-    (mcpType === 'github' ? 'npx' : mcpType === 'time' ? 'uvx' : 'npx');
-  
-  const mcpArgs = mcpToolNodes.length > 0 && mcpToolNodes[0].data.mcpArgs ? 
-    (mcpToolNodes[0].data.mcpArgs as string).split(' ').filter(Boolean) : 
-    getMcpDefaultArgs(mcpType);
-  
-  // Extract env vars from node data if available
-  let mcpEnvVars = {};
-  if (mcpToolNodes.length > 0 && mcpToolNodes[0].data.mcpEnvVars) {
-    try {
-      mcpEnvVars = JSON.parse(mcpToolNodes[0].data.mcpEnvVars as string);
-    } catch (e) {
-      console.error('Error parsing mcpEnvVars:', e);
-      mcpEnvVars = getMcpDefaultEnvVars(mcpType);
-    }
-  } else {
-    mcpEnvVars = getMcpDefaultEnvVars(mcpType);
-  }
-  
-  return {
-    enabled: true,
-    type: mcpType,
-    command: mcpCommand,
-    args: mcpArgs,
-    envVars: mcpEnvVars
-  };
-}

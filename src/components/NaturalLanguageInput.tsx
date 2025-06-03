@@ -8,7 +8,7 @@ import { BaseNodeData } from './nodes/BaseNode.js';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+// Select component no longer needed as we only support Smithery MCP
 import { MCP_TYPES } from '@/lib/constants';
 import { MCPConfig } from '@/lib/codeGeneration';
 
@@ -24,24 +24,29 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
   const [error, setError] = useState<string | null>(null);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   
-  // MCP Configuration state
+  // MCP configuration state (Smithery only)
   const [mcpEnabled, setMcpEnabled] = useState(false);
-  const [selectedMcpType, setSelectedMcpType] = useState<string>('github');
   const [mcpCommand, setMcpCommand] = useState(MCP_TYPES[0].command);
   const [mcpArgs, setMcpArgs] = useState<string[]>(MCP_TYPES[0].defaultArgs);
   const [mcpEnvVars, setMcpEnvVars] = useState<{ [key: string]: string }>(MCP_TYPES[0].defaultEnvVars);
+  
+  // Smithery-specific state
+  const [smitheryMcp, setSmitheryMcp] = useState('');
+  const [smitheryApiKey, setSmitheryApiKey] = useState('');
+  
+  // Environment variable state
   const [newEnvKey, setNewEnvKey] = useState('');
   const [newEnvValue, setNewEnvValue] = useState('');
   
-  // Update MCP configuration when type changes
+  // Initialize Smithery MCP configuration
   useEffect(() => {
-    const mcpType = MCP_TYPES.find(t => t.id === selectedMcpType);
-    if (mcpType) {
-      setMcpCommand(mcpType.command);
-      setMcpArgs(mcpType.defaultArgs);
-      setMcpEnvVars(mcpType.defaultEnvVars);
-    }
-  }, [selectedMcpType]);
+    const mcpType = MCP_TYPES[0]; // Only Smithery MCP is available
+    setMcpCommand(mcpType.command);
+    setMcpArgs(mcpType.defaultArgs);
+    setMcpEnvVars(mcpType.defaultEnvVars);
+    setSmitheryMcp(mcpType.smitheryMcp || '');
+    setSmitheryApiKey(mcpType.defaultEnvVars['SMITHERY_API_KEY'] || '');
+  }, []);
   
   // Focus the textarea when expanded
   useEffect(() => {
@@ -104,41 +109,48 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
       console.log('NaturalLanguageInput: Calling OpenAI service');
       let { nodes, edges } = await generateFlow(prompt);
       
-      // If MCP is enabled, add necessary MCP nodes based on user selection
+      // If MCP is enabled, add necessary Smithery MCP nodes
       if (mcpEnabled) {
         const agentNode = nodes.find(n => n.data.type === 'agent');
         if (agentNode) {
-          // Create MCP client node
+          // Create MCP client node with user configuration
           const mcpClientNode: Node<BaseNodeData> = {
             id: `node_${Date.now()}_mcp_client`,
             type: 'baseNode',
             position: { x: agentNode.position.x + 200, y: agentNode.position.y },
             data: {
-              label: `${selectedMcpType} Client`,
+              label: smitheryMcp ? `Smithery Client: ${smitheryMcp.split('/').pop()}` : `Smithery Client`,
               type: 'mcp-client',
-              description: `MCP client for ${selectedMcpType} operations`,
+              description: smitheryMcp ? `MCP client for ${smitheryMcp} operations` : `MCP client for Smithery operations`,
               mcpUrl: 'http://localhost:8080',
-              mcpType: selectedMcpType // Store the MCP type for later reference
+              mcpType: 'smithery',
+              smitheryMcp: smitheryMcp,
+              smitheryApiKey: smitheryApiKey,
+              mcpCommand: mcpCommand,
+              mcpArgs: mcpArgs.join(' '),
+              mcpEnvVars: JSON.stringify(mcpEnvVars)
             },
             draggable: true
           };
           
-          // Create single MCP tool node
+          // Create single MCP tool node with actual user configuration
           const mcpToolNode: Node<BaseNodeData> = {
             id: `node_${Date.now()}_mcp_tool`,
             type: 'baseNode',
-            position: { 
+            position: {
               x: mcpClientNode.position.x + 200,
               y: mcpClientNode.position.y
             },
             data: {
-              label: `${selectedMcpType} MCP Tool`,
+              label: smitheryMcp ? `Smithery MCP: ${smitheryMcp}` : `Smithery MCP Tool`,
               type: 'mcp-tool',
-              description: `MCP tool for ${selectedMcpType} operations`,
-              mcpToolId: selectedMcpType.toLowerCase(),
+              description: smitheryMcp ? `MCP tool for ${smitheryMcp} operations` : `MCP tool for Smithery operations`,
+              mcpToolId: smitheryMcp || '@smithery/mcp-example',
               mcpCommand: mcpCommand,
               mcpArgs: mcpArgs.join(' '),
-              mcpEnvVars: JSON.stringify(mcpEnvVars)
+              mcpEnvVars: JSON.stringify(mcpEnvVars),
+              smitheryMcp: smitheryMcp,
+              smitheryApiKey: smitheryApiKey
             },
             draggable: true
           };
@@ -165,8 +177,8 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
           nodes = [...nodes, mcpClientNode, mcpToolNode];
           edges = [...edges, ...newEdges];
           
-          // Update agent node with MCP-specific information
-          agentNode.data.instruction = getDefaultInstructionForMcpType(selectedMcpType);
+          // Update agent node with Smithery-specific information
+          agentNode.data.instruction = getDefaultInstructionForMcpType('smithery');
         }
       }
       
@@ -222,13 +234,16 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
         throw new Error("No nodes were generated. Please try a more detailed description.");
       }
       
-      // Create MCP configuration if enabled
+      // Create MCP configuration if enabled (Smithery only)
       const mcpConfig = mcpEnabled ? {
         enabled: true,
-        type: selectedMcpType,
+        type: 'smithery',
         command: mcpCommand,
         args: mcpArgs,
-        envVars: mcpEnvVars
+        envVars: mcpEnvVars,
+        smitheryMcp: smitheryMcp,
+        smitheryApiKey: smitheryApiKey,
+        availableFunctions: getMcpToolDescription('smithery')
       } : undefined;
       
       // Call the parent callback with the generated flow
@@ -295,28 +310,14 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
           
           {mcpEnabled && (
             <div className="space-y-4 mb-4 p-4 bg-gray-900/50 rounded-lg">
-              <div className="space-y-2">
-                <Label>MCP Type</Label>
-                <Select value={selectedMcpType} onValueChange={setSelectedMcpType}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select MCP type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MCP_TYPES.map(type => (
-                      <SelectItem key={type.id} value={type.id}>
-                        {type.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <div className="text-sm font-medium text-primary mb-2">Smithery MCP Configuration</div>
               
               <div className="space-y-2">
                 <Label>Command</Label>
                 <Input 
                   value={mcpCommand}
                   onChange={(e) => setMcpCommand(e.target.value)}
-                  placeholder="Command (e.g., npx, uvx)"
+                  placeholder="Command (e.g., npx)"
                 />
               </div>
               
@@ -327,6 +328,52 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
                   onChange={(e) => setMcpArgs(e.target.value.split(' ').filter(Boolean))}
                   placeholder="Command arguments"
                 />
+              </div>
+              
+              <div className="space-y-4 mt-2 p-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
+                <div className="space-y-2">
+                  <Label>Smithery MCP Package</Label>
+                  <Input
+                    value={smitheryMcp}
+                    onChange={(e) => {
+                      setSmitheryMcp(e.target.value);
+                      // Update args with the new MCP package name
+                      const newArgs = [...mcpArgs];
+                      // Find the index after 'run' in the args array
+                      const runIndex = newArgs.indexOf('run');
+                      if (runIndex >= 0 && runIndex < newArgs.length - 1) {
+                        newArgs[runIndex + 1] = e.target.value;
+                      } else if (runIndex >= 0) {
+                        newArgs.push(e.target.value);
+                      }
+                      setMcpArgs(newArgs);
+                    }}
+                    placeholder="@username/mcp-name"
+                  />
+                  <div className="text-xs text-muted-foreground">
+                    Enter the Smithery MCP package name (e.g., @yokingma/time-mcp)
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Smithery API Key</Label>
+                  <Input
+                    type="password"
+                    value={smitheryApiKey}
+                    onChange={(e) => {
+                      setSmitheryApiKey(e.target.value);
+                      // Update environment variables with the new API key
+                      setMcpEnvVars(prev => ({
+                        ...prev,
+                        'SMITHERY_API_KEY': e.target.value
+                      }));
+                    }}
+                    placeholder="Your Smithery API key"
+                  />
+                  <div className="text-xs text-muted-foreground">
+                    You can get your API key from <a href="https://smithery.ai/account/api-keys" target="_blank" className="text-primary hover:underline">smithery.ai/account/api-keys</a>
+                  </div>
+                </div>
               </div>
               
               <div className="space-y-2">
@@ -380,7 +427,7 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
           
           <p className="text-xs text-muted-foreground mb-3">
             {mcpEnabled 
-              ? `Describe your Google ADK agent that uses ${MCP_TYPES.find(t => t.id === selectedMcpType)?.name || 'MCP'} functionality.`
+              ? `Describe your Google ADK agent that uses Smithery MCP functionality.`
               : "Describe your Google ADK agent. Include specific tools needed like Google Search if required."}
           </p>
           
@@ -394,11 +441,7 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
                   setPrompt(e.target.value);
                 }}
                 placeholder={mcpEnabled 
-                  ? `Create a Google ADK agent that uses ${selectedMcpType} MCP to ${
-                      selectedMcpType === 'github' ? 'interact with GitHub repositories. For example: "Create an agent that can search for repositories, list issues, and create new issues."' :
-                      selectedMcpType === 'time' ? 'handle time-related operations. For example: "Create an agent that can tell the current time in different timezones and convert times between timezones."' :
-                      selectedMcpType === 'filesystem' ? 'perform filesystem operations. For example: "Create an agent that can read files, write to files, and list directory contents."' :
-                      'perform operations related to ' + selectedMcpType + '."'}`
+                  ? `Create a Google ADK agent that uses Smithery MCP to perform operations with external systems and APIs. For example: "Create an agent that can interact with the specified Smithery MCP package."`
                   : "Create a Google ADK agent that handles specific tasks. If you need search functionality, mention 'Google Search' explicitly."}
                 className={cn(
                   "w-full h-24 bg-background rounded-md border p-3 text-sm resize-none",
@@ -451,8 +494,8 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
               <ul className="list-disc list-inside mt-1">
                 {mcpEnabled ? (
                   <>
-                    <li>The agent will use the selected MCP type ({MCP_TYPES.find(t => t.id === selectedMcpType)?.name})</li>
-                    <li>Available tools for {selectedMcpType}: {getMcpToolDescription(selectedMcpType)}</li>
+                    <li>The agent will use Smithery MCP</li>
+                    <li>Available tools: {getMcpToolDescription('smithery')}</li>
                     <li>Configure command arguments and environment variables as needed</li>
                     <li>The agent will use the gemini-2.0-flash model for processing</li>
                   </>
@@ -475,6 +518,7 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
 
 // Function to get default instructions based on MCP type
 const getDefaultInstructionForMcpType = (mcpType: string): string => {
+  
   switch (mcpType.toLowerCase()) {
     case 'github':
       return `GitHub assistant for repository operations.
@@ -507,6 +551,8 @@ Available functions:
 - list_directory(path="directory path") - List contents of a directory
 - file_exists(path="file path") - Check if a file exists
 - make_directory(path="directory path") - Create a directory`;
+    case 'smithery':
+      return 'You are an agent that can use Smithery MCP to perform operations. Use the Smithery MCP tool to interact with external systems and APIs.';
     default:
       return `MCP assistant for ${mcpType} operations. Use the available tools to help users with their requests.`;
   }
@@ -514,6 +560,7 @@ Available functions:
 
 // Helper function to get MCP tool descriptions
 const getMcpToolDescription = (mcpType: string): string => {
+  
   switch (mcpType.toLowerCase()) {
     case 'github':
       return 'repository search, issues, pull requests, user info';
@@ -521,6 +568,8 @@ const getMcpToolDescription = (mcpType: string): string => {
       return 'current time, timezone conversion';
     case 'filesystem':
       return 'read/write files, list directories';
+    case 'smithery':
+      return 'Smithery MCP tool for interacting with external systems and APIs';
     default:
       return `operations related to ${mcpType}`;
   }

@@ -78,19 +78,31 @@ export async function generateCode(
             Edges: ${JSON.stringify(edgeData, null, 2)}
             
             CRITICAL WARNING: When using MCPToolset in Google ADK:
-            1. NEVER use MCPToolset.from_server() as it's deprecated and will cause errors
-            2. ALWAYS use MCPToolset.create_tools_from_server() with async_exit_stack parameter
+            ALWAYS use direct initialization of MCPToolset instances with StdioServerParameters.
             
             CORRECT SYNTAX:
-            from contextlib import AsyncExitStack
-            exit_stack = AsyncExitStack()
-            
-            tools, _ = await MCPToolset.create_tools_from_server(
-                connection_params=StdioServerParameters(...),
-                async_exit_stack=exit_stack
-            )
+            # Initialize MCPToolset directly
+            tools = [
+                MCPToolset(
+                    connection_params=StdioServerParameters(
+                        command='npx',
+                        args=[
+                            '-y',
+                            '@smithery/cli@latest',
+                            'run',
+                            '@modelcontextprotocol/server-filesystem',
+                            '--key',
+                            smithery_api_key
+                        ],
+                        env={
+                            'NODE_OPTIONS': '--no-warnings --experimental-fetch'
+                        }
+                    )
+                )
+            ]
             
             INCORRECT SYNTAX (DO NOT USE):
+            tools, _ = await MCPToolset.create_tools_from_server(...)
             tools, exit_stack = await MCPToolset.from_server(...)
             
             Please give me the complete Python code implementation.`,
@@ -137,22 +149,31 @@ function getFrameworkSpecificInstructions(framework: Framework): string {
         Include appropriate imports for the ADK library, tool definitions, and agent configurations.
         Use the Agent class as the main way to define agents and their properties.
         
-        IMPORTANT: For MCP tools, NEVER use MCPToolset.from_server() as it's deprecated.
-        ALWAYS use MCPToolset.create_tools_from_server() with async_exit_stack parameter.
+        IMPORTANT: For MCP tools, use direct initialization of MCPToolset instances with StdioServerParameters.
         
         CORRECT SYNTAX:
-        from contextlib import AsyncExitStack
-        exit_stack = AsyncExitStack()
-        
-        tools, _ = await MCPToolset.create_tools_from_server(
-            connection_params=StdioServerParameters(
-                command='npx',
-                args=["-y", "@modelcontextprotocol/server-filesystem", "/path/to/folder"],
-            ),
-            async_exit_stack=exit_stack
-        )
+        # Initialize MCPToolset directly
+        tools = [
+            MCPToolset(
+                connection_params=StdioServerParameters(
+                    command='npx',
+                    args=[
+                        '-y',
+                        '@smithery/cli@latest',
+                        'run',
+                        '@modelcontextprotocol/server-filesystem',
+                        '--key',
+                        smithery_api_key
+                    ],
+                    env={
+                        'NODE_OPTIONS': '--no-warnings --experimental-fetch'
+                    }
+                )
+            )
+        ]
         
         INCORRECT SYNTAX (DO NOT USE):
+        tools, _ = await MCPToolset.create_tools_from_server(...)
         tools, exit_stack = await MCPToolset.from_server(...)
       `;
     case 'vertex':
@@ -203,67 +224,69 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
 
-# Global state
-_tools = None
-_exit_stack = None
+# Load environment variables
+from dotenv import load_dotenv
+load_dotenv()
+
+# Configure Google AI client
+from google import genai
+GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+if not GOOGLE_API_KEY:
+    raise ValueError("GOOGLE_API_KEY environment variable is not set")
+
+# Initialize Google AI client
+genai_client = genai.Client(api_key=GOOGLE_API_KEY)
+
+# MCP Configuration
 GITHUB_TOKEN = os.getenv('GITHUB_PERSONAL_ACCESS_TOKEN')
+if not GITHUB_TOKEN:
+    raise ValueError("GITHUB_PERSONAL_ACCESS_TOKEN environment variable is not set")
+smithery_api_key = os.getenv('SMITHERY_API_KEY')
+if not smithery_api_key:
+    raise ValueError("SMITHERY_API_KEY environment variable is not set")
 
-async def get_tools_async():
-    """Gets tools from the GitHub MCP Server."""
-    exit_stack = AsyncExitStack()
-    tools, _ = await MCPToolset.create_tools_from_server(
-        connection_params=StdioServerParameters(
-            command='npx',
-            args=[
-                "-y",  # Argument for npx to auto-confirm install
-                "@modelcontextprotocol/server-github",
-            ],
-            env={
-                "GITHUB_PERSONAL_ACCESS_TOKEN": GITHUB_TOKEN,
-                "NODE_OPTIONS": "--no-warnings --experimental-fetch",
-                "SKIP_TOOLS": "create_pull_request_review"  # Explicitly skip problematic tool
-            }
-        ),
-        async_exit_stack=exit_stack
+def create_root_agent():
+    """Create and return the root agent instance."""
+    # Use MCP server via direct initialization with the new approach
+    return LlmAgent(
+        model="gemini-2.0-flash",
+        name="github_agent",
+        description="GitHub operations assistant",
+        instruction="""GitHub assistant for repository operations.""",
+        tools=[
+            MCPToolset(
+                connection_params=StdioServerParameters(
+                    command="npx",
+                    args=[
+                        "-y",
+                        "@smithery/cli@latest",
+                        "run",
+                        "@modelcontextprotocol/server-github",
+                        "--key",
+                        smithery_api_key,
+                        "--token",
+                        GITHUB_TOKEN
+                    ],
+                    env={
+                        'NODE_OPTIONS': '--no-warnings --experimental-fetch'
+                    }
+                )
+            )
+        ]
     )
-    # Filter out the problematic tool if it still exists
-    return [t for t in tools if t.name != 'create_pull_request_review'], exit_stack
 
-class GitHubAgent(LlmAgent):
-    async def _run_async_impl(self, ctx):
-        if not self.tools:
-            global _tools, _exit_stack
-            self.tools, _exit_stack = await get_tools_async()
-            _tools = self.tools
-        async for event in super()._run_async_impl(ctx):
-            yield event
-
-# Create the agent
-root_agent = GitHubAgent(
-    model="gemini-2.0-flash",
-    name="github_agent",
-    description="GitHub operations assistant.",
-    instruction="""GitHub assistant for repository operations.
-Available functions:
-- search_repositories(query="search term")
-- get_repository(owner="owner", repo="repo")
-- list_issues(owner="owner", repo="repo")
-- create_issue(owner="owner", repo="repo", title="", body="")
-- get_user(username="username")
-- list_pull_requests(owner="owner", repo="repo")
-- get_pull_request(owner="owner", repo="repo", pull_number=123)
-- merge_pull_request(owner="owner", repo="repo", pull_number=123)
-
-Note: Pull request review functionality is not available.""",
-    tools=[]  # Tools will be loaded dynamically from MCP server
-)
+# Create the root agent instance
+root_agent = create_root_agent()
 
 async def main():
     """Run the agent."""
     runner = Runner(
         app_name='github_mcp_app',
         agent=root_agent,
-        session_service=InMemorySessionService()
+        session_service=InMemorySessionService(),
+        inputs={
+            'client': genai.Client(api_key=os.getenv('GOOGLE_API_KEY'))  # Create a new client instance
+        }
     )
     
     try:
@@ -283,8 +306,10 @@ async def main():
         if hasattr(root_agent, '_exit_stack'):
             await root_agent._exit_stack.aclose()
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     asyncio.run(main())
+
+# End of GitHub MCP Agent template
 `;
     case 'vertex':
       // ... other templates ...

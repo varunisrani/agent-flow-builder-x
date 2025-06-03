@@ -14,6 +14,12 @@ export interface BaseNodeData extends Record<string, unknown> {
   modelType?: string;
   mcpUrl?: string;
   mcpToolId?: string;
+  mcpCommand?: string;
+  mcpArgs?: string | string[];
+  mcpEnvVars?: string | { [key: string]: string };
+  smitheryMcp?: string;
+  smitheryApiKey?: string;
+  mcpType?: string;
 }
 
 

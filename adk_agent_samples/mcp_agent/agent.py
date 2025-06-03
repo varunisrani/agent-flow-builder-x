@@ -1,59 +1,51 @@
-import os # Required for path operations
-import asyncio
 from google.adk.agents import LlmAgent
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
-from contextlib import AsyncExitStack
+from google.genai import types  # For Content/Part
+import asyncio
 
-# Set Google API key
-os.environ["GOOGLE_API_KEY"] = "AIzaSyDKYSA-rs_GE5mCqA9b1yw8NFWH9fSn-Vc"
-
-# Define the path to the folder that will be accessible by the MCP server
-# Using an absolute path based on the current file's location
-TARGET_FOLDER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "accessible_files")
-
-# This is the async function that ADK will call to get the agent
-async def get_agent_async():
-    """Create an ADK agent with MCP tools for file system operations."""
-    # Use AsyncExitStack to properly manage resources
-    exit_stack = AsyncExitStack()
-    
-    try:
-        # Create and fetch MCP tools
-        tools, _ = await MCPToolset.create_tools_from_server(
-            connection_params=StdioServerParameters(
-                command='npx',
-                args=[
-                    "-y",  # Argument for npx to auto-confirm install
-                    "@modelcontextprotocol/server-filesystem",
-                    # Using the absolute path to the folder we created
-                    os.path.abspath(TARGET_FOLDER_PATH),
-                ],
-            ),
-            async_exit_stack=exit_stack
-        )
-        
-        # Create the agent with the retrieved tools
-        agent = LlmAgent(
-            model='gemini-2.0-flash',
-            name='filesystem_assistant_agent',
-            instruction='Help the user manage their files. You can list files, read files, etc.',
-            tools=tools,
-        )
-        
-        return agent, exit_stack
-    except Exception as e:
-        # Clean up resources if there's an error
-        await exit_stack.aclose()
-        raise e
-
-# ADK web server expects a root_agent attribute to be present
-# We create a placeholder LLM agent for it to find
-root_agent = LlmAgent(
-    model='gemini-2.0-flash',
-    name='filesystem_assistant_agent',
-    instruction='Help the user manage their files. You can list files, read files, etc.',
-    tools=[],  # Empty list of tools initially - the get_agent_async() function will provide the real tools
+# MCP toolset configuration
+toolset = MCPToolset(
+    connection_params=StdioServerParameters(
+        command="npx",
+        args=["-y", "@smithery/cli@latest", "run", "@upstash/context7-mcp", "--key", "040afa77-557a-4a7b-9169-3f1f2b9d685f"],
+        env={"NODE_OPTIONS": "--no-warnings --experimental-fetch", "SMITHERY_API_KEY": "040afa77-557a-4a7b-9169-3f1f2b9d685f"}
+    )
 )
 
-# For use in standalone scripts (not needed for ADK web, which calls get_agent_async directly)
-# root_agent = asyncio.run(get_agent_async())[0] 
+# LlmAgent with MCP tools - CORRECT PARAMETER ORDER
+root_agent = LlmAgent(
+    name="DocQueryAgent",
+    model="gemini-2.0-flash",
+    description="An LlmAgent that handles user queries about documentation and uses MCP tool to update context and retrieve information.",
+    instruction="You are an agent that can use Smithery MCP to perform operations. Use the Smithery MCP tool to interact with external systems and APIs.",
+    tools=[toolset]
+)
+
+# Session service and runner setup - MUST INCLUDE app_name
+session_service = InMemorySessionService()
+runner = Runner(agent=root_agent, session_service=session_service, app_name="DocQueryAgent")
+
+async def main():
+    # Create a session
+    user_id = "user"
+    session = session_service.create_session(state={}, app_name="DocQueryAgent", user_id=user_id)
+    session_id = session.id
+
+    # Create an initial message (Content object)
+    new_message = types.Content(
+        role="user",
+        parts=[types.Part(text="Hello, agent!")]
+    )
+
+    # Run the agent
+    async for event in runner.run_async(
+        user_id=user_id,
+        session_id=session_id,
+        new_message=new_message
+    ):
+        print(event)
+
+if __name__ == "__main__":
+    asyncio.run(main())
