@@ -32,6 +32,7 @@ export function dedupeConfigs(configs: MCPConfig[]): MCPConfig[] {
   return unique;
 }
 
+
 // Generate MCP code for agents
 export function generateMCPCode(nodes: Node<BaseNodeData>[], mcpConfigs: MCPConfig[]): string {
   const agentNode = nodes.find(n => n.data.type === 'agent');
@@ -46,11 +47,11 @@ export function generateMCPCode(nodes: Node<BaseNodeData>[], mcpConfigs: MCPConf
 
   const toolsets: string[] = [];
   const toolsetNames: string[] = [];
-  const uniqueConfigs = dedupeConfigs(mcpConfigs);
-  uniqueConfigs.forEach((cfg, idx) => {
-    const mcpPackage = cfg.smitheryMcp || cfg.args.find(arg => arg.startsWith('@')) || '@smithery/mcp-example';
-    const packageName = mcpPackage.split('/').pop() || `mcp_${idx}`;
-    const varName = varNameFromPackage(mcpPackage, idx);
+const uniqueConfigs = dedupeConfigs(mcpConfigs);
+uniqueConfigs.forEach((cfg, idx) => {
+  const mcpPackage = cfg.smitheryMcp || cfg.args.find(arg => arg.startsWith('@')) || '@smithery/mcp-example';
+  const packageName = mcpPackage.split('/').pop() || `mcp_${idx}`;
+  const varName = varNameFromPackage(mcpPackage, idx);
 
     console.log('Generating MCP code with config:', {
       index: idx,
@@ -119,6 +120,7 @@ root_agent = LlmAgent(
     instruction="${agentInstruction}",
     tools=[${toolsetList}]
 )
+
 
 # Session service and runner setup - MUST INCLUDE app_name
 session_service = InMemorySessionService()
@@ -223,9 +225,10 @@ export function generateADKCode(nodes: Node<BaseNodeData>[], _edges: Edge[], mcp
     node.data.type === 'mcp-tool'
   );
 
-  if (mcpConfigs && mcpConfigs.length > 0) {
-    return generateMCPCode(nodes, dedupeConfigs(mcpConfigs));
-  }
+if (mcpConfigs && mcpConfigs.length > 0) {
+  return generateMCPCode(nodes, dedupeConfigs(mcpConfigs));
+}
+
 
   if (mcpNodes.length > 0) {
     // Extract MCP package from node data
@@ -264,13 +267,13 @@ export async function generateVerifiedCode(
     message: "Generating initial code..."
   });
 
-  const dedupedConfig = mcpConfig ? dedupeConfigs(mcpConfig) : undefined;
-  let generatedCode: string;
-  if (apiKey) {
-    generatedCode = await generateCodeWithAI(nodes, edges, mcpEnabled, apiKey, dedupedConfig);
-  } else {
-    generatedCode = generateADKCode(nodes, edges, dedupedConfig);
-  }
+ const dedupedConfig = mcpConfig ? dedupeConfigs(mcpConfig) : undefined;
+let generatedCode: string;
+if (apiKey) {
+  generatedCode = await generateCodeWithAI(nodes, edges, mcpEnabled, apiKey, dedupedConfig);
+} else {
+  generatedCode = generateADKCode(nodes, edges, dedupedConfig);
+}
 
   // Step 2: Extract node data for verification
   const mcpNodes = nodes.filter(n =>
@@ -326,10 +329,11 @@ export async function generateCodeWithAI(
 
   const dedupedConfig = mcpConfig ? dedupeConfigs(mcpConfig) : undefined;
 
-  if (!apiKey) {
-    console.warn('No API key provided, falling back to local generation');
-    return generateADKCode(nodes, _edges, dedupedConfig);
-  }
+if (!apiKey) {
+  console.warn('No API key provided, falling back to local generation');
+  return generateADKCode(nodes, _edges, dedupedConfig);
+}
+
 
   // Prepare node data for the AI prompt
   const nodeData = nodes.map(node => ({
@@ -400,9 +404,10 @@ Return ONLY Python code, no explanations.`;
     }
 
     return cleanedCode;
-  } catch (error) {
-    console.error('Error calling OpenRouter API:', error);
-    // Fall back to local generation
-    return generateADKCode(nodes, _edges, dedupedConfig);
-  }
+ } catch (error) {
+  console.error('Error calling OpenRouter API:', error);
+  // Fall back to local generation
+  return generateADKCode(nodes, _edges, dedupedConfig);
+}
+
 }

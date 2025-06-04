@@ -721,17 +721,18 @@ export function CodeGenerationModal({
       let generatedCode: string;
       if (activeTab === 'adk') {
         // Use the new verified code generation
-        generatedCode = await generateVerifiedCode(
-          nodes,
-          edges,
-          mcpEnabled,
-          OPENROUTER_API_KEY,
-          (progress) => setVerificationProgress(progress),
-          mcpConfig ? dedupeConfigs(mcpConfig) : undefined
-        );
-          } else {
-        generatedCode = generateDefaultSearchAgentCode();
-      }
+       // Use the new verified code generation
+generatedCode = await generateVerifiedCode(
+  nodes,
+  edges,
+  mcpEnabled,
+  OPENROUTER_API_KEY,
+  (progress) => setVerificationProgress(progress),
+  mcpConfig ? dedupeConfigs(mcpConfig) : undefined
+);
+} else {
+  generatedCode = generateDefaultSearchAgentCode();
+}
 
       const formattedCode = formatCodeForDisplay(generatedCode);
       setGeneratedCode(formattedCode);
@@ -784,18 +785,18 @@ export function CodeGenerationModal({
           }
           
         // Use the new verified code generation
-        generatedCode = await generateVerifiedCode(
-          nodes,
-          edges,
-          mcpEnabled,
-          OPENROUTER_API_KEY,
-          (progress) => setVerificationProgress(progress),
-          mcpConfig ? dedupeConfigs(mcpConfig) : undefined
-        );
-          } else {
-        generatedCode = generateDefaultSearchAgentCode();
-      }
-      
+       generatedCode = await generateVerifiedCode(
+  nodes,
+  edges,
+  mcpEnabled,
+  OPENROUTER_API_KEY,
+  (progress) => setVerificationProgress(progress),
+  mcpConfig ? dedupeConfigs(mcpConfig) : undefined
+);
+} else {
+  generatedCode = generateDefaultSearchAgentCode();
+}
+
       const formattedCode = formatCodeForDisplay(generatedCode);
       setGeneratedCode(formattedCode);
       storeCode(flowKey, activeTab, formattedCode);
