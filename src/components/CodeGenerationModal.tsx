@@ -15,7 +15,7 @@ import { Copy, AlertCircle, Loader2, Play } from 'lucide-react';
 import { toast } from '@/hooks/use-toast.js';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { generateMCPCode, MCPConfig, generateFallbackMcpCode, isMcpCode, generateVerifiedCode } from '@/lib/codeGeneration';
+import { generateMCPCode, MCPConfig, generateFallbackMcpCode, isMcpCode, generateVerifiedCode, dedupeConfigs } from '@/lib/codeGeneration';
 import { type VerificationProgress, type VerificationResult } from '@/lib/codeVerification';
 
 // OpenRouter configuration - Use environment variable for API key
@@ -633,8 +633,9 @@ function fallbackToLocalGeneration(
   if (mcpEnabled) {
     // Extract actual MCP config from nodes if not provided
     const validConfig = mcpConfig || extractMcpConfigFromNodes(nodes);
+    const deduped = dedupeConfigs(validConfig);
     console.log('Generating MCP code with config:', validConfig);
-    return generateMCPCode(nodes, validConfig);
+    return generateMCPCode(nodes, deduped);
   }
 
   console.log('Generating default search agent code');
@@ -726,7 +727,7 @@ export function CodeGenerationModal({
           mcpEnabled,
           OPENROUTER_API_KEY,
           (progress) => setVerificationProgress(progress),
-          mcpConfig
+          mcpConfig ? dedupeConfigs(mcpConfig) : undefined
         );
           } else {
         generatedCode = generateDefaultSearchAgentCode();
@@ -789,7 +790,7 @@ export function CodeGenerationModal({
           mcpEnabled,
           OPENROUTER_API_KEY,
           (progress) => setVerificationProgress(progress),
-          mcpConfig
+          mcpConfig ? dedupeConfigs(mcpConfig) : undefined
         );
           } else {
         generatedCode = generateDefaultSearchAgentCode();

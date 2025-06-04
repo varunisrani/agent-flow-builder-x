@@ -427,7 +427,8 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
       }
       
       // Create MCP configuration if enabled (Smithery only)
-      const mcpConfigs = mcpEnabled ? smitheryMcps.map(pkg => ({
+      const uniquePkgs = Array.from(new Set(smitheryMcps));
+      const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => ({
         enabled: true,
         type: 'smithery',
         command: mcpCommand,
