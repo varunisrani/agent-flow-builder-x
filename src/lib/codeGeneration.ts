@@ -14,7 +14,7 @@ export interface MCPConfig {
 }
 
 // Generate MCP code for agents
-export function generateMCPCode(nodes: Node<BaseNodeData>[], mcpConfig: MCPConfig): string {
+export function generateMCPCode(nodes: Node<BaseNodeData>[], mcpConfigs: MCPConfig[]): string {
   const agentNode = nodes.find(n => n.data.type === 'agent');
   if (!agentNode) {
     return generateDefaultSearchAgentCode();
@@ -25,47 +25,52 @@ export function generateMCPCode(nodes: Node<BaseNodeData>[], mcpConfig: MCPConfi
   const agentInstruction = agentNode.data.instruction || agentNode.data.prompt ||
     "You are a helpful assistant that can use MCP tools to assist users.";
 
-  // Extract MCP package name from multiple sources
-  const mcpPackage = mcpConfig.smitheryMcp ||
-                     mcpConfig.args.find(arg => arg.startsWith('@')) ||
-                     '@smithery/mcp-example';
-  const packageName = mcpPackage.split('/').pop() || 'mcp-example';
+  const toolsets: string[] = [];
+  mcpConfigs.forEach((cfg, idx) => {
+    const mcpPackage = cfg.smitheryMcp || cfg.args.find(arg => arg.startsWith('@')) || '@smithery/mcp-example';
+    const packageName = mcpPackage.split('/').pop() || `mcp_${idx}`;
 
-  console.log('Generating MCP code with config:', {
-    command: mcpConfig.command,
-    args: mcpConfig.args,
-    envVars: mcpConfig.envVars,
-    smitheryMcp: mcpConfig.smitheryMcp,
-    smitheryApiKey: mcpConfig.smitheryApiKey,
-    extractedMcpPackage: mcpPackage,
-    packageName
+    console.log('Generating MCP code with config:', {
+      index: idx,
+      command: cfg.command,
+      args: cfg.args,
+      envVars: cfg.envVars,
+      smitheryMcp: cfg.smitheryMcp,
+      smitheryApiKey: cfg.smitheryApiKey,
+      extractedMcpPackage: mcpPackage,
+      packageName
+    });
+
+    let fixedArgs = [...cfg.args];
+    if (cfg.smitheryMcp) {
+      const runIndex = fixedArgs.indexOf('run');
+      if (runIndex !== -1 && runIndex + 1 < fixedArgs.length) {
+        fixedArgs[runIndex + 1] = cfg.smitheryMcp;
+      } else if (runIndex !== -1) {
+        fixedArgs.splice(runIndex + 1, 0, cfg.smitheryMcp);
+      }
+    }
+    if (!fixedArgs.includes('--key')) {
+      fixedArgs.push('--key', 'smithery_api_key');
+    } else {
+      const keyIndex = fixedArgs.indexOf('--key');
+      if (keyIndex !== -1 && (keyIndex + 1 >= fixedArgs.length || fixedArgs[keyIndex + 1] === '--key')) {
+        fixedArgs[keyIndex + 1] = 'smithery_api_key';
+      }
+    }
+
+    const toolset = `toolset${idx} = MCPToolset(
+    connection_params=StdioServerParameters(
+        command="${cfg.command}",
+        args=${JSON.stringify(fixedArgs).replace('"smithery_api_key"', 'smithery_api_key').replace(/"\*\*\*.*?\*\*\*"/g, 'smithery_api_key')},
+        env=${JSON.stringify({ ...cfg.envVars, "SMITHERY_API_KEY": "smithery_api_key" }).replace('"smithery_api_key"', 'smithery_api_key')}
+    )
+)`;
+
+    toolsets.push(toolset);
   });
 
-  // Ensure CLI arguments include the correct MCP package and --key parameter
-  let fixedArgs = [...mcpConfig.args];
-
-  // Update the MCP package in args if it's different from what's in smitheryMcp
-  if (mcpConfig.smitheryMcp) {
-    const runIndex = fixedArgs.indexOf('run');
-    if (runIndex !== -1 && runIndex + 1 < fixedArgs.length) {
-      // Replace the package after 'run' with the correct one
-      fixedArgs[runIndex + 1] = mcpConfig.smitheryMcp;
-    } else if (runIndex !== -1) {
-      // Add the package after 'run' if it doesn't exist
-      fixedArgs.splice(runIndex + 1, 0, mcpConfig.smitheryMcp);
-    }
-  }
-
-  // If --key is not already in args, add it
-  if (!fixedArgs.includes('--key')) {
-    fixedArgs.push('--key', 'smithery_api_key');
-  } else {
-    // If --key exists but no smithery_api_key follows it, fix it
-    const keyIndex = fixedArgs.indexOf('--key');
-    if (keyIndex !== -1 && (keyIndex + 1 >= fixedArgs.length || fixedArgs[keyIndex + 1] === '--key')) {
-      fixedArgs[keyIndex + 1] = 'smithery_api_key';
-    }
-  }
+  const toolsetList = mcpConfigs.map((_, idx) => `toolset${idx}`).join(', ');
 
   return `from google.adk.agents import LlmAgent
 from google.adk.runners import Runner
@@ -77,25 +82,18 @@ import os
 
 # Set the Smithery API key from environment variable
 smithery_api_key = os.getenv("SMITHERY_API_KEY")
-        if not smithery_api_key:
-            raise ValueError("SMITHERY_API_KEY environment variable is not set")
-        
-# MCP toolset configuration for ${packageName}
-        toolset = MCPToolset(
-            connection_params=StdioServerParameters(
-        command="${mcpConfig.command}",
-        args=${JSON.stringify(fixedArgs).replace('"smithery_api_key"', 'smithery_api_key').replace(/"\*\*\*.*?\*\*\*"/g, 'smithery_api_key')},
-        env=${JSON.stringify({...mcpConfig.envVars, "SMITHERY_API_KEY": "smithery_api_key"}).replace('"smithery_api_key"', 'smithery_api_key')}
-    )
-)
+if not smithery_api_key:
+    raise ValueError("SMITHERY_API_KEY environment variable is not set")
 
-# LlmAgent with MCP tools - CORRECT PARAMETER ORDER
+${toolsets.join('\n\n')}
+
+# LlmAgent with MCP tools
 root_agent = LlmAgent(
     name="${agentName}",
     model="gemini-2.0-flash",
     description="${agentDescription}",
     instruction="${agentInstruction}",
-    tools=[toolset]
+    tools=[${toolsetList}]
 )
 
 # Session service and runner setup - MUST INCLUDE app_name
@@ -189,7 +187,7 @@ export function generateFallbackMcpCode(mcpPackage?: string): string {
     smitheryMcp: packageToUse
   };
 
-  return generateMCPCode([], defaultConfig);
+  return generateMCPCode([], [defaultConfig]);
 }
 
 // Generate ADK code (compatibility function)
@@ -216,7 +214,7 @@ export function generateADKCode(nodes: Node<BaseNodeData>[], _edges: Edge[]): st
       envVars: { 'NODE_OPTIONS': '--no-warnings --experimental-fetch', 'SMITHERY_API_KEY': 'smithery_api_key' },
       smitheryMcp: mcpPackage
     };
-    return generateMCPCode(nodes, defaultConfig);
+    return generateMCPCode(nodes, [defaultConfig]);
   }
 
   return generateDefaultSearchAgentCode();
@@ -252,17 +250,16 @@ export async function generateVerifiedCode(
   );
   const agentNodes = nodes.filter(n => n.data.type === 'agent');
 
-  // Extract MCP package from node data
-  const mcpNode = mcpNodes[0];
-  const mcpPackage = mcpNode ?
-    (mcpNode.data.smitheryMcp as string) ||
-    (mcpNode.data.mcpToolId as string) ||
-    '@smithery/mcp-example' : '@smithery/mcp-example';
+  const mcpPackages = mcpNodes.map(n =>
+    (n.data.smitheryMcp as string) ||
+    (n.data.mcpToolId as string) ||
+    '@smithery/mcp-example'
+  );
 
   // Extract agent data
   const agentNode = agentNodes[0];
   const nodeData = {
-    mcpPackage,
+    mcpPackage: mcpPackages.join(', '),
     agentName: agentNode?.data.label as string,
     agentDescription: agentNode?.data.description as string,
     agentInstruction: agentNode?.data.instruction as string || agentNode?.data.prompt as string
