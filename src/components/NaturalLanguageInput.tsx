@@ -133,7 +133,7 @@ const MCP_SERVERS: MCPServer[] = [
 interface NaturalLanguageInputProps {
   expanded: boolean;
   onToggle: () => void;
-  onGenerate: (prompt: string, nodes: Node<BaseNodeData>[], edges: Edge[], mcpConfig?: MCPConfig) => void;
+  onGenerate: (prompt: string, nodes: Node<BaseNodeData>[], edges: Edge[], mcpConfig?: MCPConfig[]) => void;
 }
 
 export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: NaturalLanguageInputProps) {
@@ -149,7 +149,7 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
   const [mcpEnvVars, setMcpEnvVars] = useState<{ [key: string]: string }>(MCP_TYPES[0].defaultEnvVars);
   
   // Smithery-specific state
-  const [smitheryMcp, setSmitheryMcp] = useState('');
+  const [smitheryMcps, setSmitheryMcps] = useState<string[]>([]);
   const [smitheryApiKey, setSmitheryApiKey] = useState('');
 
   // Environment variable state
@@ -158,7 +158,7 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
 
   // MCP Server Marketplace state
   const [showMarketplace, setShowMarketplace] = useState(false);
-  const [selectedServer, setSelectedServer] = useState<MCPServer | null>(null);
+  const [selectedServers, setSelectedServers] = useState<MCPServer[]>([]);
   const [searchFilter, setSearchFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
 
@@ -172,7 +172,9 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
     setMcpCommand(mcpType.command);
     setMcpArgs(mcpType.defaultArgs);
     setMcpEnvVars(mcpType.defaultEnvVars);
-    setSmitheryMcp(mcpType.smitheryMcp || '');
+    if (mcpType.smitheryMcp) {
+      setSmitheryMcps([mcpType.smitheryMcp]);
+    }
     setSmitheryApiKey(mcpType.defaultEnvVars['SMITHERY_API_KEY'] || '');
   }, []);
   
@@ -213,25 +215,22 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
 
   // MCP Server Marketplace functions
   const handleSelectServer = (server: MCPServer) => {
-    setSelectedServer(server);
-    setSmitheryMcp(server.package);
-
-    // Update args with the new MCP package name
-    const newArgs = [...mcpArgs];
-    const runIndex = newArgs.indexOf('run');
-    if (runIndex >= 0 && runIndex < newArgs.length - 1) {
-      newArgs[runIndex + 1] = server.package;
-    } else if (runIndex >= 0) {
-      newArgs.push(server.package);
-    }
-    setMcpArgs(newArgs);
+    setSelectedServers(prev => {
+      const exists = prev.some(s => s.id === server.id);
+      if (exists) {
+        setSmitheryMcps(pkgs => pkgs.filter(p => p !== server.package));
+        return prev.filter(s => s.id !== server.id);
+      }
+      setSmitheryMcps(pkgs => [...pkgs, server.package]);
+      return [...prev, server];
+    });
 
     // Close marketplace
     setShowMarketplace(false);
 
     toast({
       title: "MCP Server Selected",
-      description: `Selected ${server.name} (${server.package})`,
+      description: `Toggled ${server.name} (${server.package})`,
       duration: 3000,
     });
   };
@@ -311,71 +310,66 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
       if (mcpEnabled) {
         const agentNode = nodes.find(n => n.data.type === 'agent');
         if (agentNode) {
-          // Create MCP client node with user configuration
-          const mcpClientNode: Node<BaseNodeData> = {
-            id: `node_${Date.now()}_mcp_client`,
-            type: 'baseNode',
-            position: { x: agentNode.position.x + 200, y: agentNode.position.y },
-            data: {
-              label: smitheryMcp ? `Smithery Client: ${smitheryMcp.split('/').pop()}` : `Smithery Client`,
-              type: 'mcp-client',
-              description: smitheryMcp ? `MCP client for ${smitheryMcp} operations` : `MCP client for Smithery operations`,
-              mcpUrl: 'http://localhost:8080',
-              mcpType: 'smithery',
-              smitheryMcp: smitheryMcp,
-              smitheryApiKey: smitheryApiKey,
-              mcpCommand: mcpCommand,
-              mcpArgs: mcpArgs.join(' '),
-              mcpEnvVars: JSON.stringify(mcpEnvVars)
-            },
-            draggable: true
-          };
-          
-          // Create single MCP tool node with actual user configuration
-          const mcpToolNode: Node<BaseNodeData> = {
-            id: `node_${Date.now()}_mcp_tool`,
-            type: 'baseNode',
-            position: {
-              x: mcpClientNode.position.x + 200,
-              y: mcpClientNode.position.y
-            },
-            data: {
-              label: smitheryMcp ? `Smithery MCP: ${smitheryMcp}` : `Smithery MCP Tool`,
-              type: 'mcp-tool',
-              description: smitheryMcp ? `MCP tool for ${smitheryMcp} operations` : `MCP tool for Smithery operations`,
-              mcpToolId: smitheryMcp || '@smithery/mcp-example',
-              mcpCommand: mcpCommand,
-              mcpArgs: mcpArgs.join(' '),
-              mcpEnvVars: JSON.stringify(mcpEnvVars),
-              smitheryMcp: smitheryMcp,
-              smitheryApiKey: smitheryApiKey
-            },
-            draggable: true
-          };
-          
-          // Add edges to connect nodes
-          const newEdges: Edge[] = [
-            // Connect agent to MCP client
-            {
-              id: `edge_${Date.now()}_agent_client`,
-              source: agentNode.id,
-              target: mcpClientNode.id,
-              type: 'default'
-            },
-            // Connect MCP client to MCP tool
-            {
-              id: `edge_${Date.now()}_client_tool`,
-              source: mcpClientNode.id,
-              target: mcpToolNode.id,
-              type: 'default'
-            }
-          ];
-          
-          // Update nodes and edges
-          nodes = [...nodes, mcpClientNode, mcpToolNode];
-          edges = [...edges, ...newEdges];
-          
-          // Update agent node with Smithery-specific information
+          smitheryMcps.forEach((pkg, idx) => {
+            const clientNode: Node<BaseNodeData> = {
+              id: `node_${Date.now()}_${idx}_mcp_client`,
+              type: 'baseNode',
+              position: { x: agentNode.position.x + 200 + idx * 250, y: agentNode.position.y },
+              data: {
+                label: `Smithery Client: ${pkg.split('/').pop()}`,
+                type: 'mcp-client',
+                description: `MCP client for ${pkg} operations`,
+                mcpUrl: 'http://localhost:8080',
+                mcpType: 'smithery',
+                smitheryMcp: pkg,
+                smitheryApiKey: smitheryApiKey,
+                mcpCommand: mcpCommand,
+                mcpArgs: mcpArgs.join(' '),
+                mcpEnvVars: JSON.stringify(mcpEnvVars)
+              },
+              draggable: true
+            };
+
+            const toolNode: Node<BaseNodeData> = {
+              id: `node_${Date.now()}_${idx}_mcp_tool`,
+              type: 'baseNode',
+              position: {
+                x: clientNode.position.x + 200,
+                y: clientNode.position.y
+              },
+              data: {
+                label: `Smithery MCP: ${pkg}`,
+                type: 'mcp-tool',
+                description: `MCP tool for ${pkg} operations`,
+                mcpToolId: pkg,
+                mcpCommand: mcpCommand,
+                mcpArgs: mcpArgs.join(' '),
+                mcpEnvVars: JSON.stringify(mcpEnvVars),
+                smitheryMcp: pkg,
+                smitheryApiKey: smitheryApiKey
+              },
+              draggable: true
+            };
+
+            const newEdges: Edge[] = [
+              {
+                id: `edge_${Date.now()}_${idx}_agent_client`,
+                source: agentNode.id,
+                target: clientNode.id,
+                type: 'default'
+              },
+              {
+                id: `edge_${Date.now()}_${idx}_client_tool`,
+                source: clientNode.id,
+                target: toolNode.id,
+                type: 'default'
+              }
+            ];
+
+            nodes = [...nodes, clientNode, toolNode];
+            edges = [...edges, ...newEdges];
+          });
+
           agentNode.data.instruction = getDefaultInstructionForMcpType('smithery');
         }
       }
@@ -433,20 +427,21 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
       }
       
       // Create MCP configuration if enabled (Smithery only)
-      const mcpConfig = mcpEnabled ? {
+      const uniquePkgs = Array.from(new Set(smitheryMcps));
+      const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => ({
         enabled: true,
         type: 'smithery',
         command: mcpCommand,
         args: mcpArgs,
         envVars: mcpEnvVars,
-        smitheryMcp: smitheryMcp,
+        smitheryMcp: pkg,
         smitheryApiKey: smitheryApiKey,
         availableFunctions: getMcpToolDescription('smithery')
-      } : undefined;
+      })) : undefined;
       
       // Call the parent callback with the generated flow
       console.log('NaturalLanguageInput: Calling onGenerate callback');
-      onGenerate(prompt, nodes, edges, mcpConfig);
+      onGenerate(prompt, nodes, edges, mcpConfigs);
       
       toast({
         title: "Flow Generation Complete",
@@ -575,7 +570,7 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
                             key={server.id}
                             className={cn(
                               "p-3 rounded-lg border cursor-pointer transition-all hover:border-primary/50",
-                              selectedServer?.id === server.id
+                              selectedServers.some(s => s.id === server.id)
                                 ? "border-primary bg-primary/10"
                                 : "border-gray-600 bg-gray-800/30"
                             )}
@@ -629,24 +624,15 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
                 <div className="space-y-2">
                   <Label>Smithery MCP Package</Label>
                   <Input
-                    value={smitheryMcp}
+                    value={smitheryMcps.join(', ')}
                     onChange={(e) => {
-                      setSmitheryMcp(e.target.value);
-                      // Update args with the new MCP package name
-                      const newArgs = [...mcpArgs];
-                      // Find the index after 'run' in the args array
-                      const runIndex = newArgs.indexOf('run');
-                      if (runIndex >= 0 && runIndex < newArgs.length - 1) {
-                        newArgs[runIndex + 1] = e.target.value;
-                      } else if (runIndex >= 0) {
-                        newArgs.push(e.target.value);
-                      }
-                      setMcpArgs(newArgs);
+                      const values = e.target.value.split(',').map(v => v.trim()).filter(Boolean);
+                      setSmitheryMcps(values);
                     }}
-                    placeholder="@username/mcp-name"
+                    placeholder="@username/mcp-name, another/mcp"
                   />
                   <div className="text-xs text-muted-foreground">
-                    Enter the Smithery MCP package name (e.g., @yokingma/time-mcp) or select from marketplace above
+                    Enter one or more package names separated by commas or select from the marketplace above
                   </div>
                 </div>
                 

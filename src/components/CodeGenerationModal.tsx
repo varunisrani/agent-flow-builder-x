@@ -15,7 +15,7 @@ import { Copy, AlertCircle, Loader2, Play } from 'lucide-react';
 import { toast } from '@/hooks/use-toast.js';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { generateMCPCode, MCPConfig, generateFallbackMcpCode, isMcpCode, generateVerifiedCode } from '@/lib/codeGeneration';
+import { generateMCPCode, MCPConfig, generateFallbackMcpCode, isMcpCode, generateVerifiedCode, dedupeConfigs } from '@/lib/codeGeneration';
 import { type VerificationProgress, type VerificationResult } from '@/lib/codeVerification';
 
 // OpenRouter configuration - Use environment variable for API key
@@ -132,7 +132,7 @@ interface CodeGenerationModalProps {
   onOpenChange: (open: boolean) => void;
   nodes: Node<BaseNodeData>[];
   edges: Edge[];
-  mcpConfig?: MCPConfig;
+  mcpConfig?: MCPConfig[];
 }
 
 // Helper function to get a unique key for the flow
@@ -228,7 +228,7 @@ async function callOpenRouter(messages: Array<{ role: string; content: string }>
 }
 
 // Function to extract MCP configuration from nodes
-function extractMcpConfigFromNodes(nodes: Node<BaseNodeData>[]): MCPConfig {
+function extractMcpConfigFromNodes(nodes: Node<BaseNodeData>[]): MCPConfig[] {
   // Find MCP-related nodes
   const mcpNodes = nodes.filter(n =>
     n.data.type === 'mcp-client' ||
@@ -237,12 +237,11 @@ function extractMcpConfigFromNodes(nodes: Node<BaseNodeData>[]): MCPConfig {
   );
 
   if (mcpNodes.length === 0) {
-    return createDefaultMcpConfig();
+    return [createDefaultMcpConfig()];
   }
 
-  // Extract configuration from the first MCP node
-  const mcpNode = mcpNodes[0];
-  const nodeData = mcpNode.data;
+  return mcpNodes.map(node => {
+    const nodeData = node.data;
 
   // Extract MCP command and args
   const mcpCommand = (nodeData.mcpCommand as string) || 'npx';
@@ -323,7 +322,7 @@ function extractMcpConfigFromNodes(nodes: Node<BaseNodeData>[]): MCPConfig {
     mcpArgs = mcpArgs.map(arg => arg === 'smithery_api_key' ? smitheryApiKey : arg);
   }
 
-  console.log('Extracted MCP config from nodes:', {
+    console.log('Extracted MCP config from nodes:', {
     command: mcpCommand,
     args: mcpArgs,
     envVars,
@@ -333,27 +332,29 @@ function extractMcpConfigFromNodes(nodes: Node<BaseNodeData>[]): MCPConfig {
     smitheryApiKey: smitheryApiKey ? '***' : 'not provided'
   });
 
-  return {
-    enabled: true,
-    type: 'smithery',
-    command: mcpCommand,
-    args: mcpArgs,
-    envVars
-  };
+    return {
+      enabled: true,
+      type: 'smithery',
+      command: mcpCommand,
+      args: mcpArgs,
+      envVars
+    };
+  });
 }
 
 // Function to generate code with OpenAI/OpenRouter based on node data
 async function generateCodeWithOpenAI(
-  nodes: Node<BaseNodeData>[], 
+  nodes: Node<BaseNodeData>[],
   mcpEnabled: boolean,
-  mcpConfig?: MCPConfig
+  mcpConfig?: MCPConfig[]
 ): Promise<string> {
   // Extract actual MCP configuration from nodes if MCP is enabled
-  const actualMcpConfig = mcpEnabled ?
-    (mcpConfig || extractMcpConfigFromNodes(nodes)) :
-    createDefaultMcpConfig();
+  const actualMcpConfigs = mcpEnabled ?
+    (mcpConfig && mcpConfig.length > 0 ? mcpConfig : extractMcpConfigFromNodes(nodes)) :
+    [createDefaultMcpConfig()];
 
-  console.log('Using MCP config for generation:', actualMcpConfig);
+  const firstConfig = actualMcpConfigs[0];
+  console.log('Using MCP config for generation:', actualMcpConfigs);
 
   // Prepare node data for the AI prompt including MCP-specific data
   const nodeData = nodes.map(node => ({
@@ -479,11 +480,11 @@ ${agentNodes.length > 0 ? `
 - Instructions: ${agentNodes[0].data.instruction || agentNodes[0].data.prompt || 'Use MCP tools to assist users'}
 ` : 'Create default MCP agent'}
 
-**ACTUAL MCP CONFIGURATION FROM NODES:**
-- Command: ${actualMcpConfig.command}
-- Args: ${JSON.stringify(actualMcpConfig.args)}
-- Environment Variables: ${JSON.stringify(actualMcpConfig.envVars)}
-- MCP Package: ${actualMcpConfig.args.find(arg => arg.startsWith('@')) || '@smithery/mcp-example'}
+**ACTUAL MCP CONFIGURATION FROM NODES (first MCP):**
+- Command: ${firstConfig.command}
+- Args: ${JSON.stringify(firstConfig.args)}
+- Environment Variables: ${JSON.stringify(firstConfig.envVars)}
+- MCP Package: ${firstConfig.args.find(arg => arg.startsWith('@')) || '@smithery/mcp-example'}
 
 **CRITICAL MCP REQUIREMENTS:**
 - Generate MCP Smithery agent code (NOT Google Search code)
@@ -528,9 +529,9 @@ if not smithery_api_key:
 # MCP toolset configuration - USE ACTUAL NODE DATA
 toolset = MCPToolset(
     connection_params=StdioServerParameters(
-        command="${actualMcpConfig.command}",
-        args=${JSON.stringify(actualMcpConfig.args)},
-        env=${JSON.stringify(actualMcpConfig.envVars)}
+        command="${firstConfig.command}",
+        args=${JSON.stringify(firstConfig.args)},
+        env=${JSON.stringify(firstConfig.envVars)}
     )
 )
 
@@ -625,15 +626,16 @@ Return ONLY the Python code, no explanations.`;
 function fallbackToLocalGeneration(
   nodes: Node<BaseNodeData>[],
   mcpEnabled: boolean,
-  mcpConfig?: MCPConfig
+  mcpConfig?: MCPConfig[]
 ): string {
   console.log('Falling back to local generation, MCP enabled:', mcpEnabled);
 
   if (mcpEnabled) {
     // Extract actual MCP config from nodes if not provided
     const validConfig = mcpConfig || extractMcpConfigFromNodes(nodes);
+    const deduped = dedupeConfigs(validConfig);
     console.log('Generating MCP code with config:', validConfig);
-    return generateMCPCode(nodes, validConfig);
+    return generateMCPCode(nodes, deduped);
   }
 
   console.log('Generating default search agent code');
@@ -724,7 +726,8 @@ export function CodeGenerationModal({
           edges,
           mcpEnabled,
           OPENROUTER_API_KEY,
-          (progress) => setVerificationProgress(progress)
+          (progress) => setVerificationProgress(progress),
+          mcpConfig ? dedupeConfigs(mcpConfig) : undefined
         );
           } else {
         generatedCode = generateDefaultSearchAgentCode();
@@ -786,7 +789,8 @@ export function CodeGenerationModal({
           edges,
           mcpEnabled,
           OPENROUTER_API_KEY,
-          (progress) => setVerificationProgress(progress)
+          (progress) => setVerificationProgress(progress),
+          mcpConfig ? dedupeConfigs(mcpConfig) : undefined
         );
           } else {
         generatedCode = generateDefaultSearchAgentCode();
