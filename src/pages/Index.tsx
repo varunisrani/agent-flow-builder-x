@@ -14,6 +14,7 @@ import { WelcomeModal } from '@/components/WelcomeModal.js';
 import { Button } from '@/components/ui/button.js';
 import { BaseNodeData } from '@/components/nodes/BaseNode.js';
 import { getCurrentProject, saveProjectNodesAndEdges, Project } from '@/services/projectService.js';
+import { MCPConfig } from '@/lib/codeGeneration';
 
 const transformNodes = (nodes: Node<BaseNodeData>[]) => {
   return nodes.map(node => ({
@@ -29,6 +30,7 @@ const Index = () => {
   const [selectedNode, setSelectedNode] = useState<Node<BaseNodeData> | null>(null);
   const [nodes, setNodes] = useState<Node<BaseNodeData>[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
+  const [mcpConfig, setMcpConfig] = useState<MCPConfig[] | undefined>(undefined);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -62,10 +64,16 @@ const Index = () => {
     }
   }, [nodes, edges, currentProject]);
   
-  const handleGenerateFromPrompt = (prompt: string, generatedNodes: Node<BaseNodeData>[], generatedEdges: Edge[]) => {
+  const handleGenerateFromPrompt = (
+    prompt: string,
+    generatedNodes: Node<BaseNodeData>[],
+    generatedEdges: Edge[],
+    mcpConfigs?: MCPConfig[]
+  ) => {
     // Update flow with generated nodes and edges
     setNodes(generatedNodes);
     setEdges(generatedEdges);
+    setMcpConfig(mcpConfigs);
     
     // Save to the current project
     if (currentProject?.id) {
@@ -123,13 +131,14 @@ const Index = () => {
         
         <div className="flex-1 relative">
           <ReactFlowProvider>
-            <FlowEditor 
-              onNodeSelect={setSelectedNode} 
+            <FlowEditor
+              onNodeSelect={setSelectedNode}
               initialNodes={nodes}
               initialEdges={edges}
               onNodesChange={setNodes}
               onEdgesChange={setEdges}
               projectId={currentProject.id}
+              mcpConfig={mcpConfig}
             />
           </ReactFlowProvider>
           
