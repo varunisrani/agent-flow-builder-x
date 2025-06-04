@@ -274,7 +274,7 @@ export async function generateVerifiedCode(
   // Extract agent data
   const agentNode = agentNodes[0];
   const nodeData = {
-    mcpPackage: mcpPackages.join(', '),
+    mcpPackage: mcpPackages,
     agentName: agentNode?.data.label as string,
     agentDescription: agentNode?.data.description as string,
     agentInstruction: agentNode?.data.instruction as string || agentNode?.data.prompt as string

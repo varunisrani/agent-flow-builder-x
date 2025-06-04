@@ -349,11 +349,12 @@ async function generateCodeWithOpenAI(
   mcpConfig?: MCPConfig[]
 ): Promise<string> {
   // Extract actual MCP configuration from nodes if MCP is enabled
-  const actualMcpConfig = mcpEnabled ?
-    ((mcpConfig && mcpConfig[0]) || extractMcpConfigFromNodes(nodes)[0]) :
-    createDefaultMcpConfig();
+  const actualMcpConfigs = mcpEnabled ?
+    (mcpConfig && mcpConfig.length > 0 ? mcpConfig : extractMcpConfigFromNodes(nodes)) :
+    [createDefaultMcpConfig()];
 
-  console.log('Using MCP config for generation:', actualMcpConfig);
+  const firstConfig = actualMcpConfigs[0];
+  console.log('Using MCP config for generation:', actualMcpConfigs);
 
   // Prepare node data for the AI prompt including MCP-specific data
   const nodeData = nodes.map(node => ({
@@ -479,11 +480,11 @@ ${agentNodes.length > 0 ? `
 - Instructions: ${agentNodes[0].data.instruction || agentNodes[0].data.prompt || 'Use MCP tools to assist users'}
 ` : 'Create default MCP agent'}
 
-**ACTUAL MCP CONFIGURATION FROM NODES:**
-- Command: ${actualMcpConfig.command}
-- Args: ${JSON.stringify(actualMcpConfig.args)}
-- Environment Variables: ${JSON.stringify(actualMcpConfig.envVars)}
-- MCP Package: ${actualMcpConfig.args.find(arg => arg.startsWith('@')) || '@smithery/mcp-example'}
+**ACTUAL MCP CONFIGURATION FROM NODES (first MCP):**
+- Command: ${firstConfig.command}
+- Args: ${JSON.stringify(firstConfig.args)}
+- Environment Variables: ${JSON.stringify(firstConfig.envVars)}
+- MCP Package: ${firstConfig.args.find(arg => arg.startsWith('@')) || '@smithery/mcp-example'}
 
 **CRITICAL MCP REQUIREMENTS:**
 - Generate MCP Smithery agent code (NOT Google Search code)
@@ -528,9 +529,9 @@ if not smithery_api_key:
 # MCP toolset configuration - USE ACTUAL NODE DATA
 toolset = MCPToolset(
     connection_params=StdioServerParameters(
-        command="${actualMcpConfig.command}",
-        args=${JSON.stringify(actualMcpConfig.args)},
-        env=${JSON.stringify(actualMcpConfig.envVars)}
+        command="${firstConfig.command}",
+        args=${JSON.stringify(firstConfig.args)},
+        env=${JSON.stringify(firstConfig.envVars)}
     )
 )
 
