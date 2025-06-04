@@ -13,6 +13,12 @@ export interface MCPConfig {
   availableFunctions?: string;
 }
 
+function varNameFromPackage(mcpPackage: string, idx: number): string {
+  const slug = mcpPackage.split('/').pop() || `mcp_${idx}`;
+  const base = slug.replace(/-mcp$/i, '').replace(/[^a-zA-Z0-9_]/g, '_');
+  return `${base}_toolset`;
+}
+
 // Generate MCP code for agents
 export function generateMCPCode(nodes: Node<BaseNodeData>[], mcpConfigs: MCPConfig[]): string {
   const agentNode = nodes.find(n => n.data.type === 'agent');
@@ -26,9 +32,11 @@ export function generateMCPCode(nodes: Node<BaseNodeData>[], mcpConfigs: MCPConf
     "You are a helpful assistant that can use MCP tools to assist users.";
 
   const toolsets: string[] = [];
+  const toolsetNames: string[] = [];
   mcpConfigs.forEach((cfg, idx) => {
     const mcpPackage = cfg.smitheryMcp || cfg.args.find(arg => arg.startsWith('@')) || '@smithery/mcp-example';
     const packageName = mcpPackage.split('/').pop() || `mcp_${idx}`;
+    const varName = varNameFromPackage(mcpPackage, idx);
 
     console.log('Generating MCP code with config:', {
       index: idx,
@@ -59,7 +67,8 @@ export function generateMCPCode(nodes: Node<BaseNodeData>[], mcpConfigs: MCPConf
       }
     }
 
-    const toolset = `toolset${idx} = MCPToolset(
+    const toolset = `# MCP toolset configuration for ${packageName}
+${varName} = MCPToolset(
     connection_params=StdioServerParameters(
         command="${cfg.command}",
         args=${JSON.stringify(fixedArgs).replace('"smithery_api_key"', 'smithery_api_key').replace(/"\*\*\*.*?\*\*\*"/g, 'smithery_api_key')},
@@ -68,9 +77,10 @@ export function generateMCPCode(nodes: Node<BaseNodeData>[], mcpConfigs: MCPConf
 )`;
 
     toolsets.push(toolset);
+    toolsetNames.push(varName);
   });
 
-  const toolsetList = mcpConfigs.map((_, idx) => `toolset${idx}`).join(', ');
+  const toolsetList = toolsetNames.join(', ');
 
   return `from google.adk.agents import LlmAgent
 from google.adk.runners import Runner
@@ -191,13 +201,17 @@ export function generateFallbackMcpCode(mcpPackage?: string): string {
 }
 
 // Generate ADK code (compatibility function)
-export function generateADKCode(nodes: Node<BaseNodeData>[], _edges: Edge[]): string {
+export function generateADKCode(nodes: Node<BaseNodeData>[], _edges: Edge[], mcpConfigs?: MCPConfig[]): string {
   // Check if there are MCP nodes to determine if we should use MCP
   const mcpNodes = nodes.filter(node =>
     node.data.type === 'mcp-client' ||
     node.data.type === 'mcp-server' ||
     node.data.type === 'mcp-tool'
   );
+
+  if (mcpConfigs && mcpConfigs.length > 0) {
+    return generateMCPCode(nodes, mcpConfigs);
+  }
 
   if (mcpNodes.length > 0) {
     // Extract MCP package from node data
@@ -226,7 +240,8 @@ export async function generateVerifiedCode(
   edges: Edge[],
   mcpEnabled: boolean = true,
   apiKey?: string,
-  onProgress?: (progress: VerificationProgress) => void
+  onProgress?: (progress: VerificationProgress) => void,
+  mcpConfig?: MCPConfig[]
 ): Promise<string> {
   // Step 1: Generate initial code
   onProgress?.({
@@ -237,9 +252,9 @@ export async function generateVerifiedCode(
 
   let generatedCode: string;
   if (apiKey) {
-    generatedCode = await generateCodeWithAI(nodes, edges, mcpEnabled, apiKey);
+    generatedCode = await generateCodeWithAI(nodes, edges, mcpEnabled, apiKey, mcpConfig);
   } else {
-    generatedCode = generateADKCode(nodes, edges);
+    generatedCode = generateADKCode(nodes, edges, mcpConfig);
   }
 
   // Step 2: Extract node data for verification
@@ -286,16 +301,17 @@ export async function generateVerifiedCode(
 
 // Generate code using OpenAI/OpenRouter API based on node data
 export async function generateCodeWithAI(
-  nodes: Node<BaseNodeData>[], 
+  nodes: Node<BaseNodeData>[],
   _edges: Edge[],
   mcpEnabled: boolean = true,
-  apiKey?: string
+  apiKey?: string,
+  mcpConfig?: MCPConfig[]
 ): Promise<string> {
   const OPENROUTER_API_BASE = 'https://openrouter.ai/api/v1';
 
   if (!apiKey) {
     console.warn('No API key provided, falling back to local generation');
-    return generateADKCode(nodes, _edges);
+    return generateADKCode(nodes, _edges, mcpConfig);
   }
 
   // Prepare node data for the AI prompt
@@ -370,6 +386,6 @@ Return ONLY Python code, no explanations.`;
   } catch (error) {
     console.error('Error calling OpenRouter API:', error);
     // Fall back to local generation
-    return generateADKCode(nodes, _edges);
+    return generateADKCode(nodes, _edges, mcpConfig);
   }
 }

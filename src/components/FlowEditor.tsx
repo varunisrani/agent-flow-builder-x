@@ -28,7 +28,7 @@ import { useNavigate } from 'react-router-dom';
 import BaseNode, { BaseNodeData } from './nodes/BaseNode.js';
 import { CodeGenerationModal } from './CodeGenerationModal.js';
 import { saveProjectNodesAndEdges } from '@/services/projectService.js';
-import { generateADKCode } from '@/lib/codeGeneration';
+import { generateADKCode, MCPConfig } from '@/lib/codeGeneration';
 
 // Fix the NodeTypes type
 const nodeTypes: NodeTypes = {
@@ -42,6 +42,7 @@ interface FlowEditorProps {
   onNodesChange?: (nodes: Node<BaseNodeData>[]) => void;
   onEdgesChange?: (edges: Edge[]) => void;
   projectId?: string;
+  mcpConfig?: MCPConfig[];
 }
 
 // Add this helper function
@@ -69,13 +70,14 @@ const defaultInitialNodes: Node<BaseNodeData>[] = [
 
 const defaultInitialEdges: Edge[] = [];
 
-export function FlowEditor({ 
-  onNodeSelect, 
+export function FlowEditor({
+  onNodeSelect,
   initialNodes = defaultInitialNodes,
   initialEdges = defaultInitialEdges,
   onNodesChange: externalOnNodesChange,
   onEdgesChange: externalOnEdgesChange,
-  projectId
+  projectId,
+  mcpConfig
 }: FlowEditorProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [nodes, setNodes] = useState<Node<BaseNodeData>[]>(initialNodes);
@@ -196,7 +198,7 @@ export function FlowEditor({
   
   const handleGenerateCode = () => {
     // Generate Google ADK Python code
-    const adkCode = generateADKCode(nodes, edges);
+    const adkCode = generateADKCode(nodes, edges, mcpConfig);
     setCodeOutput(adkCode);
     setCodeModalOpen(true);
   };
@@ -301,11 +303,12 @@ export function FlowEditor({
         </Panel>
       </ReactFlow>
       
-      <CodeGenerationModal 
-        open={codeModalOpen} 
+      <CodeGenerationModal
+        open={codeModalOpen}
         onOpenChange={setCodeModalOpen}
-        nodes={nodes} 
-        edges={edges} 
+        nodes={nodes}
+        edges={edges}
+        mcpConfig={mcpConfig}
       />
     </div>
   );

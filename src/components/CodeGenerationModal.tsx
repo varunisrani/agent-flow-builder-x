@@ -724,7 +724,8 @@ export function CodeGenerationModal({
           edges,
           mcpEnabled,
           OPENROUTER_API_KEY,
-          (progress) => setVerificationProgress(progress)
+          (progress) => setVerificationProgress(progress),
+          mcpConfig
         );
           } else {
         generatedCode = generateDefaultSearchAgentCode();
@@ -786,7 +787,8 @@ export function CodeGenerationModal({
           edges,
           mcpEnabled,
           OPENROUTER_API_KEY,
-          (progress) => setVerificationProgress(progress)
+          (progress) => setVerificationProgress(progress),
+          mcpConfig
         );
           } else {
         generatedCode = generateDefaultSearchAgentCode();
