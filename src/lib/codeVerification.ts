@@ -494,7 +494,7 @@ if __name__ == "__main__":
 export async function verifyAndFixCode(
   code: string,
   onProgress?: (progress: VerificationProgress) => void,
-  nodeData?: { mcpPackage?: string; agentName?: string; agentDescription?: string; agentInstruction?: string }
+  nodeData?: { mcpPackage?: string | string[]; agentName?: string; agentDescription?: string; agentInstruction?: string }
 ): Promise<VerificationResult> {
   const errors: VerificationError[] = [];
   const warnings: string[] = [];
@@ -584,15 +584,35 @@ export function hasKnownErrors(code: string): boolean {
 
 // Generate proper MCP template when code is completely wrong
 function generateProperMCPTemplate(
-  packageName?: string,
+  packageName?: string | string[],
   agentName?: string,
   agentDescription?: string,
   agentInstruction?: string
 ): string {
-  const mcpPackage = packageName || "@upstash/context7-mcp";
-  const finalAgentName = agentName || (packageName ? packageName.split('/').pop()?.replace(/-/g, '_') + "_agent" : "DocQueryAgent");
+  const packages = Array.isArray(packageName)
+    ? packageName
+    : (packageName ? packageName.split(',').map(p => p.trim()).filter(Boolean) : ["@upstash/context7-mcp"]);
+  const firstPackage = packages[0];
+  const finalAgentName = agentName || (firstPackage ? firstPackage.split('/').pop()?.replace(/-/g, '_') + "_agent" : "DocQueryAgent");
   const finalDescription = agentDescription || "An LlmAgent that handles user queries and uses MCP tool to interact with external systems and APIs.";
   const finalInstruction = agentInstruction || "You are an agent that can use Smithery MCP to perform operations. Use the Smithery MCP tool to interact with external systems and APIs.";
+
+  const toolsets = packages.map((pkg, idx) => {
+    const base = pkg.split('/').pop()?.replace(/-mcp$/i, '').replace(/[^a-zA-Z0-9_]/g, '_') || `mcp_${idx}`;
+    const varName = `${base}_toolset`;
+    const code = `# MCP toolset configuration for ${pkg}
+${varName} = MCPToolset(
+    connection_params=StdioServerParameters(
+        command="npx",
+        args=["-y", "@smithery/cli@latest", "run", "${pkg}", "--key", smithery_api_key],
+        env={"NODE_OPTIONS": "--no-warnings --experimental-fetch", "SMITHERY_API_KEY": smithery_api_key}
+    )
+)`;
+    return { varName, code };
+  });
+
+  const toolsetDefs = toolsets.map(t => t.code).join('\n\n');
+  const toolsetNames = toolsets.map(t => t.varName).join(', ');
 
   return `from google.adk.agents import LlmAgent
 from google.adk.runners import Runner
@@ -607,14 +627,7 @@ smithery_api_key = os.getenv("SMITHERY_API_KEY")
 if not smithery_api_key:
     raise ValueError("SMITHERY_API_KEY environment variable is not set")
 
-# MCP toolset configuration
-toolset = MCPToolset(
-    connection_params=StdioServerParameters(
-        command="npx",
-        args=["-y", "@smithery/cli@latest", "run", "${mcpPackage}", "--key", smithery_api_key],
-        env={"NODE_OPTIONS": "--no-warnings --experimental-fetch", "SMITHERY_API_KEY": smithery_api_key}
-    )
-)
+${toolsetDefs}
 
 # LlmAgent with MCP tools - CORRECT PARAMETER ORDER
 root_agent = LlmAgent(
@@ -622,7 +635,7 @@ root_agent = LlmAgent(
     model="gemini-2.0-flash",
     description="${finalDescription}",
     instruction="${finalInstruction}",
-    tools=[toolset]
+    tools=[${toolsetNames}]
 )
 
 # Session service and runner setup - MUST INCLUDE app_name
