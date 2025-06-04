@@ -426,17 +426,19 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
         throw new Error("No nodes were generated. Please try a more detailed description.");
       }
       
-      // Create MCP configuration if enabled (Smithery only)
-      const mcpConfigs = mcpEnabled ? smitheryMcps.map(pkg => ({
-        enabled: true,
-        type: 'smithery',
-        command: mcpCommand,
-        args: mcpArgs,
-        envVars: mcpEnvVars,
-        smitheryMcp: pkg,
-        smitheryApiKey: smitheryApiKey,
-        availableFunctions: getMcpToolDescription('smithery')
-      })) : undefined;
+     // Create MCP configuration if enabled (Smithery only)
+const uniquePkgs = Array.from(new Set(smitheryMcps));
+const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => ({
+  enabled: true,
+  type: 'smithery',
+  command: mcpCommand,
+  args: mcpArgs,
+  envVars: mcpEnvVars,
+  smitheryMcp: pkg,
+  smitheryApiKey: smitheryApiKey,
+  availableFunctions: getMcpToolDescription('smithery')
+})) : undefined;
+
       
       // Call the parent callback with the generated flow
       console.log('NaturalLanguageInput: Calling onGenerate callback');
