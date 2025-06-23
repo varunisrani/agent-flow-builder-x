@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { PanelTop, XCircle, Loader2, AlertCircle, Store, ExternalLink, User, Plus, Settings, Trash2 } from 'lucide-react';
+import { PanelTop, XCircle, Loader2, AlertCircle, Store, ExternalLink, User, Plus, Settings, Trash2, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils.js';
 import { generateFlow, getApiKeyStatus, testOpenRouterApiKey } from '@/lib/openai.js';
 import { toast } from '@/hooks/use-toast.js';
@@ -676,53 +676,64 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
   
   return (
     <div className={cn(
-      "fixed left-1/2 transform -translate-x-1/2 transition-all duration-300 glass rounded-t-xl border border-white/10 z-10",
+      "fixed left-1/2 transform -translate-x-1/2 transition-all duration-300 bg-gradient-to-br from-zinc-300/10 via-purple-400/10 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 backdrop-blur-xl rounded-t-xl border-[2px] border-black/5 dark:border-white/10 shadow-2xl z-10",
       expanded ? "bottom-0 w-2/3" : "bottom-0 w-64 translate-y-[calc(100%-48px)]"
     )}>
       <div 
-        className="flex items-center justify-between p-3 border-b border-white/10 cursor-pointer"
+        className="flex items-center justify-between p-4 border-b-[2px] border-black/5 dark:border-white/10 cursor-pointer bg-gradient-to-r from-purple-500/5 via-pink-500/5 to-transparent dark:from-purple-400/5 dark:via-orange-200/5 hover:from-purple-500/10 hover:via-pink-500/10 hover:to-transparent dark:hover:from-purple-400/10 dark:hover:via-orange-200/10 transition-all duration-300"
         onClick={() => {
           console.log('NaturalLanguageInput: Toggle clicked, current state:', expanded);
           onToggle();
         }}
       >
-        <div className="flex items-center gap-2">
-          <PanelTop className="w-4 h-4 text-primary" />
-          <h3 className="text-sm font-medium">Google ADK Agent Builder</h3>
+        <div className="flex items-center gap-3">
+          <div className="p-1.5 rounded-lg bg-gradient-to-tr from-purple-500/20 via-pink-500/20 to-transparent dark:from-purple-400/20 dark:via-orange-200/20 border border-purple-500/30 dark:border-purple-400/30">
+            <PanelTop className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+          </div>
+          <h3 className="text-sm font-semibold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-500 dark:from-purple-300 dark:to-orange-200">
+            CogentX Agent Builder
+          </h3>
         </div>
-        <div className="w-4 h-4 rounded-full bg-primary/50" />
+        <div className="w-3 h-3 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 dark:from-purple-400 dark:to-orange-200 animate-pulse" />
       </div>
       
       {expanded && (
-        <div className="p-4">
-          <div className="flex items-center space-x-2 mb-4">
+        <div className="p-6">
+          <div className="flex items-center space-x-3 mb-6 p-3 rounded-xl bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border-[2px] border-black/5 dark:border-white/10">
             <Switch
               id="mcp-mode"
               checked={mcpEnabled}
               onCheckedChange={setMcpEnabled}
             />
-            <Label htmlFor="mcp-mode">Enable MCP Support</Label>
+            <Label htmlFor="mcp-mode" className="text-sm font-medium text-gray-700 dark:text-gray-300">Enable MCP Support</Label>
           </div>
           
           {mcpEnabled && (
-            <div className="space-y-4 mb-4 p-4 bg-gray-900/50 rounded-lg">
-              <div className="text-sm font-medium text-primary mb-2">Smithery MCP Configuration</div>
+            <div className="space-y-6 mb-6 p-6 bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-transparent dark:from-blue-400/10 dark:via-purple-400/10 backdrop-blur-sm rounded-xl border-[2px] border-blue-500/20 dark:border-blue-400/20">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="p-1.5 rounded-lg bg-gradient-to-tr from-blue-500/20 via-purple-500/20 to-transparent dark:from-blue-400/20 dark:via-purple-400/20 border border-blue-500/30 dark:border-blue-400/30">
+                  <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div className="text-sm font-semibold text-blue-700 dark:text-blue-300">Smithery MCP Configuration</div>
+              </div>
               
-              <div className="space-y-2">
-                <Label>Command</Label>
+              <div className="space-y-3">
+                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Command</Label>
                 <Input 
                   value={mcpCommand}
                   onChange={(e) => setMcpCommand(e.target.value)}
                   placeholder="Command (e.g., npx)"
+                  className="bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border-[2px] border-black/5 dark:border-white/10 focus:border-purple-500/50 dark:focus:border-purple-400/50"
                 />
               </div>
               
-              <div className="space-y-2">
-                <Label>Arguments</Label>
+              <div className="space-y-3">
+                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Arguments</Label>
                 <Input 
                   value={mcpArgs.join(' ')}
                   onChange={(e) => setMcpArgs(e.target.value.split(' ').filter(Boolean))}
                   placeholder="Command arguments"
+                  className="bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border-[2px] border-black/5 dark:border-white/10 focus:border-purple-500/50 dark:focus:border-purple-400/50"
                 />
               </div>
               

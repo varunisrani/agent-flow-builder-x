@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, Sparkles } from 'lucide-react';
 import { Node } from '@xyflow/react';
 import { BaseNodeData } from './nodes/BaseNode.js';
 import { cn } from '@/lib/utils.js';
@@ -97,143 +97,174 @@ export function PropertiesPanel({ selectedNode, onClose, onUpdateNode }: Propert
     switch (selectedNode.data.type) {
       case 'model':
         return (
-          <div className="space-y-2">
-            <label className="block text-xs text-muted-foreground mb-1">
-              Model Type
-            </label>
-            <select 
-              className="w-full bg-background rounded-md border border-border p-2 text-sm"
-              value={modelType}
-              onChange={handleModelTypeChange}
-            >
-              <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-              <option value="gemini-2.0-pro">Gemini 2.0 Pro</option>
-              <option value="claude-3-5-sonnet">Claude 3.5 Sonnet</option>
-              <option value="gpt-4o">GPT-4o</option>
-              <option value="llama-3-70b">Llama 3 70B</option>
-            </select>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Model Type
+              </label>
+              <select 
+                className="w-full bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm rounded-xl border-[2px] border-black/5 dark:border-white/10 p-3 text-sm text-gray-900 dark:text-white focus:border-purple-500/50 dark:focus:border-purple-400/50 focus:ring-0 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30"
+                value={modelType}
+                onChange={handleModelTypeChange}
+              >
+                <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                <option value="gemini-2.0-pro">Gemini 2.0 Pro</option>
+                <option value="claude-3-5-sonnet">Claude 3.5 Sonnet</option>
+                <option value="gpt-4o">GPT-4o</option>
+                <option value="llama-3-70b">Llama 3 70B</option>
+              </select>
+            </div>
             
-            <label className="block text-xs text-muted-foreground mb-1 mt-2">
-              Temperature
-            </label>
-            <input 
-              type="range" 
-              min="0" 
-              max="1" 
-              step="0.1" 
-              defaultValue="0.7"
-              className="w-full" 
-            />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Temperature
+              </label>
+              <input 
+                type="range" 
+                min="0" 
+                max="1" 
+                step="0.1" 
+                defaultValue="0.7"
+                className="w-full h-2 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-lg appearance-none slider-thumb" 
+              />
+              <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mt-1">
+                <span>0</span>
+                <span>1</span>
+              </div>
+            </div>
           </div>
         );
         
       case 'tool':
         return (
-          <div className="space-y-2">
-            <label className="block text-xs text-muted-foreground mb-1">
-              Tool Type
-            </label>
-            <select className="w-full bg-background rounded-md border border-border p-2 text-sm">
-              <option value="google_search">Google Search</option>
-              <option value="calculator">Calculator</option>
-              <option value="weather_api">Weather API</option>
-              <option value="custom">Custom</option>
-            </select>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Tool Type
+              </label>
+              <select className="w-full bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm rounded-xl border-[2px] border-black/5 dark:border-white/10 p-3 text-sm text-gray-900 dark:text-white focus:border-purple-500/50 dark:focus:border-purple-400/50 focus:ring-0 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30">
+                <option value="google_search">Google Search</option>
+                <option value="calculator">Calculator</option>
+                <option value="weather_api">Weather API</option>
+                <option value="custom">Custom</option>
+              </select>
+            </div>
             
-            <label className="block text-xs text-muted-foreground mb-1 mt-2">
-              API Key (if needed)
-            </label>
-            <input 
-              type="password"
-              className="w-full bg-background rounded-md border border-border p-2 text-sm" 
-              placeholder="Enter API key..."
-            />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                API Key (if needed)
+              </label>
+              <input 
+                type="password"
+                className="w-full bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm rounded-xl border-[2px] border-black/5 dark:border-white/10 p-3 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:border-purple-500/50 dark:focus:border-purple-400/50 focus:ring-0 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30" 
+                placeholder="Enter API key..."
+              />
+            </div>
           </div>
         );
         
       case 'agent':
         return (
-          <div className="space-y-2">
-            <label className="block text-xs text-muted-foreground mb-1">
-              System Instruction
-            </label>
-            <textarea
-              rows={4}
-              value={nodeInstruction}
-              onChange={handleInstructionChange}
-              className="w-full bg-background rounded-md border border-border p-2 text-sm"
-              placeholder="You are a helpful assistant that..."
-            />
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                System Instruction
+              </label>
+              <textarea
+                rows={4}
+                value={nodeInstruction}
+                onChange={handleInstructionChange}
+                className="w-full bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm rounded-xl border-[2px] border-black/5 dark:border-white/10 p-3 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:border-purple-500/50 dark:focus:border-purple-400/50 focus:ring-0 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30 resize-none"
+                placeholder="You are a helpful assistant that..."
+              />
+            </div>
             
-            <label className="block text-xs text-muted-foreground mb-1 mt-2">
-              Agent Type
-            </label>
-            <select className="w-full bg-background rounded-md border border-border p-2 text-sm">
-              <option value="LlmAgent">LLM Agent</option>
-              <option value="Agent">Standard Agent</option>
-              <option value="MultiModalAgent">Multi-Modal Agent</option>
-              <option value="ReActAgent">ReAct Agent</option>
-            </select>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Agent Type
+              </label>
+              <select className="w-full bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm rounded-xl border-[2px] border-black/5 dark:border-white/10 p-3 text-sm text-gray-900 dark:text-white focus:border-purple-500/50 dark:focus:border-purple-400/50 focus:ring-0 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30">
+                <option value="LlmAgent">LLM Agent</option>
+                <option value="Agent">Standard Agent</option>
+                <option value="MultiModalAgent">Multi-Modal Agent</option>
+                <option value="ReActAgent">ReAct Agent</option>
+              </select>
+            </div>
           </div>
         );
       
       case 'mcp-client':
         return (
-          <div className="space-y-2">
-            <label className="block text-xs text-muted-foreground mb-1">
-              MCP Server URL
-            </label>
-            <input
-              type="text"
-              value={mcpUrl}
-              onChange={handleMcpUrlChange}
-              className="w-full bg-background rounded-md border border-border p-2 text-sm"
-              placeholder="http://localhost:8080"
-            />
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                MCP Server URL
+              </label>
+              <input
+                type="text"
+                value={mcpUrl}
+                onChange={handleMcpUrlChange}
+                className="w-full bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm rounded-xl border-[2px] border-black/5 dark:border-white/10 p-3 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:border-purple-500/50 dark:focus:border-purple-400/50 focus:ring-0 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30"
+                placeholder="http://localhost:8080"
+              />
+            </div>
             
-            <div className="p-2 bg-blue-500/10 rounded mt-2 text-xs">
-              <p className="font-medium text-blue-400">MCP Client Info</p>
-              <p className="mt-1">This node will connect to an MCP server to use its tools.</p>
+            <div className="p-4 bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-transparent dark:from-blue-400/10 dark:via-purple-400/10 backdrop-blur-sm rounded-xl border-[2px] border-blue-500/20 dark:border-blue-400/20">
+              <div className="flex items-center gap-2 mb-2">
+                <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <p className="font-medium text-blue-700 dark:text-blue-300 text-sm">MCP Client Info</p>
+              </div>
+              <p className="text-blue-600 dark:text-blue-300 text-xs leading-relaxed">This node will connect to an MCP server to use its tools.</p>
             </div>
           </div>
         );
         
       case 'mcp-server':
         return (
-          <div className="space-y-2">
-            <label className="block text-xs text-muted-foreground mb-1">
-              Port (optional)
-            </label>
-            <input
-              type="text"
-              placeholder="8080"
-              className="w-full bg-background rounded-md border border-border p-2 text-sm"
-            />
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Port (optional)
+              </label>
+              <input
+                type="text"
+                placeholder="8080"
+                className="w-full bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm rounded-xl border-[2px] border-black/5 dark:border-white/10 p-3 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:border-purple-500/50 dark:focus:border-purple-400/50 focus:ring-0 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30"
+              />
+            </div>
             
-            <div className="p-2 bg-blue-500/10 rounded mt-2 text-xs">
-              <p className="font-medium text-blue-400">MCP Server Info</p>
-              <p className="mt-1">This node will expose your agent tools to other systems via MCP.</p>
+            <div className="p-4 bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-transparent dark:from-blue-400/10 dark:via-purple-400/10 backdrop-blur-sm rounded-xl border-[2px] border-blue-500/20 dark:border-blue-400/20">
+              <div className="flex items-center gap-2 mb-2">
+                <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <p className="font-medium text-blue-700 dark:text-blue-300 text-sm">MCP Server Info</p>
+              </div>
+              <p className="text-blue-600 dark:text-blue-300 text-xs leading-relaxed">This node will expose your agent tools to other systems via MCP.</p>
             </div>
           </div>
         );
         
       case 'mcp-tool':
         return (
-          <div className="space-y-2">
-            <label className="block text-xs text-muted-foreground mb-1">
-              MCP Tool ID
-            </label>
-            <input
-              type="text"
-              value={mcpToolId}
-              onChange={handleMcpToolIdChange}
-              className="w-full bg-background rounded-md border border-border p-2 text-sm"
-              placeholder="tool_name"
-            />
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                MCP Tool ID
+              </label>
+              <input
+                type="text"
+                value={mcpToolId}
+                onChange={handleMcpToolIdChange}
+                className="w-full bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm rounded-xl border-[2px] border-black/5 dark:border-white/10 p-3 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:border-purple-500/50 dark:focus:border-purple-400/50 focus:ring-0 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30"
+                placeholder="tool_name"
+              />
+            </div>
             
-            <div className="p-2 bg-amber-500/10 rounded mt-2 text-xs">
-              <p className="font-medium text-amber-400">MCP Tool Info</p>
-              <p className="mt-1">Connect this node to an MCP client to use it in your agent.</p>
+            <div className="p-4 bg-gradient-to-br from-amber-500/10 via-orange-500/10 to-transparent dark:from-amber-400/10 dark:via-orange-400/10 backdrop-blur-sm rounded-xl border-[2px] border-amber-500/20 dark:border-amber-400/20">
+              <div className="flex items-center gap-2 mb-2">
+                <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                <p className="font-medium text-amber-700 dark:text-amber-300 text-sm">MCP Tool Info</p>
+              </div>
+              <p className="text-amber-600 dark:text-amber-300 text-xs leading-relaxed">Connect this node to an MCP client to use it in your agent.</p>
             </div>
           </div>
         );
@@ -245,48 +276,66 @@ export function PropertiesPanel({ selectedNode, onClose, onUpdateNode }: Propert
   
   return (
     <div className={cn(
-      "fixed top-0 right-0 h-screen w-80 glass border-l border-white/10 p-4 transition-transform duration-300 z-10",
+      "fixed top-0 right-0 h-screen w-80 bg-gradient-to-br from-zinc-300/10 via-purple-400/10 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 backdrop-blur-xl border-l-[2px] border-black/5 dark:border-white/10 transition-transform duration-300 z-10 shadow-2xl",
       selectedNode ? "translate-x-0" : "translate-x-full"
     )}>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-medium">{getPanelTitle()}</h2>
-        <button 
-          onClick={onClose}
-          className="rounded-full p-1 hover:bg-white/10 transition-colors"
-        >
-          <X className="w-4 h-4" />
-        </button>
+      {/* Header with gradient background */}
+      <div className="p-6 border-b-[2px] border-black/5 dark:border-white/10 bg-gradient-to-r from-purple-500/5 via-pink-500/5 to-transparent dark:from-purple-400/5 dark:via-orange-200/5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-xl bg-gradient-to-tr from-purple-500/20 via-pink-500/20 to-transparent dark:from-purple-400/20 dark:via-orange-200/20 border border-purple-500/30 dark:border-purple-400/30">
+              <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+            </div>
+            <h2 className="text-lg font-semibold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-500 dark:from-purple-300 dark:to-orange-200">
+              {getPanelTitle()}
+            </h2>
+          </div>
+          <button 
+            onClick={onClose}
+            className="p-2 rounded-xl bg-gradient-to-tr from-zinc-300/20 via-gray-400/20 to-transparent dark:from-zinc-300/10 dark:via-gray-400/10 border-[2px] border-black/5 dark:border-white/10 hover:border-purple-500/30 dark:hover:border-purple-400/30 transition-all duration-300 group"
+          >
+            <X className="w-4 h-4 text-gray-700 dark:text-gray-300 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors duration-300" />
+          </button>
+        </div>
       </div>
       
-      {selectedNode && (
-        <div className="space-y-4">
-          <div>
-            <label className="block text-xs text-muted-foreground mb-1">
-              Name
-            </label>
-            <input 
-              type="text"
-              value={nodeName}
-              onChange={handleNameChange}
-              className="w-full bg-background rounded-md border border-border p-2 text-sm" 
-            />
+      {/* Scrollable content area */}
+      <div className="flex-1 overflow-y-auto p-6">
+        {selectedNode && (
+          <div className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Name
+              </label>
+              <input 
+                type="text"
+                value={nodeName}
+                onChange={handleNameChange}
+                className="w-full bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm rounded-xl border-[2px] border-black/5 dark:border-white/10 p-3 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:border-purple-500/50 dark:focus:border-purple-400/50 focus:ring-0 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30" 
+                placeholder="Node name..."
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Description
+              </label>
+              <textarea 
+                value={nodeDescription}
+                onChange={handleDescriptionChange}
+                className="w-full bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm rounded-xl border-[2px] border-black/5 dark:border-white/10 p-3 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:border-purple-500/50 dark:focus:border-purple-400/50 focus:ring-0 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30 resize-none"
+                rows={3}
+                placeholder="Describe this node..."
+              />
+            </div>
+            
+            {getTypeSpecificFields()}
           </div>
-          
-          <div>
-            <label className="block text-xs text-muted-foreground mb-1">
-              Description
-            </label>
-            <textarea 
-              value={nodeDescription}
-              onChange={handleDescriptionChange}
-              className="w-full bg-background rounded-md border border-border p-2 text-sm"
-              rows={3}
-            />
-          </div>
-          
-          {getTypeSpecificFields()}
-        </div>
-      )}
+        )}
+      </div>
+      
+      {/* Footer gradient */}
+      <div className="h-4 bg-gradient-to-t from-purple-500/5 via-pink-500/5 to-transparent dark:from-purple-400/5 dark:via-orange-200/5"></div>
     </div>
   );
 }

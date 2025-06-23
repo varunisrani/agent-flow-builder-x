@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button.js';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.js';
 import { BaseNodeData } from './nodes/BaseNode.js';
-import { Copy, AlertCircle, Loader2, Play } from 'lucide-react';
+import { Copy, AlertCircle, Loader2, Play, Code } from 'lucide-react';
 import { toast } from '@/hooks/use-toast.js';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -898,22 +898,46 @@ __all__ = ["root_agent"]`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl">
-        <DialogHeader>
-          <DialogTitle>Generated Agent Code</DialogTitle>
-          <DialogDescription>
-            This code represents the agent flow you've designed. The code is generated based on your workflow diagram.
-            {!isFirstGeneration && (
-              <span className="text-sm text-muted-foreground"> (Loaded from saved version)</span>
-            )}
-          </DialogDescription>
+      <DialogContent className="sm:max-w-4xl bg-gradient-to-br from-zinc-300/10 via-purple-400/10 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 backdrop-blur-xl border-[2px] border-black/5 dark:border-white/10 shadow-2xl">
+        <DialogHeader className="pb-6 border-b-[2px] border-black/5 dark:border-white/10 bg-gradient-to-r from-purple-500/5 via-pink-500/5 to-transparent dark:from-purple-400/5 dark:via-orange-200/5 rounded-t-lg -mx-6 -mt-6 px-6 pt-6">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-gradient-to-tr from-purple-500/20 via-pink-500/20 to-transparent dark:from-purple-400/20 dark:via-orange-200/20 border border-purple-500/30 dark:border-purple-400/30">
+              <Code className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+            </div>
+            <div>
+              <DialogTitle className="text-xl font-semibold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-500 dark:from-purple-300 dark:to-orange-200">
+                Generated Agent Code
+              </DialogTitle>
+              <DialogDescription className="text-gray-600 dark:text-gray-300 mt-1">
+                This code represents the agent flow you've designed. The code is generated based on your workflow diagram.
+                {!isFirstGeneration && (
+                  <span className="text-sm text-gray-500 dark:text-gray-400"> (Loaded from saved version)</span>
+                )}
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
         <Tabs defaultValue="adk" value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
-            <TabsTrigger value="adk">Google ADK</TabsTrigger>
-            <TabsTrigger value="vertex">Vertex AI</TabsTrigger>
-            <TabsTrigger value="custom">Custom Agent</TabsTrigger>
+          <TabsList className="bg-gradient-to-tr from-zinc-300/20 via-gray-400/20 to-transparent dark:from-zinc-300/10 dark:via-gray-400/10 backdrop-blur-sm border-[2px] border-black/5 dark:border-white/10 p-1">
+            <TabsTrigger 
+              value="adk" 
+              className="data-[state=active]:bg-gradient-to-tr data-[state=active]:from-purple-500/20 data-[state=active]:via-pink-500/20 data-[state=active]:to-transparent dark:data-[state=active]:from-purple-400/20 dark:data-[state=active]:via-orange-200/20 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:border data-[state=active]:border-purple-500/30 dark:data-[state=active]:border-purple-400/30"
+            >
+              Google ADK
+            </TabsTrigger>
+            <TabsTrigger 
+              value="vertex"
+              className="data-[state=active]:bg-gradient-to-tr data-[state=active]:from-purple-500/20 data-[state=active]:via-pink-500/20 data-[state=active]:to-transparent dark:data-[state=active]:from-purple-400/20 dark:data-[state=active]:via-orange-200/20 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:border data-[state=active]:border-purple-500/30 dark:data-[state=active]:border-purple-400/30"
+            >
+              Vertex AI
+            </TabsTrigger>
+            <TabsTrigger 
+              value="custom"
+              className="data-[state=active]:bg-gradient-to-tr data-[state=active]:from-purple-500/20 data-[state=active]:via-pink-500/20 data-[state=active]:to-transparent dark:data-[state=active]:from-purple-400/20 dark:data-[state=active]:via-orange-200/20 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:border data-[state=active]:border-purple-500/30 dark:data-[state=active]:border-purple-400/30"
+            >
+              Custom Agent
+            </TabsTrigger>
           </TabsList>
           
           <TabsContent value={activeTab} className="mt-4">

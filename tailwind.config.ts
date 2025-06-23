@@ -158,6 +158,11 @@ export default {
           '100%': { 
             transform: 'rotate(-360deg)' 
           }
+        },
+        'grid': {
+          '0%': { transform: 'translateY(0) scale(1)' },
+          '50%': { transform: 'translateY(-20px) scale(1.02)' },
+          '100%': { transform: 'translateY(0) scale(1)' }
         }
       },
       animation: {
@@ -174,7 +179,8 @@ export default {
         'spin-fast': 'spin 15s linear infinite',
         'spin-reverse': 'spin-reverse 150s linear infinite',
         'spin-medium-reverse': 'spin-reverse 20s linear infinite',
-        'spin-fast-reverse': 'spin-reverse 15s linear infinite'
+        'spin-fast-reverse': 'spin-reverse 15s linear infinite',
+        'grid': 'grid 8s ease-in-out infinite'
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
