@@ -10,6 +10,7 @@ export interface MCPConfig {
   envVars: { [key: string]: string };
   smitheryMcp?: string;
   smitheryApiKey?: string;
+  profileId?: string;
   availableFunctions?: string;
 }
 
@@ -80,6 +81,11 @@ uniqueConfigs.forEach((cfg, idx) => {
       if (keyIndex !== -1 && (keyIndex + 1 >= fixedArgs.length || fixedArgs[keyIndex + 1] === '--key')) {
         fixedArgs[keyIndex + 1] = 'smithery_api_key';
       }
+    }
+    
+    // Add profile parameter if provided
+    if (cfg.profileId && !fixedArgs.includes('--profile')) {
+      fixedArgs.push('--profile', cfg.profileId);
     }
 
     const toolset = `# MCP toolset configuration for ${packageName}

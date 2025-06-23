@@ -337,7 +337,10 @@ function extractMcpConfigFromNodes(nodes: Node<BaseNodeData>[]): MCPConfig[] {
       type: 'smithery',
       command: mcpCommand,
       args: mcpArgs,
-      envVars
+      envVars,
+      smitheryMcp: mcpPackage,
+      smitheryApiKey: smitheryApiKey,
+      profileId: (nodeData.profileId as string) || ''
     };
   });
 }

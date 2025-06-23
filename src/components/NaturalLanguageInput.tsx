@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { PanelTop, XCircle, Loader2, AlertCircle, Store, ExternalLink } from 'lucide-react';
+import { PanelTop, XCircle, Loader2, AlertCircle, Store, ExternalLink, User, Plus, Settings, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils.js';
 import { generateFlow, getApiKeyStatus, testOpenRouterApiKey } from '@/lib/openai.js';
 import { toast } from '@/hooks/use-toast.js';
@@ -9,6 +9,16 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { 
+  SmitheryProfile, 
+  CreateProfileRequest, 
+  testSmitheryApiKey, 
+  createProfile, 
+  listProfiles, 
+  deleteProfile,
+  DEFAULT_SCHEMAS,
+  DEFAULT_MODELS
+} from '@/lib/smitheryApi.js';
 // Select component no longer needed as we only support Smithery MCP
 import { MCP_TYPES } from '@/lib/constants';
 import { MCPConfig } from '@/lib/codeGeneration';
@@ -162,6 +172,28 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
   const [searchFilter, setSearchFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
 
+  // Smithery Profile Management state
+  const [showProfiles, setShowProfiles] = useState(false);
+  const [profiles, setProfiles] = useState<SmitheryProfile[]>([]);
+  const [selectedProfile, setSelectedProfile] = useState<string>('');
+  const [loadingProfiles, setLoadingProfiles] = useState(false);
+  const [smitheryKeyValid, setSmitheryKeyValid] = useState<boolean | null>(null);
+  const [checkingSmitheryKey, setCheckingSmitheryKey] = useState(false);
+  
+  // Profile creation state
+  const [showCreateProfile, setShowCreateProfile] = useState(false);
+  const [newProfile, setNewProfile] = useState<CreateProfileRequest>({
+    name: '',
+    description: '',
+    schema_id: 'openai.chat',
+    defaults: {
+      model: 'gpt-4o-mini',
+      system_prompt: '',
+      temperature: 0.7
+    }
+  });
+  const [creatingProfile, setCreatingProfile] = useState(false);
+
   // API key status state
   const [apiKeyStatus, setApiKeyStatus] = useState<{ valid: boolean; error?: string } | null>(null);
   const [checkingApiKey, setCheckingApiKey] = useState(false);
@@ -247,6 +279,160 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
   // Get unique categories
   const categories = ['All', ...Array.from(new Set(MCP_SERVERS.map(server => server.category)))];
 
+  // Smithery Profile Management Functions
+  const checkSmitheryApiKey = async () => {
+    if (!smitheryApiKey.trim()) {
+      setSmitheryKeyValid(null);
+      return;
+    }
+
+    setCheckingSmitheryKey(true);
+    try {
+      const result = await testSmitheryApiKey(smitheryApiKey);
+      setSmitheryKeyValid(result.valid);
+      
+      if (result.valid) {
+        // Load profiles if key is valid
+        loadProfiles();
+      } else if (result.error) {
+        toast({
+          title: "Invalid Smithery API Key",
+          description: result.error,
+          variant: "destructive",
+          duration: 3000,
+        });
+      }
+    } catch (error) {
+      setSmitheryKeyValid(false);
+      console.error('Error checking Smithery API key:', error);
+    } finally {
+      setCheckingSmitheryKey(false);
+    }
+  };
+
+  const loadProfiles = async () => {
+    if (!smitheryApiKey.trim()) return;
+
+    setLoadingProfiles(true);
+    try {
+      const userProfiles = await listProfiles(smitheryApiKey);
+      setProfiles(userProfiles);
+      
+      if (userProfiles.length > 0 && !selectedProfile) {
+        setSelectedProfile(userProfiles[0].id);
+      }
+    } catch (error) {
+      console.error('Error loading profiles:', error);
+      toast({
+        title: "Failed to load profiles",
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: "destructive",
+        duration: 3000,
+      });
+    } finally {
+      setLoadingProfiles(false);
+    }
+  };
+
+  const handleCreateProfile = async () => {
+    if (!smitheryApiKey.trim()) {
+      toast({
+        title: "API Key Required",
+        description: "Please enter a valid Smithery API key first",
+        variant: "destructive",
+        duration: 3000,
+      });
+      return;
+    }
+
+    if (!newProfile.name.trim()) {
+      toast({
+        title: "Profile Name Required",
+        description: "Please enter a name for the profile",
+        variant: "destructive",
+        duration: 3000,
+      });
+      return;
+    }
+
+    setCreatingProfile(true);
+    try {
+      const createdProfile = await createProfile(smitheryApiKey, newProfile);
+      setProfiles(prev => [...prev, createdProfile]);
+      setSelectedProfile(createdProfile.id);
+      setShowCreateProfile(false);
+      
+      // Reset form
+      setNewProfile({
+        name: '',
+        description: '',
+        schema_id: 'openai.chat',
+        defaults: {
+          model: 'gpt-4o-mini',
+          system_prompt: '',
+          temperature: 0.7
+        }
+      });
+
+      toast({
+        title: "Profile Created",
+        description: `Profile "${createdProfile.name}" created successfully`,
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error('Error creating profile:', error);
+      toast({
+        title: "Failed to create profile",
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: "destructive",
+        duration: 3000,
+      });
+    } finally {
+      setCreatingProfile(false);
+    }
+  };
+
+  const handleDeleteProfile = async (profileId: string) => {
+    try {
+      await deleteProfile(smitheryApiKey, profileId);
+      setProfiles(prev => prev.filter(p => p.id !== profileId));
+      
+      if (selectedProfile === profileId) {
+        const remainingProfiles = profiles.filter(p => p.id !== profileId);
+        setSelectedProfile(remainingProfiles.length > 0 ? remainingProfiles[0].id : '');
+      }
+
+      toast({
+        title: "Profile Deleted",
+        description: "Profile deleted successfully",
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error('Error deleting profile:', error);
+      toast({
+        title: "Failed to delete profile",
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: "destructive",
+        duration: 3000,
+      });
+    }
+  };
+
+  // Check Smithery API key when it changes
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      if (smitheryApiKey.trim()) {
+        checkSmitheryApiKey();
+      } else {
+        setSmitheryKeyValid(null);
+        setProfiles([]);
+        setSelectedProfile('');
+      }
+    }, 1000);
+
+    return () => clearTimeout(debounceTimer);
+  }, [smitheryApiKey]);
+
   // Check API key status on component mount
   useEffect(() => {
     const checkApiKey = async () => {
@@ -325,7 +511,8 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
                 smitheryApiKey: smitheryApiKey,
                 mcpCommand: mcpCommand,
                 mcpArgs: mcpArgs.join(' '),
-                mcpEnvVars: JSON.stringify(mcpEnvVars)
+                mcpEnvVars: JSON.stringify(mcpEnvVars),
+                profileId: selectedProfile
               },
               draggable: true
             };
@@ -346,7 +533,8 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
                 mcpArgs: mcpArgs.join(' '),
                 mcpEnvVars: JSON.stringify(mcpEnvVars),
                 smitheryMcp: pkg,
-                smitheryApiKey: smitheryApiKey
+                smitheryApiKey: smitheryApiKey,
+                profileId: selectedProfile
               },
               draggable: true
             };
@@ -428,16 +616,30 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
       
      // Create MCP configuration if enabled (Smithery only)
 const uniquePkgs = Array.from(new Set(smitheryMcps));
-const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => ({
-  enabled: true,
-  type: 'smithery',
-  command: mcpCommand,
-  args: mcpArgs,
-  envVars: mcpEnvVars,
-  smitheryMcp: pkg,
-  smitheryApiKey: smitheryApiKey,
-  availableFunctions: getMcpToolDescription('smithery')
-})) : undefined;
+const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
+  // Build MCP args with profile if selected
+  let finalArgs = [...mcpArgs];
+  
+  // Add profile parameter if selected
+  if (selectedProfile && smitheryKeyValid) {
+    // Ensure --profile is not already in args
+    if (!finalArgs.includes('--profile')) {
+      finalArgs.push('--profile', selectedProfile);
+    }
+  }
+  
+  return {
+    enabled: true,
+    type: 'smithery',
+    command: mcpCommand,
+    args: finalArgs,
+    envVars: mcpEnvVars,
+    smitheryMcp: pkg,
+    smitheryApiKey: smitheryApiKey,
+    profileId: selectedProfile,
+    availableFunctions: getMcpToolDescription('smithery')
+  };
+}) : undefined;
 
       
       // Call the parent callback with the generated flow
@@ -639,23 +841,252 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => ({
                 
                 <div className="space-y-2">
                   <Label>Smithery API Key</Label>
-                  <Input
-                    type="password"
-                    value={smitheryApiKey}
-                    onChange={(e) => {
-                      setSmitheryApiKey(e.target.value);
-                      // Update environment variables with the new API key
-                      setMcpEnvVars(prev => ({
-                        ...prev,
-                        'SMITHERY_API_KEY': e.target.value
-                      }));
-                    }}
-                    placeholder="Your Smithery API key"
-                  />
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="password"
+                      value={smitheryApiKey}
+                      onChange={(e) => {
+                        setSmitheryApiKey(e.target.value);
+                        // Update environment variables with the new API key
+                        setMcpEnvVars(prev => ({
+                          ...prev,
+                          'SMITHERY_API_KEY': e.target.value
+                        }));
+                      }}
+                      placeholder="Your Smithery API key"
+                    />
+                    {checkingSmitheryKey && <Loader2 className="w-4 h-4 animate-spin" />}
+                    {smitheryKeyValid === true && <div className="w-2 h-2 bg-green-500 rounded-full"></div>}
+                    {smitheryKeyValid === false && <AlertCircle className="w-4 h-4 text-red-500" />}
+                  </div>
                   <div className="text-xs text-muted-foreground">
                     You can get your API key from <a href="https://smithery.ai/account/api-keys" target="_blank" className="text-primary hover:underline">smithery.ai/account/api-keys</a>
                   </div>
                 </div>
+
+                {/* Profile Management Section */}
+                {smitheryKeyValid && (
+                  <div className="space-y-3 p-3 bg-gray-800/30 rounded-lg border border-gray-600/30">
+                    <div className="flex items-center justify-between">
+                      <Label className="flex items-center gap-2">
+                        <User className="w-4 h-4" />
+                        Profile Management
+                      </Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowProfiles(!showProfiles)}
+                        className="text-xs"
+                      >
+                        {showProfiles ? 'Hide' : 'Manage'} Profiles
+                      </Button>
+                    </div>
+
+                    {showProfiles && (
+                      <div className="space-y-3">
+                        {/* Profile Selection */}
+                        <div className="space-y-2">
+                          <Label>Select Profile</Label>
+                          <div className="flex gap-2">
+                            <select
+                              value={selectedProfile}
+                              onChange={(e) => setSelectedProfile(e.target.value)}
+                              className="flex-1 px-2 py-1 text-xs bg-background border border-border rounded-md"
+                              disabled={loadingProfiles}
+                            >
+                              <option value="">No Profile (Default)</option>
+                              {profiles.map(profile => (
+                                <option key={profile.id} value={profile.id}>
+                                  {profile.name} - {profile.defaults.model || 'No model'}
+                                </option>
+                              ))}
+                            </select>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setShowCreateProfile(true)}
+                              className="text-xs"
+                            >
+                              <Plus className="w-3 h-3 mr-1" />
+                              New
+                            </Button>
+                          </div>
+                          {loadingProfiles && (
+                            <div className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              Loading profiles...
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Profile List */}
+                        {profiles.length > 0 && (
+                          <div className="space-y-2">
+                            <Label>Your Profiles</Label>
+                            <div className="max-h-32 overflow-y-auto space-y-1">
+                              {profiles.map(profile => (
+                                <div
+                                  key={profile.id}
+                                  className={cn(
+                                    "p-2 rounded border text-xs",
+                                    selectedProfile === profile.id
+                                      ? "border-primary bg-primary/10"
+                                      : "border-gray-600 bg-gray-800/20"
+                                  )}
+                                >
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="font-medium text-white truncate">{profile.name}</div>
+                                      <div className="text-gray-400 truncate">{profile.description || 'No description'}</div>
+                                      <div className="text-gray-500 mt-1">
+                                        {profile.defaults.model || 'No model'} • {profile.schema_id}
+                                      </div>
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleDeleteProfile(profile.id)}
+                                      className="p-1 h-auto text-red-400 hover:text-red-300"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Create Profile Modal */}
+                        {showCreateProfile && (
+                          <div className="space-y-3 p-3 bg-gray-900/50 rounded-lg border border-gray-600/50">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-sm font-medium">Create New Profile</Label>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setShowCreateProfile(false)}
+                                className="p-1 h-auto"
+                              >
+                                <XCircle className="w-4 h-4" />
+                              </Button>
+                            </div>
+
+                            <div className="space-y-2">
+                              <div>
+                                <Label className="text-xs">Profile Name</Label>
+                                <Input
+                                  value={newProfile.name}
+                                  onChange={(e) => setNewProfile(prev => ({ ...prev, name: e.target.value }))}
+                                  placeholder="e.g., Friendly CS Agent"
+                                  className="text-xs"
+                                />
+                              </div>
+
+                              <div>
+                                <Label className="text-xs">Description</Label>
+                                <Input
+                                  value={newProfile.description}
+                                  onChange={(e) => setNewProfile(prev => ({ ...prev, description: e.target.value }))}
+                                  placeholder="Brief description of this profile"
+                                  className="text-xs"
+                                />
+                              </div>
+
+                              <div>
+                                <Label className="text-xs">Schema</Label>
+                                <select
+                                  value={newProfile.schema_id}
+                                  onChange={(e) => {
+                                    const schema = e.target.value;
+                                    setNewProfile(prev => ({
+                                      ...prev,
+                                      schema_id: schema,
+                                      defaults: {
+                                        ...prev.defaults,
+                                        model: DEFAULT_MODELS[schema as keyof typeof DEFAULT_MODELS]?.[0] || 'gpt-4o-mini'
+                                      }
+                                    }));
+                                  }}
+                                  className="w-full px-2 py-1 text-xs bg-background border border-border rounded-md"
+                                >
+                                  {DEFAULT_SCHEMAS.map(schema => (
+                                    <option key={schema.id} value={schema.id}>{schema.name}</option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div>
+                                <Label className="text-xs">Model</Label>
+                                <select
+                                  value={newProfile.defaults.model}
+                                  onChange={(e) => setNewProfile(prev => ({
+                                    ...prev,
+                                    defaults: { ...prev.defaults, model: e.target.value }
+                                  }))}
+                                  className="w-full px-2 py-1 text-xs bg-background border border-border rounded-md"
+                                >
+                                  {(DEFAULT_MODELS[newProfile.schema_id as keyof typeof DEFAULT_MODELS] || []).map(model => (
+                                    <option key={model} value={model}>{model}</option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div>
+                                <Label className="text-xs">System Prompt</Label>
+                                <textarea
+                                  value={newProfile.defaults.system_prompt}
+                                  onChange={(e) => setNewProfile(prev => ({
+                                    ...prev,
+                                    defaults: { ...prev.defaults, system_prompt: e.target.value }
+                                  }))}
+                                  placeholder="Enter system prompt for this profile..."
+                                  className="w-full h-16 px-2 py-1 text-xs bg-background border border-border rounded-md resize-none"
+                                />
+                              </div>
+
+                              <div>
+                                <Label className="text-xs">Temperature ({newProfile.defaults.temperature})</Label>
+                                <input
+                                  type="range"
+                                  min="0"
+                                  max="2"
+                                  step="0.1"
+                                  value={newProfile.defaults.temperature}
+                                  onChange={(e) => setNewProfile(prev => ({
+                                    ...prev,
+                                    defaults: { ...prev.defaults, temperature: parseFloat(e.target.value) }
+                                  }))}
+                                  className="w-full"
+                                />
+                              </div>
+
+                              <Button
+                                type="button"
+                                onClick={handleCreateProfile}
+                                disabled={creatingProfile || !newProfile.name.trim()}
+                                className="w-full text-xs"
+                              >
+                                {creatingProfile ? (
+                                  <>
+                                    <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                                    Creating...
+                                  </>
+                                ) : (
+                                  'Create Profile'
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               
               <div className="space-y-2">
@@ -816,6 +1247,8 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => ({
                     <li>The agent will use Smithery MCP</li>
                     <li>Available tools: {getMcpToolDescription('smithery')}</li>
                     <li>Configure command arguments and environment variables as needed</li>
+                    <li>Create and select profiles to customize agent behavior</li>
+                    <li>Profiles include model, system prompt, and temperature settings</li>
                     <li>The agent will use the gemini-2.0-flash model for processing</li>
                   </>
                 ) : (

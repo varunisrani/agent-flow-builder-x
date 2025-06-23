@@ -20,6 +20,7 @@ export interface BaseNodeData extends Record<string, unknown> {
   smitheryMcp?: string;
   smitheryApiKey?: string;
   mcpType?: string;
+  profileId?: string;
 }
 
 
