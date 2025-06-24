@@ -104,7 +104,7 @@ export function Sidebar({ expanded, onToggle }: SidebarProps) {
         </div>
       )}
       
-      <div className="flex-1 overflow-y-auto scrollbar-none p-4">
+      <div className="flex-1 overflow-y-auto scrollbar-none p-4 pb-20">
         {expanded && activeTab === 'nodes' && (
           <div className="space-y-6">
             {/* Core Components */}

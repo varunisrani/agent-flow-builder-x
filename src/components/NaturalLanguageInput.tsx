@@ -676,40 +676,118 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
   
   return (
     <div className={cn(
-      "natural-language-input fixed left-1/2 transform -translate-x-1/2 transition-all duration-300 bg-gradient-to-br from-zinc-300/10 via-purple-400/10 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 backdrop-blur-xl rounded-t-xl border-[2px] border-black/5 dark:border-white/10 shadow-2xl z-10",
+      "natural-language-input fixed left-1/2 transform -translate-x-1/2 transition-all duration-500 bg-gradient-to-br from-zinc-300/10 via-purple-400/10 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 backdrop-blur-xl rounded-t-xl border-[2px] border-black/5 dark:border-white/10 shadow-2xl z-50",
       expanded 
-        ? "bottom-0 w-[min(95vw,900px)] max-h-[85vh] sm:w-[min(90vw,800px)] sm:max-h-[80vh]" 
-        : "bottom-0 w-[min(320px,90vw)] sm:w-[min(280px,25vw)] translate-y-[calc(100%-52px)]"
+        ? "bottom-0 w-[min(95vw,1000px)] h-[70vh] sm:w-[min(90vw,900px)]" 
+        : "bottom-6 w-[min(400px,90vw)] sm:w-[min(350px,30vw)] h-auto"
     )}>
       <div 
-        className="flex items-center justify-between p-4 border-b-[2px] border-black/5 dark:border-white/10 cursor-pointer bg-gradient-to-r from-purple-500/5 via-pink-500/5 to-transparent dark:from-purple-400/5 dark:via-orange-200/5 hover:from-purple-500/10 hover:via-pink-500/10 hover:to-transparent dark:hover:from-purple-400/10 dark:hover:via-orange-200/10 transition-all duration-300"
+        className="flex items-center justify-between p-4 border-b-[2px] border-black/5 dark:border-white/10 cursor-pointer bg-gradient-to-r from-purple-500/5 via-pink-500/5 to-transparent dark:from-purple-400/5 dark:via-orange-200/5 hover:from-purple-500/10 hover:via-pink-500/10 hover:to-transparent dark:hover:from-purple-400/10 dark:hover:via-orange-200/10 transition-all duration-300 group"
         onClick={() => {
           console.log('NaturalLanguageInput: Toggle clicked, current state:', expanded);
           onToggle();
         }}
       >
         <div className="flex items-center gap-3">
-          <div className="p-1.5 rounded-lg bg-gradient-to-tr from-purple-500/20 via-pink-500/20 to-transparent dark:from-purple-400/20 dark:via-orange-200/20 border border-purple-500/30 dark:border-purple-400/30">
-            <PanelTop className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+          <div className="p-2 rounded-lg bg-gradient-to-tr from-purple-500/20 via-pink-500/20 to-transparent dark:from-purple-400/20 dark:via-orange-200/20 border border-purple-500/30 dark:border-purple-400/30 group-hover:scale-110 transition-transform duration-300">
+            <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400 group-hover:rotate-12 transition-transform duration-300" />
           </div>
-          <h3 className="text-sm font-semibold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-500 dark:from-purple-300 dark:to-orange-200">
-            CogentX Agent Builder
-          </h3>
+          <div>
+            <h3 className="text-sm font-semibold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-500 dark:from-purple-300 dark:to-orange-200">
+              🤖 AI Agent Builder
+            </h3>
+            <p className="text-xs text-gray-600 dark:text-gray-400">
+              {expanded ? "Describe your agent below" : "Click to build your AI agent"}
+            </p>
+          </div>
         </div>
-        <div className="w-3 h-3 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 dark:from-purple-400 dark:to-orange-200 animate-pulse" />
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 animate-pulse" />
+          <PanelTop className={cn("w-4 h-4 text-purple-600 dark:text-purple-400 transition-transform duration-300", expanded && "rotate-180")} />
+        </div>
       </div>
       
       {expanded && (
-        <div className="flex flex-col h-full max-h-[calc(80vh-60px)]">
+        <div className="flex flex-col h-full">
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            <div className="flex items-center space-x-3 p-3 rounded-xl bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border-[2px] border-black/5 dark:border-white/10">
-            <Switch
-              id="mcp-mode"
-              checked={mcpEnabled}
-              onCheckedChange={setMcpEnabled}
-            />
-            <Label htmlFor="mcp-mode" className="text-sm font-medium text-gray-700 dark:text-gray-300">Enable MCP Support</Label>
-          </div>
+            {/* Simplified No-Code Interface */}
+            <div className="space-y-4">
+              <div className="text-center space-y-2">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  Build Your AI Agent
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Describe what you want your AI agent to do in plain English
+                </p>
+              </div>
+
+              {/* Quick Examples */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {[
+                  {
+                    title: "Customer Support",
+                    example: "Create a customer support agent that can answer questions about products and help users",
+                    icon: "💬"
+                  },
+                  {
+                    title: "Research Assistant", 
+                    example: "Build a research assistant that can search the web and find information on any topic",
+                    icon: "🔍"
+                  },
+                  {
+                    title: "Content Creator",
+                    example: "Make an agent that helps write blog posts, social media content, and marketing copy",
+                    icon: "✍️"
+                  },
+                  {
+                    title: "Data Analyst",
+                    example: "Create an agent that can analyze data, create reports, and generate insights",
+                    icon: "📊"
+                  }
+                ].map((item, index) => (
+                  <div 
+                    key={index}
+                    className="p-4 rounded-lg border border-purple-200/50 dark:border-purple-800/50 bg-gradient-to-br from-purple-50/50 to-blue-50/30 dark:from-purple-950/30 dark:to-blue-950/20 hover:border-purple-300/70 dark:hover:border-purple-700/70 transition-all cursor-pointer group"
+                    onClick={() => setPrompt(item.example)}
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="text-2xl">{item.icon}</span>
+                      <div className="flex-1">
+                        <h3 className="font-medium text-gray-900 dark:text-white text-sm mb-1">
+                          {item.title}
+                        </h3>
+                        <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
+                          {item.example}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Advanced Options Toggle */}
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <Switch
+                    id="advanced-mode"
+                    checked={mcpEnabled}
+                    onCheckedChange={setMcpEnabled}
+                  />
+                  <Label htmlFor="advanced-mode" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Advanced Features (External Tools & APIs)
+                  </Label>
+                </div>
+              </div>
+              {mcpEnabled && (
+                <div className="mt-4 p-4 bg-blue-50/50 dark:bg-blue-950/20 rounded-lg border border-blue-200/50 dark:border-blue-800/50">
+                  <p className="text-sm text-blue-700 dark:text-blue-300 mb-3">
+                    ⚡ Advanced mode enables your agent to use external tools and APIs
+                  </p>
+                </div>
+              )}
+            </div>
           
           {mcpEnabled && (
             <div className="space-y-4 p-4 bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-transparent dark:from-blue-400/10 dark:via-purple-400/10 backdrop-blur-sm rounded-xl border-[2px] border-blue-500/20 dark:border-blue-400/20">
@@ -717,7 +795,34 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
                 <div className="p-1.5 rounded-lg bg-gradient-to-tr from-blue-500/20 via-purple-500/20 to-transparent dark:from-blue-400/20 dark:via-purple-400/20 border border-blue-500/30 dark:border-blue-400/30">
                   <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                 </div>
-                <div className="text-sm font-semibold text-blue-700 dark:text-blue-300">Smithery MCP Configuration</div>
+                <div className="text-sm font-semibold text-blue-700 dark:text-blue-300">External Tools Configuration</div>
+              </div>
+              
+              <div className="space-y-3">
+                <div className="text-sm text-blue-600 dark:text-blue-300">
+                  Select tools your agent can use:
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'search', name: 'Web Search', icon: '🔍' },
+                    { id: 'time', name: 'Time & Date', icon: '⏰' },
+                    { id: 'files', name: 'File System', icon: '📁' },
+                    { id: 'api', name: 'API Calls', icon: '🌐' }
+                  ].map(tool => (
+                    <div key={tool.id} className="flex items-center space-x-2 p-2 rounded border border-blue-200 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/20">
+                      <input 
+                        type="checkbox" 
+                        id={tool.id}
+                        className="rounded"
+                        defaultChecked={tool.id === 'search'}
+                      />
+                      <label htmlFor={tool.id} className="flex items-center gap-2 text-sm">
+                        <span>{tool.icon}</span>
+                        {tool.name}
+                      </label>
+                    </div>
+                  ))}
+                </div>
               </div>
               
               <div className="space-y-3">

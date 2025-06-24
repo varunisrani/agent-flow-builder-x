@@ -195,12 +195,13 @@ const Projects = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-background/90 text-foreground relative overflow-hidden">
-      {/* Enhanced background with purple gradients */}
-      <div className="absolute top-0 z-[0] h-full w-full bg-purple-950/10 dark:bg-purple-950/10 bg-[radial-gradient(ellipse_20%_80%_at_50%_-20%,rgba(120,119,198,0.15),rgba(255,255,255,0))] dark:bg-[radial-gradient(ellipse_20%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))]" />
+      {/* Background matching landing page exactly */}
+      <div className="absolute top-0 z-[0] h-full w-full bg-gradient-to-br from-zinc-300/5 via-purple-400/10 to-transparent dark:from-zinc-300/2 dark:via-purple-400/5" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(139,92,246,0.15),transparent)] dark:bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(139,92,246,0.3),transparent)]" />
       <RetroGrid />
       
-      {/* Premium Header */}
-      <header className="relative h-20 z-10 border-b border-black/5 dark:border-white/5 px-4 md:px-6 lg:px-8 flex items-center justify-between backdrop-blur-xl bg-gradient-to-tr from-zinc-300/10 via-purple-400/20 to-transparent dark:from-zinc-300/5 dark:via-purple-400/20">
+      {/* Header - matching landing page style */}
+      <header className="relative h-20 z-10 border-b border-black/5 dark:border-white/5 px-4 md:px-6 lg:px-8 flex items-center justify-between bg-gradient-to-tr from-zinc-300/10 via-purple-400/20 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 backdrop-blur-sm">
         <motion.div 
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -209,21 +210,20 @@ const Projects = () => {
           <Button 
             variant="ghost" 
             size="icon" 
-            className="relative overflow-hidden rounded-full p-[1px] group"
+            className="relative rounded-lg text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gradient-to-tr hover:from-zinc-300/20 hover:via-purple-400/20 hover:to-transparent dark:hover:from-zinc-300/10 dark:hover:via-purple-400/10 transition-all duration-300 group"
             onClick={handleBackHome}
           >
-            <span className="absolute inset-[-1000%] animate-[spin_2s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#E2CBFF_0%,#393BB2_50%,#E2CBFF_100%)] opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div className="inline-flex h-full w-full cursor-pointer items-center justify-center rounded-full bg-white dark:bg-gray-950 text-xs font-medium backdrop-blur-3xl">
-              <div className="rounded-full bg-gradient-to-tr from-zinc-300/20 via-purple-400/30 to-transparent dark:from-zinc-300/5 dark:via-purple-400/20 p-2 group-hover:from-zinc-300/30 group-hover:via-purple-400/40 transition-all">
-            <ChevronLeft className="h-5 w-5" />
-              </div>
-            </div>
+            <ChevronLeft className="h-5 w-5 group-hover:scale-110 transition-transform duration-300" />
+            <div className="absolute inset-0 border border-purple-500/20 dark:border-purple-400/20 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
           </Button>
           
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-tr from-zinc-300/20 via-purple-400/20 to-transparent dark:from-zinc-300/5 dark:via-purple-400/20 border-[2px] border-black/5 dark:border-white/5 rounded-2xl">
-              <Sparkles className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-              <h1 className="text-xl font-bold bg-clip-text text-transparent bg-[linear-gradient(180deg,_#000_0%,_rgba(0,_0,_0,_0.75)_100%)] dark:bg-[linear-gradient(180deg,_#FFF_0%,_rgba(255,_255,_255,_0.00)_202.08%)]">
+            <div className="flex items-center group cursor-pointer">
+              <div className="relative p-2 rounded-xl bg-gradient-to-tr from-purple-500/20 via-pink-500/20 to-transparent dark:from-purple-400/20 dark:via-orange-200/20 border border-purple-500/30 dark:border-purple-400/30 mr-3 group-hover:scale-105 transition-all duration-300">
+                <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400 group-hover:rotate-12 transition-transform duration-300" />
+                <div className="absolute inset-0 bg-gradient-to-tr from-purple-600/10 to-pink-500/10 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              </div>
+              <h1 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-500 dark:from-purple-300 dark:to-orange-200 group-hover:from-purple-500 group-hover:to-pink-400 transition-all duration-300">
                 My Projects
               </h1>
             </div>
@@ -242,12 +242,12 @@ const Projects = () => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-purple-600 dark:text-purple-400" />
             <Input 
               placeholder="Search projects..." 
-              className="pl-10 w-72 bg-gradient-to-tr from-zinc-300/10 via-purple-400/10 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 border-[2px] border-black/5 dark:border-white/5 focus:border-purple-400/50 transition-all"
+              className="pl-10 w-72 bg-gradient-to-tr from-zinc-300/10 via-purple-400/10 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 border border-black/5 dark:border-white/10 focus:border-purple-400/50 transition-all backdrop-blur-sm"
               value={filterValue}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFilterValue(e.target.value)}
             />
           </div>
-          <div className="flex items-center gap-2 p-1 bg-gradient-to-tr from-zinc-300/20 via-gray-400/20 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 border-[2px] border-black/5 dark:border-white/5 rounded-xl">
+          <div className="flex items-center gap-2 p-1 bg-gradient-to-tr from-zinc-300/20 via-gray-400/20 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 border border-black/5 dark:border-white/5 rounded-xl backdrop-blur-sm">
             <Button
               variant={viewMode === 'grid' ? 'default' : 'ghost'}
               size="sm"
@@ -278,17 +278,17 @@ const Projects = () => {
           className="flex justify-between items-start mb-12"
         >
           <div className="space-y-4">
-            <h1 className="text-sm text-gray-600 dark:text-gray-400 group font-geist px-5 py-2 bg-gradient-to-tr from-zinc-300/20 via-gray-400/20 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 border-[2px] border-black/5 dark:border-white/5 rounded-3xl w-fit">
-              Agent Projects
-              <FolderPlus className="inline w-4 h-4 ml-2 group-hover:translate-x-1 duration-300" />
-            </h1>
-            <h2 className="text-4xl tracking-tighter font-geist bg-clip-text text-transparent md:text-6xl bg-[linear-gradient(180deg,_#000_0%,_rgba(0,_0,_0,_0.75)_100%)] dark:bg-[linear-gradient(180deg,_#FFF_0%,_rgba(255,_255,_255,_0.00)_202.08%)]">
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-100 dark:bg-purple-900/30 rounded-full">
+              <FolderPlus className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+              <span className="text-sm font-medium text-purple-700 dark:text-purple-300">Agent Projects</span>
+            </div>
+            <h2 className="text-4xl font-bold text-gray-900 dark:text-white md:text-5xl">
               Build amazing{" "}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-500 dark:from-purple-300 dark:to-orange-200">
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-500">
                 AI agents
               </span>
             </h2>
-            <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl">
+            <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl">
               Manage your visual agent flows, deploy with confidence, and scale your AI automation.
             </p>
           </div>
@@ -297,13 +297,13 @@ const Projects = () => {
             <span className="absolute inset-[-1000%] animate-[spin_2s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#E2CBFF_0%,#393BB2_50%,#E2CBFF_100%)]" />
             <div className="inline-flex h-full w-full cursor-pointer items-center justify-center rounded-full bg-white dark:bg-gray-950 text-xs font-medium backdrop-blur-3xl">
               <button
-            onClick={() => setIsCreating(true)} 
+                onClick={() => setIsCreating(true)} 
                 className="inline-flex rounded-full text-center group items-center w-full justify-center bg-gradient-to-tr from-zinc-300/20 via-purple-400/30 to-transparent dark:from-zinc-300/5 dark:via-purple-400/20 text-gray-900 dark:text-white border-input border-[1px] hover:bg-gradient-to-tr hover:from-zinc-300/30 hover:via-purple-400/40 hover:to-transparent dark:hover:from-zinc-300/10 dark:hover:via-purple-400/30 transition-all py-4 px-8 gap-2"
-          >
+              >
                 <PlusCircle className="h-5 w-5" />
-            New Project
+                New Project
               </button>
-        </div>
+            </div>
           </span>
         </motion.div>
 
@@ -316,12 +316,12 @@ const Projects = () => {
             transition={{ duration: 0.3 }}
             className="mb-12"
           >
-            <div className="relative p-8 rounded-2xl border-[2px] border-black/5 dark:border-white/5 bg-gradient-to-br from-zinc-300/10 via-purple-400/10 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 backdrop-blur-xl">
+            <div className="relative p-8 rounded-2xl border border-black/5 dark:border-white/5 bg-gradient-to-br from-zinc-300/10 via-purple-400/10 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 backdrop-blur-xl">
               <div className="flex items-center gap-3 mb-6">
                 <div className="p-2 rounded-xl bg-gradient-to-r from-purple-600 to-pink-500">
                   <Sparkles className="h-6 w-6 text-white" />
                 </div>
-                <h3 className="text-2xl font-bold bg-clip-text text-transparent bg-[linear-gradient(180deg,_#000_0%,_rgba(0,_0,_0,_0.75)_100%)] dark:bg-[linear-gradient(180deg,_#FFF_0%,_rgba(255,_255,_255,_0.00)_202.08%)]">
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
                   Create New Project
                 </h3>
               </div>
@@ -336,7 +336,7 @@ const Projects = () => {
                     placeholder="Enter an amazing project name"
                     value={newProject.name}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewProject({ ...newProject, name: e.target.value })}
-                    className="bg-gradient-to-tr from-zinc-300/10 via-purple-400/10 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 border-[2px] border-black/5 dark:border-white/5 focus:border-purple-400/50 h-12 text-lg"
+                    className="bg-gradient-to-tr from-zinc-300/10 via-purple-400/10 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 border border-black/5 dark:border-white/10 focus:border-purple-400/50 h-12 text-lg backdrop-blur-sm"
                     autoFocus
                   />
                 </div>
@@ -349,7 +349,7 @@ const Projects = () => {
                     placeholder="Describe what your agent will do"
                     value={newProject.description}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewProject({ ...newProject, description: e.target.value })}
-                    className="bg-gradient-to-tr from-zinc-300/10 via-purple-400/10 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 border-[2px] border-black/5 dark:border-white/5 focus:border-purple-400/50 h-12"
+                    className="bg-gradient-to-tr from-zinc-300/10 via-purple-400/10 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 border border-black/5 dark:border-white/10 focus:border-purple-400/50 h-12 backdrop-blur-sm"
                   />
                 </div>
               </div>
@@ -358,7 +358,7 @@ const Projects = () => {
                 <Button 
                   variant="outline" 
                   onClick={() => setIsCreating(false)}
-                  className="border-[2px] border-black/10 dark:border-white/10 bg-gradient-to-tr from-zinc-300/20 via-gray-400/20 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 hover:from-zinc-300/30 hover:to-transparent"
+                  className="border border-black/10 dark:border-white/10 bg-gradient-to-tr from-zinc-300/20 via-gray-400/20 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 hover:from-zinc-300/30 hover:to-transparent"
                 >
                   Cancel
                 </Button>
@@ -369,7 +369,7 @@ const Projects = () => {
                       onClick={handleCreateProject}
                       className="inline-flex rounded-full text-center group items-center w-full justify-center bg-gradient-to-tr from-zinc-300/20 via-purple-400/30 to-transparent dark:from-zinc-300/5 dark:via-purple-400/20 text-gray-900 dark:text-white border-input border-[1px] hover:bg-gradient-to-tr hover:from-zinc-300/30 hover:via-purple-400/40 hover:to-transparent dark:hover:from-zinc-300/10 dark:hover:via-purple-400/30 transition-all py-3 px-6"
                     >
-                  Create Project
+                      Create Project
                     </button>
                   </div>
                 </span>
@@ -386,29 +386,23 @@ const Projects = () => {
             className="text-center py-24"
           >
             <div className="relative inline-block mb-8">
-              <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-500 rounded-full blur-xl opacity-30"></div>
-              <div className="relative p-8 rounded-full bg-gradient-to-br from-zinc-300/20 via-purple-400/20 to-transparent dark:from-zinc-300/10 dark:via-purple-400/10 border-[2px] border-black/5 dark:border-white/5">
+              <div className="p-8 rounded-full bg-purple-100 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800">
                 <FolderPlus className="h-16 w-16 text-purple-600 dark:text-purple-400" />
               </div>
             </div>
-            <h3 className="text-3xl font-bold mb-4 bg-clip-text text-transparent bg-[linear-gradient(180deg,_#000_0%,_rgba(0,_0,_0,_0.75)_100%)] dark:bg-[linear-gradient(180deg,_#FFF_0%,_rgba(255,_255,_255,_0.00)_202.08%)]">
+            <h3 className="text-3xl font-bold mb-4 text-gray-900 dark:text-white">
               No projects yet
             </h3>
             <p className="text-lg text-gray-600 dark:text-gray-300 mb-8 max-w-md mx-auto">
               Create your first project to start building AI agents visually with our powerful drag-and-drop interface
             </p>
-            <span className="relative inline-block overflow-hidden rounded-full p-[1.5px]">
-              <span className="absolute inset-[-1000%] animate-[spin_2s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#E2CBFF_0%,#393BB2_50%,#E2CBFF_100%)]" />
-              <div className="inline-flex h-full w-full cursor-pointer items-center justify-center rounded-full bg-white dark:bg-gray-950 text-xs font-medium backdrop-blur-3xl">
-                <button
-                  onClick={() => setIsCreating(true)}
-                  className="inline-flex rounded-full text-center group items-center w-full justify-center bg-gradient-to-tr from-zinc-300/20 via-purple-400/30 to-transparent dark:from-zinc-300/5 dark:via-purple-400/20 text-gray-900 dark:text-white border-input border-[1px] hover:bg-gradient-to-tr hover:from-zinc-300/30 hover:via-purple-400/40 hover:to-transparent dark:hover:from-zinc-300/10 dark:hover:via-purple-400/30 transition-all py-4 px-8 gap-2"
-                >
-                  <Zap className="h-5 w-5" />
+            <Button
+              onClick={() => setIsCreating(true)}
+              className="bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-700 hover:to-pink-600 text-white px-8 py-4 gap-2 text-lg"
+            >
+              <Zap className="h-5 w-5" />
               Create Your First Project
-                </button>
-              </div>
-            </span>
+            </Button>
           </motion.div>
         )}
         
@@ -421,7 +415,7 @@ const Projects = () => {
           >
             <div className="flex items-center gap-3 mb-6">
               <Star className="h-6 w-6 text-yellow-500 fill-current" />
-              <h3 className="text-2xl font-bold bg-clip-text text-transparent bg-[linear-gradient(180deg,_#000_0%,_rgba(0,_0,_0,_0.75)_100%)] dark:bg-[linear-gradient(180deg,_#FFF_0%,_rgba(255,_255,_255,_0.00)_202.08%)]">
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
                 Starred Projects
               </h3>
               <div className="px-3 py-1 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded-full text-sm text-yellow-700 dark:text-yellow-400 font-medium">
@@ -454,7 +448,7 @@ const Projects = () => {
             {starredProjects.length > 0 && (
               <div className="flex items-center gap-3 mb-6">
                 <Folder className="h-6 w-6 text-purple-600 dark:text-purple-400" />
-                <h3 className="text-2xl font-bold bg-clip-text text-transparent bg-[linear-gradient(180deg,_#000_0%,_rgba(0,_0,_0,_0.75)_100%)] dark:bg-[linear-gradient(180deg,_#FFF_0%,_rgba(255,_255,_255,_0.00)_202.08%)]">
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
                   All Projects
                 </h3>
                 <div className="px-3 py-1 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-full text-sm text-purple-700 dark:text-purple-400 font-medium">
@@ -486,11 +480,11 @@ const Projects = () => {
             className="text-center py-16"
           >
             <div className="relative inline-block mb-6">
-              <div className="p-6 rounded-full bg-gradient-to-br from-zinc-300/20 via-gray-400/20 to-transparent dark:from-zinc-300/10 dark:via-gray-400/10 border-[2px] border-black/5 dark:border-white/5">
+              <div className="p-6 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
                 <Search className="h-12 w-12 text-gray-500 dark:text-gray-400" />
               </div>
             </div>
-            <h3 className="text-2xl font-bold mb-3 bg-clip-text text-transparent bg-[linear-gradient(180deg,_#000_0%,_rgba(0,_0,_0,_0.75)_100%)] dark:bg-[linear-gradient(180deg,_#FFF_0%,_rgba(255,_255,_255,_0.00)_202.08%)]">
+            <h3 className="text-2xl font-bold mb-3 text-gray-900 dark:text-white">
               No projects found
             </h3>
             <p className="text-gray-600 dark:text-gray-300 mb-6">
@@ -499,7 +493,7 @@ const Projects = () => {
             <Button 
               variant="outline" 
               onClick={() => setFilterValue('')}
-              className="border-[2px] border-black/10 dark:border-white/10 bg-gradient-to-tr from-zinc-300/20 via-gray-400/20 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 hover:from-zinc-300/30 hover:via-purple-400/20 hover:to-transparent"
+              className="border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
             >
               Clear Search
             </Button>
@@ -534,19 +528,15 @@ const ProjectCard = ({
       whileHover={{ y: -5, scale: 1.02 }}
       className={viewMode === 'grid' ? 'h-full' : 'w-full'}
               >
-      {/* Premium animated border wrapper */}
-      <div className="relative overflow-hidden rounded-2xl p-[1px] group cursor-pointer h-full w-full">
-        <span className="absolute inset-[-1000%] animate-[spin_3s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#E2CBFF_0%,#393BB2_25%,#E2CBFF_50%,#393BB2_75%,#E2CBFF_100%)] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-        
-                <Card 
-          className={`relative h-full w-full cursor-pointer overflow-hidden bg-white dark:bg-gray-900 backdrop-blur-sm border-0 shadow-lg ${viewMode === 'list' ? 'flex flex-row items-center' : 'flex flex-col'}`}
-          onClick={() => onOpen(project.id)}
-                >
-          {/* Inner content with clean background */}
-          <div className={`relative z-10 h-full w-full bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 group-hover:border-purple-300 dark:group-hover:border-purple-600 transition-all duration-300 ${viewMode === 'list' ? 'flex flex-row items-center' : 'flex flex-col'}`}>
+      {/* Clean card wrapper */}
+      <Card 
+        className={`h-full w-full cursor-pointer overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-purple-400 dark:hover:border-purple-500 hover:shadow-lg transition-all duration-300 group ${viewMode === 'list' ? 'flex flex-row items-center' : 'flex flex-col'}`}
+        onClick={() => onOpen(project.id)}
+      >
+        <div className={`relative z-10 h-full w-full ${viewMode === 'list' ? 'flex flex-row items-center' : 'flex flex-col'}`}>
             
-            {/* Top bar */}
-            <div className={`${viewMode === 'grid' ? 'h-1' : 'w-1'} bg-purple-500 flex-shrink-0 ${viewMode === 'grid' ? 'rounded-t-2xl' : 'rounded-l-2xl'}`}></div>
+            {/* Purple accent bar */}
+            <div className={`${viewMode === 'grid' ? 'h-1 w-full' : 'w-1 h-full'} bg-gradient-to-r from-purple-500 to-pink-500 flex-shrink-0`}></div>
             
             <div className={`relative z-10 ${viewMode === 'grid' ? 'flex-1 flex flex-col p-6' : 'flex-1 flex items-center gap-6 px-6 py-4'}`}>
               {/* Action buttons */}
@@ -650,12 +640,11 @@ const ProjectCard = ({
                     <span className="text-purple-600 dark:text-purple-400 font-medium">Open</span>
                     <ArrowRight className="h-4 w-4 text-purple-500 group-hover:translate-x-1 transition-transform duration-300" />
                   </div>
-          </div>
-        )}
+                </div>
+              )}
             </div>
-          </div>
-        </Card>
-    </div>
+        </div>
+      </Card>
     </motion.div>
   );
 };

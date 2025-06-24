@@ -151,16 +151,20 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-zinc-300/5 via-purple-400/10 to-transparent dark:from-zinc-300/2 dark:via-purple-400/5 text-foreground flex flex-col items-center justify-center p-4 relative overflow-hidden">
-      {/* Background decorative elements */}
-      <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-pink-500/5 to-transparent dark:from-purple-400/5 dark:via-orange-200/5"></div>
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-full blur-3xl opacity-20"></div>
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-full blur-3xl opacity-20"></div>
+    <div className="min-h-screen w-full bg-gradient-to-b from-background to-background/90 text-foreground flex flex-col items-center justify-center p-4 relative overflow-hidden">
+      {/* Background matching landing page exactly */}
+      <div className="fixed top-0 left-0 right-0 bottom-0 z-[-1] w-full h-full">
+        {/* Base gradient background */}
+        <div className="absolute inset-0 bg-gradient-to-br from-zinc-300/5 via-purple-400/10 to-transparent dark:from-zinc-300/2 dark:via-purple-400/5" />
+        
+        {/* Radial gradient for depth - matching landing page */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(139,92,246,0.15),transparent)] dark:bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(139,92,246,0.3),transparent)]" />
+      </div>
       
-      {/* Back to Home Button */}
+      {/* Back to Home Button - matching landing page style */}
       <Button 
         variant="ghost" 
-        className="absolute top-6 left-6 flex items-center gap-2 bg-gradient-to-tr from-zinc-300/20 via-gray-400/20 to-transparent dark:from-zinc-300/10 dark:via-gray-400/10 border-[2px] border-black/5 dark:border-white/10 hover:border-purple-500/30 dark:hover:border-purple-400/30 text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-gradient-to-tr hover:from-zinc-300/30 hover:via-purple-400/20 hover:to-transparent dark:hover:from-zinc-300/10 dark:hover:via-purple-400/10 transition-all duration-300 rounded-xl backdrop-blur-sm group"
+        className="absolute top-6 left-6 flex items-center gap-2 bg-gradient-to-tr from-zinc-300/10 via-purple-400/20 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 backdrop-blur-sm border border-black/5 dark:border-white/5 hover:border-purple-500/30 dark:hover:border-purple-400/30 text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-gradient-to-tr hover:from-zinc-300/20 hover:via-purple-400/30 hover:to-transparent dark:hover:from-zinc-300/10 dark:hover:via-purple-400/20 transition-all duration-300 rounded-lg group"
         onClick={() => navigate('/')}
       >
         <ArrowLeft className="w-4 h-4 group-hover:scale-110 transition-transform duration-300" />
@@ -173,26 +177,27 @@ export default function Auth() {
         transition={{ duration: 0.5 }}
         className="w-full max-w-md relative z-10"
       >
-        {/* Header Section */}
+        {/* Header Section - matching landing page style */}
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="p-3 rounded-xl bg-gradient-to-tr from-purple-500/20 via-pink-500/20 to-transparent dark:from-purple-400/20 dark:via-orange-200/20 border border-purple-500/30 dark:border-purple-400/30">
-              <Sparkles className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+          <div className="flex items-center justify-center gap-3 mb-4 group cursor-pointer">
+            <div className="relative p-3 rounded-xl bg-gradient-to-tr from-purple-500/20 via-pink-500/20 to-transparent dark:from-purple-400/20 dark:via-orange-200/20 border border-purple-500/30 dark:border-purple-400/30 group-hover:scale-105 transition-all duration-300">
+              <Sparkles className="w-6 h-6 text-purple-600 dark:text-purple-400 group-hover:rotate-12 transition-transform duration-300" />
+              <div className="absolute inset-0 bg-gradient-to-tr from-purple-600/10 to-pink-500/10 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             </div>
-            <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-500 dark:from-purple-300 dark:to-orange-200">
+            <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-500 dark:from-purple-300 dark:to-orange-200 group-hover:from-purple-500 group-hover:to-pink-400 transition-all duration-300">
               CogentX
             </h1>
           </div>
-          <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
+          <p className="text-gray-600 dark:text-gray-300 leading-relaxed">
             {activeTab === 'login' ? 'Welcome back! Sign in to continue building amazing AI agents' : 'Join thousands of developers building the future of AI'}
           </p>
         </div>
         
-        {/* Main Auth Card */}
-        <Card className="bg-gradient-to-br from-zinc-300/10 via-purple-400/5 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 backdrop-blur-xl border-[2px] border-black/5 dark:border-white/10 shadow-2xl">
+        {/* Main Auth Card - matching landing page style */}
+        <Card className="bg-gradient-to-br from-zinc-300/10 via-purple-400/5 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 backdrop-blur-xl border border-black/5 dark:border-white/10 shadow-2xl hover:shadow-purple-500/10 dark:hover:shadow-purple-400/20 transition-all duration-300">
           <CardHeader className="pb-6">
             <Tabs defaultValue="login" value={activeTab} onValueChange={(v) => setActiveTab(v as 'login' | 'signup')}>
-              <TabsList className="grid w-full grid-cols-2 bg-gradient-to-tr from-zinc-300/20 via-gray-400/20 to-transparent dark:from-zinc-300/10 dark:via-gray-400/10 backdrop-blur-sm border-[2px] border-black/5 dark:border-white/10 p-1">
+              <TabsList className="grid w-full grid-cols-2 bg-gradient-to-tr from-zinc-300/20 via-gray-400/20 to-transparent dark:from-zinc-300/10 dark:via-gray-400/10 backdrop-blur-sm border border-black/5 dark:border-white/10 p-1">
                 <TabsTrigger 
                   value="login" 
                   className="data-[state=active]:bg-gradient-to-tr data-[state=active]:from-purple-500/20 data-[state=active]:via-pink-500/20 data-[state=active]:to-transparent dark:data-[state=active]:from-purple-400/20 dark:data-[state=active]:via-orange-200/20 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:border data-[state=active]:border-purple-500/30 dark:data-[state=active]:border-purple-400/30 transition-all duration-300"
@@ -219,7 +224,7 @@ export default function Auth() {
                       <Input 
                         type="email" 
                         placeholder="Enter your email"
-                        className="pl-12 bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border-[2px] border-black/5 dark:border-white/10 focus:border-purple-500/50 dark:focus:border-purple-400/50 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-xl py-3 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30"
+                        className="pl-12 bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border border-black/5 dark:border-white/10 focus:border-purple-500/50 dark:focus:border-purple-400/50 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-xl py-3 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         disabled={loading}
@@ -233,7 +238,7 @@ export default function Auth() {
                       <Input 
                         type={showPassword ? "text" : "password"}
                         placeholder="Enter your password" 
-                        className="pl-12 pr-12 bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border-[2px] border-black/5 dark:border-white/10 focus:border-purple-500/50 dark:focus:border-purple-400/50 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-xl py-3 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30"
+                        className="pl-12 pr-12 bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border border-black/5 dark:border-white/10 focus:border-purple-500/50 dark:focus:border-purple-400/50 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-xl py-3 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         disabled={loading}
@@ -287,7 +292,7 @@ export default function Auth() {
                       <Input 
                         type="email" 
                         placeholder="Enter your email"
-                        className="pl-12 bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border-[2px] border-black/5 dark:border-white/10 focus:border-purple-500/50 dark:focus:border-purple-400/50 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-xl py-3 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30"
+                        className="pl-12 bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border border-black/5 dark:border-white/10 focus:border-purple-500/50 dark:focus:border-purple-400/50 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-xl py-3 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         disabled={loading}
@@ -301,7 +306,7 @@ export default function Auth() {
                       <Input 
                         type={showPassword ? "text" : "password"}
                         placeholder="Create a password (min. 6 characters)" 
-                        className="pl-12 pr-12 bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border-[2px] border-black/5 dark:border-white/10 focus:border-purple-500/50 dark:focus:border-purple-400/50 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-xl py-3 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30"
+                        className="pl-12 pr-12 bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border border-black/5 dark:border-white/10 focus:border-purple-500/50 dark:focus:border-purple-400/50 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-xl py-3 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         disabled={loading}
@@ -362,7 +367,7 @@ export default function Auth() {
             <div className="flex gap-3 w-full">
               <Button 
                 variant="outline" 
-                className="w-full flex items-center gap-2 bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border-[2px] border-black/5 dark:border-white/10 hover:border-purple-500/30 dark:hover:border-purple-400/30 text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-gradient-to-tr hover:from-zinc-300/20 hover:via-purple-400/10 hover:to-transparent dark:hover:from-zinc-300/5 dark:hover:via-purple-400/5 transition-all duration-300 py-3 group"
+                className="w-full flex items-center gap-2 bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border border-black/5 dark:border-white/10 hover:border-purple-500/30 dark:hover:border-purple-400/30 text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-gradient-to-tr hover:from-zinc-300/20 hover:via-purple-400/10 hover:to-transparent dark:hover:from-zinc-300/5 dark:hover:via-purple-400/5 transition-all duration-300 py-3 group"
                 onClick={handleGoogleLogin}
               >
                 <svg width="16" height="16" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="group-hover:scale-110 transition-transform duration-300">
@@ -375,7 +380,7 @@ export default function Auth() {
               </Button>
               <Button 
                 variant="outline" 
-                className="w-full flex items-center gap-2 bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border-[2px] border-black/5 dark:border-white/10 hover:border-purple-500/30 dark:hover:border-purple-400/30 text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-gradient-to-tr hover:from-zinc-300/20 hover:via-purple-400/10 hover:to-transparent dark:hover:from-zinc-300/5 dark:hover:via-purple-400/5 transition-all duration-300 py-3 group"
+                className="w-full flex items-center gap-2 bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border border-black/5 dark:border-white/10 hover:border-purple-500/30 dark:hover:border-purple-400/30 text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-gradient-to-tr hover:from-zinc-300/20 hover:via-purple-400/10 hover:to-transparent dark:hover:from-zinc-300/5 dark:hover:via-purple-400/5 transition-all duration-300 py-3 group"
                 onClick={handleGithubLogin}
               >
                 <Github className="w-4 h-4 group-hover:scale-110 transition-transform duration-300" />
@@ -385,20 +390,35 @@ export default function Auth() {
           </CardFooter>
         </Card>
 
-        {/* Features showcase */}
+        {/* Clean Features showcase */}
         <div className="mt-8 grid grid-cols-3 gap-4">
-          <div className="text-center p-4 rounded-xl bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-transparent dark:from-blue-400/10 dark:via-purple-400/10 border border-blue-500/20 dark:border-blue-400/20 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6, duration: 0.5 }}
+            className="text-center p-4 rounded-xl bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-transparent dark:from-blue-400/10 dark:via-purple-400/10 border border-blue-500/20 dark:border-blue-400/20 backdrop-blur-sm hover:border-blue-500/40 dark:hover:border-blue-400/50 transition-all duration-300 hover:scale-105"
+          >
             <Shield className="w-6 h-6 text-blue-600 dark:text-blue-400 mx-auto mb-2" />
             <p className="text-xs font-medium text-blue-700 dark:text-blue-300">Secure</p>
-          </div>
-          <div className="text-center p-4 rounded-xl bg-gradient-to-br from-green-500/10 via-emerald-500/10 to-transparent dark:from-green-400/10 dark:via-emerald-400/10 border border-green-500/20 dark:border-green-400/20 backdrop-blur-sm">
+          </motion.div>
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.7, duration: 0.5 }}
+            className="text-center p-4 rounded-xl bg-gradient-to-br from-green-500/10 via-emerald-500/10 to-transparent dark:from-green-400/10 dark:via-emerald-400/10 border border-green-500/20 dark:border-green-400/20 backdrop-blur-sm hover:border-green-500/40 dark:hover:border-green-400/50 transition-all duration-300 hover:scale-105"
+          >
             <Zap className="w-6 h-6 text-green-600 dark:text-green-400 mx-auto mb-2" />
             <p className="text-xs font-medium text-green-700 dark:text-green-300">Fast</p>
-          </div>
-          <div className="text-center p-4 rounded-xl bg-gradient-to-br from-purple-500/10 via-pink-500/10 to-transparent dark:from-purple-400/10 dark:via-orange-200/10 border border-purple-500/20 dark:border-purple-400/20 backdrop-blur-sm">
+          </motion.div>
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.8, duration: 0.5 }}
+            className="text-center p-4 rounded-xl bg-gradient-to-br from-purple-500/10 via-pink-500/10 to-transparent dark:from-purple-400/10 dark:via-orange-200/10 border border-purple-500/20 dark:border-purple-400/20 backdrop-blur-sm hover:border-purple-500/40 dark:hover:border-purple-400/50 transition-all duration-300 hover:scale-105"
+          >
             <Users className="w-6 h-6 text-purple-600 dark:text-purple-400 mx-auto mb-2" />
             <p className="text-xs font-medium text-purple-700 dark:text-purple-300">Collaborative</p>
-          </div>
+          </motion.div>
         </div>
       </motion.div>
     </div>
