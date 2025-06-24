@@ -163,7 +163,9 @@ const LandingPage = () => {
             regular: "Create powerful agents with ",
             gradient: "visual flow builder",
           }}
+
           description="Build, visualize, and deploy AI agents without writing code. Seamless integration with Google ADK and powerful agent development tools."
+          
           ctaText="Get Started"
           onCtaClick={handleGetStarted}
           gridOptions={{

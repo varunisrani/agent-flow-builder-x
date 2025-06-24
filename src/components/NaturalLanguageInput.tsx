@@ -676,8 +676,10 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
   
   return (
     <div className={cn(
-      "fixed left-1/2 transform -translate-x-1/2 transition-all duration-300 bg-gradient-to-br from-zinc-300/10 via-purple-400/10 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 backdrop-blur-xl rounded-t-xl border-[2px] border-black/5 dark:border-white/10 shadow-2xl z-10",
-      expanded ? "bottom-0 w-2/3" : "bottom-0 w-64 translate-y-[calc(100%-48px)]"
+      "natural-language-input fixed left-1/2 transform -translate-x-1/2 transition-all duration-300 bg-gradient-to-br from-zinc-300/10 via-purple-400/10 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 backdrop-blur-xl rounded-t-xl border-[2px] border-black/5 dark:border-white/10 shadow-2xl z-10",
+      expanded 
+        ? "bottom-0 w-[min(95vw,900px)] max-h-[85vh] sm:w-[min(90vw,800px)] sm:max-h-[80vh]" 
+        : "bottom-0 w-[min(320px,90vw)] sm:w-[min(280px,25vw)] translate-y-[calc(100%-52px)]"
     )}>
       <div 
         className="flex items-center justify-between p-4 border-b-[2px] border-black/5 dark:border-white/10 cursor-pointer bg-gradient-to-r from-purple-500/5 via-pink-500/5 to-transparent dark:from-purple-400/5 dark:via-orange-200/5 hover:from-purple-500/10 hover:via-pink-500/10 hover:to-transparent dark:hover:from-purple-400/10 dark:hover:via-orange-200/10 transition-all duration-300"
@@ -698,8 +700,9 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
       </div>
       
       {expanded && (
-        <div className="p-6">
-          <div className="flex items-center space-x-3 mb-6 p-3 rounded-xl bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border-[2px] border-black/5 dark:border-white/10">
+        <div className="flex flex-col h-full max-h-[calc(80vh-60px)]">
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div className="flex items-center space-x-3 p-3 rounded-xl bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border-[2px] border-black/5 dark:border-white/10">
             <Switch
               id="mcp-mode"
               checked={mcpEnabled}
@@ -709,7 +712,7 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
           </div>
           
           {mcpEnabled && (
-            <div className="space-y-6 mb-6 p-6 bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-transparent dark:from-blue-400/10 dark:via-purple-400/10 backdrop-blur-sm rounded-xl border-[2px] border-blue-500/20 dark:border-blue-400/20">
+            <div className="space-y-4 p-4 bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-transparent dark:from-blue-400/10 dark:via-purple-400/10 backdrop-blur-sm rounded-xl border-[2px] border-blue-500/20 dark:border-blue-400/20">
               <div className="flex items-center gap-2 mb-4">
                 <div className="p-1.5 rounded-lg bg-gradient-to-tr from-blue-500/20 via-purple-500/20 to-transparent dark:from-blue-400/20 dark:via-purple-400/20 border border-blue-500/30 dark:border-blue-400/30">
                   <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />
@@ -1149,11 +1152,54 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
             </div>
           )}
           
-          <p className="text-xs text-muted-foreground mb-3">
-            {mcpEnabled
-              ? `Describe your Google ADK agent that uses Smithery MCP functionality.`
-              : "Describe your Google ADK agent. Include specific tools needed like Google Search if required."}
-          </p>
+          <div className="mb-4 p-4 rounded-xl bg-gradient-to-br from-green-50/50 via-blue-50/30 to-purple-50/20 dark:from-green-950/20 dark:via-blue-950/20 dark:to-purple-950/20 border border-green-200/50 dark:border-green-800/50">
+            <div className="flex items-start gap-3 mb-3">
+              <div className="p-1.5 rounded-lg bg-green-500/20 border border-green-500/30 flex-shrink-0 mt-0.5">
+                <Sparkles className="w-3 h-3 text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <h4 className="text-sm font-medium text-green-800 dark:text-green-300 mb-1">
+                  💡 Quick Start Guide
+                </h4>
+                <p className="text-xs text-green-700 dark:text-green-400 leading-relaxed">
+                  {mcpEnabled
+                    ? "Describe what you want your AI agent to do using external tools and services"
+                    : "Simply describe what you want your AI agent to do in plain English"}
+                </p>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <div className="text-xs font-medium text-green-800 dark:text-green-300">Example prompts:</div>
+              <div className="space-y-1.5 text-xs">
+                {mcpEnabled ? (
+                  <>
+                    <div className="p-2 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-green-200/50 dark:border-green-700/50">
+                      <span className="text-gray-700 dark:text-gray-300">"Create an agent that can search GitHub repositories and create issues"</span>
+                    </div>
+                    <div className="p-2 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-green-200/50 dark:border-green-700/50">
+                      <span className="text-gray-700 dark:text-gray-300">"Build an agent that manages time zones and scheduling across different regions"</span>
+                    </div>
+                    <div className="p-2 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-green-200/50 dark:border-green-700/50">
+                      <span className="text-gray-700 dark:text-gray-300">"I need an agent that can analyze documents and extract key information"</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="p-2 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-green-200/50 dark:border-green-700/50">
+                      <span className="text-gray-700 dark:text-gray-300">"Create a customer support agent that can search for answers and help users"</span>
+                    </div>
+                    <div className="p-2 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-green-200/50 dark:border-green-700/50">
+                      <span className="text-gray-700 dark:text-gray-300">"Build a research assistant that can find information on any topic"</span>
+                    </div>
+                    <div className="p-2 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-green-200/50 dark:border-green-700/50">
+                      <span className="text-gray-700 dark:text-gray-300">"I want an agent that helps users plan trips and find travel information"</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
 
           {/* API Key Status Indicator */}
           {(checkingApiKey || apiKeyStatus) && (
@@ -1192,87 +1238,80 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
             </div>
           )}
 
-          <form onSubmit={handleSubmit}>
-            <div className="relative">
-              <textarea
-                ref={textAreaRef}
-                value={prompt}
-                onChange={(e) => {
-                  console.log('NaturalLanguageInput: Prompt updated, length:', e.target.value.length);
-                  setPrompt(e.target.value);
-                }}
-                placeholder={mcpEnabled 
-                  ? `Create a Google ADK agent that uses Smithery MCP to perform operations with external systems and APIs. For example: "Create an agent that can interact with the specified Smithery MCP package."`
-                  : "Create a Google ADK agent that handles specific tasks. If you need search functionality, mention 'Google Search' explicitly."}
-                className={cn(
-                  "w-full h-24 bg-background rounded-md border p-3 text-sm resize-none",
-                  error ? "border-red-500" : "border-border",
-                  isGenerating && "opacity-70"
-                )}
-                disabled={isGenerating}
-              />
-              {prompt && !isGenerating && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    console.log('NaturalLanguageInput: Clear prompt button clicked');
-                    setPrompt('');
-                  }}
-                  className="absolute top-2 right-2 text-muted-foreground hover:text-foreground"
-                >
-                  <XCircle className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-            
-            {error && (
-              <div className="mt-2 text-xs text-red-500 flex items-center gap-1">
-                <AlertCircle className="w-3 h-3" />
-                <span>{error}</span>
-              </div>
-            )}
-            
-            <div className="mt-3 flex justify-end">
-              <button
-                type="submit"
-                disabled={!prompt.trim() || isGenerating}
-                className={cn(
-                  "px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2",
-                  prompt.trim() && !isGenerating
-                    ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                    : "bg-muted text-muted-foreground cursor-not-allowed"
-                )}
-              >
-                {isGenerating && <Loader2 className="w-4 h-4 animate-spin" />}
-                {isGenerating ? "Generating..." : `Generate ${mcpEnabled ? 'MCP ' : ''}Agent`}
-              </button>
-            </div>
-          </form>
+          </div>
           
-          {!error && (
-            <div className="mt-3 text-xs text-muted-foreground">
-              <strong>Tips:</strong>
-              <ul className="list-disc list-inside mt-1">
-                {mcpEnabled ? (
-                  <>
-                    <li>The agent will use Smithery MCP</li>
-                    <li>Available tools: {getMcpToolDescription('smithery')}</li>
-                    <li>Configure command arguments and environment variables as needed</li>
-                    <li>Create and select profiles to customize agent behavior</li>
-                    <li>Profiles include model, system prompt, and temperature settings</li>
-                    <li>The agent will use the gemini-2.0-flash model for processing</li>
-                  </>
-                ) : (
-                  <>
-                    <li>Explicitly mention "Google Search" if you need search functionality</li>
-                    <li>Describe the agent's purpose and capabilities clearly</li>
-                    <li>The agent will use the gemini-2.0-flash model for processing</li>
-                    <li>Include any specific tools or capabilities needed for your use case</li>
-                  </>
+          {/* Fixed bottom section for input */}
+          <div className="border-t border-black/5 dark:border-white/10 bg-gradient-to-r from-purple-500/2 via-pink-500/2 to-transparent dark:from-purple-400/2 dark:via-orange-200/2 p-4">
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <div className="relative">
+                <textarea
+                  ref={textAreaRef}
+                  value={prompt}
+                  onChange={(e) => {
+                    console.log('NaturalLanguageInput: Prompt updated, length:', e.target.value.length);
+                    setPrompt(e.target.value);
+                  }}
+                  placeholder={mcpEnabled 
+                    ? `Describe your AI agent: "Create an agent that can search GitHub and manage issues" or "Build an agent for customer support with external tools"`
+                    : "Describe your AI agent: 'Create a customer support agent' or 'Build a research assistant that can search the web'"}
+                  className={cn(
+                    "w-full h-20 bg-background rounded-lg border-2 p-3 text-sm resize-none transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/50",
+                    error ? "border-red-500" : "border-border",
+                    isGenerating && "opacity-70"
+                  )}
+                  disabled={isGenerating}
+                />
+                {prompt && !isGenerating && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      console.log('NaturalLanguageInput: Clear prompt button clicked');
+                      setPrompt('');
+                    }}
+                    className="absolute top-2 right-2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <XCircle className="w-4 h-4" />
+                  </button>
                 )}
-              </ul>
-            </div>
-          )}
+              </div>
+              
+              {error && (
+                <div className="text-xs text-red-500 flex items-center gap-1 bg-red-50 dark:bg-red-950/30 p-2 rounded-lg">
+                  <AlertCircle className="w-3 h-3" />
+                  <span>{error}</span>
+                </div>
+              )}
+              
+              <div className="flex justify-between items-center">
+                <div className="text-xs text-muted-foreground">
+                  💡 Tip: Be specific about what you want your agent to do
+                </div>
+                <span className="relative inline-block overflow-hidden rounded-lg p-[1px]">
+                  <span className="absolute inset-[-1000%] animate-[spin_2s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#E2CBFF_0%,#393BB2_50%,#E2CBFF_100%)]" />
+                  <div className="inline-flex h-full w-full cursor-pointer items-center justify-center rounded-lg bg-white dark:bg-gray-950 backdrop-blur-3xl">
+                    <button
+                      type="submit"
+                      disabled={!prompt.trim() || isGenerating}
+                      className={cn(
+                        "px-6 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2 bg-gradient-to-tr from-zinc-300/20 via-purple-400/30 to-transparent dark:from-zinc-300/5 dark:via-purple-400/20 border-0",
+                        prompt.trim() && !isGenerating
+                          ? "text-gray-900 dark:text-white hover:scale-105 hover:shadow-lg"
+                          : "text-muted-foreground cursor-not-allowed opacity-50"
+                      )}
+                    >
+                      {isGenerating && <Loader2 className="w-4 h-4 animate-spin" />}
+                      {isGenerating ? "Generating..." : (
+                        <>
+                          <Sparkles className="w-4 h-4" />
+                          {`Generate ${mcpEnabled ? 'MCP ' : ''}Agent`}
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </span>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

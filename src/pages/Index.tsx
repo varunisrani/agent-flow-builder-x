@@ -11,6 +11,7 @@ import { PropertiesPanel } from '@/components/PropertiesPanel.js';
 import { NaturalLanguageInput } from '@/components/NaturalLanguageInput.js';
 import { TestPanel } from '@/components/TestPanel.js';
 import { WelcomeModal } from '@/components/WelcomeModal.js';
+import { OnboardingOverlay } from '@/components/OnboardingOverlay.js';
 import { Button } from '@/components/ui/button.js';
 import { BaseNodeData } from '@/components/nodes/BaseNode.js';
 import { getCurrentProject, saveProjectNodesAndEdges, Project } from '@/services/projectService.js';
@@ -32,6 +33,7 @@ const Index = () => {
   const [edges, setEdges] = useState<Edge[]>([]);
   const [mcpConfig, setMcpConfig] = useState<MCPConfig[] | undefined>(undefined);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
   
@@ -54,6 +56,12 @@ const Index = () => {
     
     if (project.edges && project.edges.length > 0) {
       setEdges(project.edges);
+    }
+
+    // Check if this is a new user and show onboarding
+    const hasSeenOnboarding = localStorage.getItem('cogentx-onboarding-complete');
+    if (!hasSeenOnboarding && project.nodes.length === 0) {
+      setShowOnboarding(true);
     }
   }, [navigate]);
   
@@ -142,6 +150,29 @@ const Index = () => {
             />
           </ReactFlowProvider>
           
+          {/* Empty state message for new users */}
+          {nodes.length === 0 && !showOnboarding && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="text-center p-8 bg-gradient-to-br from-zinc-300/10 via-purple-400/10 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 backdrop-blur-xl rounded-2xl border-[2px] border-black/5 dark:border-white/10 shadow-2xl max-w-md pointer-events-auto">
+                <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-tr from-purple-500/20 via-pink-500/20 to-transparent dark:from-purple-400/20 dark:via-orange-200/20 border border-purple-500/30 dark:border-purple-400/30 rounded-2xl flex items-center justify-center">
+                  <Bot className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+                </div>
+                <h3 className="text-xl font-semibold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-500 dark:from-purple-300 dark:to-orange-200 mb-2">
+                  Ready to build your first AI agent?
+                </h3>
+                <p className="text-gray-600 dark:text-gray-300 mb-6 leading-relaxed">
+                  Start by describing what you want your agent to do using the natural language input below, or drag components from the sidebar.
+                </p>
+                <Button 
+                  onClick={() => setNlInputExpanded(true)}
+                  className="bg-gradient-to-tr from-zinc-300/20 via-purple-400/30 to-transparent dark:from-zinc-300/5 dark:via-purple-400/20 border-0 hover:scale-105 transition-transform"
+                >
+                  Start Building
+                </Button>
+              </div>
+            </div>
+          )}
+          
           <div className="absolute top-4 right-4 flex space-x-2">
             <Button 
               className="glass-card p-2 hover:border-primary/50 transition-colors"
@@ -172,6 +203,10 @@ const Index = () => {
         onToggle={() => setNlInputExpanded(!nlInputExpanded)}
         onGenerate={handleGenerateFromPrompt}
       />
+      
+      {showOnboarding && (
+        <OnboardingOverlay onComplete={() => setShowOnboarding(false)} />
+      )}
     </div>
   );
 };

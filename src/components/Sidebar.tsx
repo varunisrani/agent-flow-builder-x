@@ -2,20 +2,26 @@ import { useState } from 'react';
 import { Bot, BrainCircuit, Code, WrenchIcon, ArrowRight, Network, Server, Plug, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils.js';
 
-const nodeTypes = [
-  { type: 'agent', label: 'Agent', icon: <Bot className="w-4 h-4" /> },
-  { type: 'model', label: 'Model', icon: <BrainCircuit className="w-4 h-4" /> },
-  { type: 'tool', label: 'Tool', icon: <WrenchIcon className="w-4 h-4" /> },
-  { type: 'function', label: 'Function', icon: <Code className="w-4 h-4" /> },
-  { type: 'mcp-client', label: 'MCP Client', icon: <Network className="w-4 h-4" /> },
-  { type: 'mcp-server', label: 'MCP Server', icon: <Server className="w-4 h-4" /> },
-  { type: 'mcp-tool', label: 'MCP Tool', icon: <Plug className="w-4 h-4" /> },
-];
+const nodeCategories = {
+  core: [
+    { type: 'agent', label: 'AI Agent', description: 'The main AI brain of your workflow', icon: <Bot className="w-4 h-4" /> },
+    { type: 'model', label: 'AI Model', description: 'Choose which AI model to use', icon: <BrainCircuit className="w-4 h-4" /> },
+    { type: 'tool', label: 'Tool', description: 'Add capabilities like search or APIs', icon: <WrenchIcon className="w-4 h-4" /> },
+    { type: 'function', label: 'Custom Logic', description: 'Add custom programming logic', icon: <Code className="w-4 h-4" /> },
+  ],
+  advanced: [
+    { type: 'mcp-client', label: 'MCP Client', description: 'Connect to external services', icon: <Network className="w-4 h-4" /> },
+    { type: 'mcp-server', label: 'MCP Server', description: 'Host external connections', icon: <Server className="w-4 h-4" /> },
+    { type: 'mcp-tool', label: 'MCP Tool', description: 'Advanced external tool integration', icon: <Plug className="w-4 h-4" /> },
+  ]
+};
 
 const templates = [
-  { id: 'llm-agent', name: 'LLM Agent', description: 'Simple LLM-based agent with Google Search' },
-  { id: 'weather-agent', name: 'Weather Agent', description: 'Agent with weather and time tools' },
-  { id: 'multimodal', name: 'Multi-Modal Agent', description: 'Agent that can process images and text' },
+  { id: 'llm-agent', name: '🔍 Search Assistant', description: 'AI agent that can search the web and answer questions', difficulty: 'Beginner' },
+  { id: 'weather-agent', name: '🌤️ Weather Bot', description: 'Get weather updates and forecasts for any location', difficulty: 'Beginner' },
+  { id: 'multimodal', name: '🎨 Vision Agent', description: 'Analyze images and documents with AI', difficulty: 'Intermediate' },
+  { id: 'customer-service', name: '💬 Support Agent', description: 'Handle customer inquiries and support tickets', difficulty: 'Intermediate' },
+  { id: 'data-analyst', name: '📊 Data Analyst', description: 'Analyze data and generate insights automatically', difficulty: 'Advanced' },
 ];
 
 interface SidebarProps {
@@ -33,7 +39,7 @@ export function Sidebar({ expanded, onToggle }: SidebarProps) {
   
   return (
     <div className={cn(
-      "h-screen bg-gradient-to-br from-zinc-300/10 via-purple-400/10 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 backdrop-blur-xl border-r-[2px] border-black/5 dark:border-white/10 transition-all duration-300 flex flex-col shadow-xl",
+      "sidebar h-screen bg-gradient-to-br from-zinc-300/10 via-purple-400/10 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 backdrop-blur-xl border-r-[2px] border-black/5 dark:border-white/10 transition-all duration-300 flex flex-col shadow-xl",
       expanded ? "w-64" : "w-16"
     )}>
       {/* Header with gradient background */}
@@ -100,32 +106,78 @@ export function Sidebar({ expanded, onToggle }: SidebarProps) {
       
       <div className="flex-1 overflow-y-auto scrollbar-none p-4">
         {expanded && activeTab === 'nodes' && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-1 h-4 bg-gradient-to-b from-purple-600 to-pink-500 dark:from-purple-400 dark:to-orange-200 rounded-full"></div>
-              <h3 className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">
-                Drag to add
-              </h3>
-            </div>
-            {nodeTypes.map((node) => (
-              <div
-                key={node.type}
-                className="group p-3 rounded-xl bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border-[2px] border-black/5 dark:border-white/10 cursor-grab hover:border-purple-500/30 dark:hover:border-purple-400/30 hover:from-zinc-300/20 hover:via-purple-400/20 hover:to-transparent dark:hover:from-zinc-300/10 dark:hover:via-purple-400/10 transition-all duration-300 hover:scale-105 hover:shadow-lg"
-                draggable
-                onDragStart={(event) => onDragStart(event, node.type)}
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="p-1.5 rounded-lg bg-gradient-to-tr from-purple-500/20 via-pink-500/20 to-transparent dark:from-purple-400/20 dark:via-orange-200/20 border border-purple-500/20 dark:border-purple-400/20 group-hover:border-purple-500/40 dark:group-hover:border-purple-400/40 transition-all duration-300">
-                    <div className="text-purple-600 dark:text-purple-400 group-hover:scale-110 transition-transform duration-300">
-                      {node.icon}
+          <div className="space-y-6">
+            {/* Core Components */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-1 h-4 bg-gradient-to-b from-purple-600 to-pink-500 dark:from-purple-400 dark:to-orange-200 rounded-full"></div>
+                <h3 className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                  Essential Components
+                </h3>
+              </div>
+              <div className="space-y-3">
+                {nodeCategories.core.map((node) => (
+                  <div
+                    key={node.type}
+                    className="group p-3 rounded-xl bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border-[2px] border-black/5 dark:border-white/10 cursor-grab hover:border-purple-500/30 dark:hover:border-purple-400/30 hover:from-zinc-300/20 hover:via-purple-400/20 hover:to-transparent dark:hover:from-zinc-300/10 dark:hover:via-purple-400/10 transition-all duration-300 hover:scale-105 hover:shadow-lg"
+                    draggable
+                    onDragStart={(event) => onDragStart(event, node.type)}
+                  >
+                    <div className="flex items-start space-x-3">
+                      <div className="p-1.5 rounded-lg bg-gradient-to-tr from-purple-500/20 via-pink-500/20 to-transparent dark:from-purple-400/20 dark:via-orange-200/20 border border-purple-500/20 dark:border-purple-400/20 group-hover:border-purple-500/40 dark:group-hover:border-purple-400/40 transition-all duration-300 flex-shrink-0">
+                        <div className="text-purple-600 dark:text-purple-400 group-hover:scale-110 transition-transform duration-300">
+                          {node.icon}
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-gray-800 dark:text-gray-200 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors duration-300">
+                          {node.label}
+                        </div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 mt-1 leading-relaxed">
+                          {node.description}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div className="text-sm font-medium text-gray-800 dark:text-gray-200 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors duration-300">
-                    {node.label}
-                  </div>
-                </div>
+                ))}
               </div>
-            ))}
+            </div>
+
+            {/* Advanced Components */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-1 h-4 bg-gradient-to-b from-blue-600 to-cyan-500 dark:from-blue-400 dark:to-cyan-300 rounded-full"></div>
+                <h3 className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                  Advanced Components
+                </h3>
+              </div>
+              <div className="space-y-3">
+                {nodeCategories.advanced.map((node) => (
+                  <div
+                    key={node.type}
+                    className="group p-3 rounded-xl bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border-[2px] border-black/5 dark:border-white/10 cursor-grab hover:border-blue-500/30 dark:hover:border-blue-400/30 hover:from-zinc-300/20 hover:via-blue-400/20 hover:to-transparent dark:hover:from-zinc-300/10 dark:hover:via-blue-400/10 transition-all duration-300 hover:scale-105 hover:shadow-lg"
+                    draggable
+                    onDragStart={(event) => onDragStart(event, node.type)}
+                  >
+                    <div className="flex items-start space-x-3">
+                      <div className="p-1.5 rounded-lg bg-gradient-to-tr from-blue-500/20 via-cyan-500/20 to-transparent dark:from-blue-400/20 dark:via-cyan-300/20 border border-blue-500/20 dark:border-blue-400/20 group-hover:border-blue-500/40 dark:group-hover:border-blue-400/40 transition-all duration-300 flex-shrink-0">
+                        <div className="text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform duration-300">
+                          {node.icon}
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-gray-800 dark:text-gray-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-300">
+                          {node.label}
+                        </div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 mt-1 leading-relaxed">
+                          {node.description}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
         
@@ -134,28 +186,40 @@ export function Sidebar({ expanded, onToggle }: SidebarProps) {
             <div className="flex items-center gap-2 mb-3">
               <div className="w-1 h-4 bg-gradient-to-b from-purple-600 to-pink-500 dark:from-purple-400 dark:to-orange-200 rounded-full"></div>
               <h3 className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">
-                Templates
+                Ready-to-Use Templates
               </h3>
             </div>
-            {templates.map((template) => (
-              <div
-                key={template.id}
-                className="group p-4 rounded-xl bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border-[2px] border-black/5 dark:border-white/10 cursor-pointer hover:border-purple-500/30 dark:hover:border-purple-400/30 hover:from-zinc-300/20 hover:via-purple-400/20 hover:to-transparent dark:hover:from-zinc-300/10 dark:hover:via-purple-400/10 transition-all duration-300 hover:scale-105 hover:shadow-lg"
-              >
-                <div className="text-sm font-medium text-gray-800 dark:text-gray-200 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors duration-300 mb-1">
-                  {template.name}
+            <div className="space-y-3">
+              {templates.map((template) => (
+                <div
+                  key={template.id}
+                  className="group p-4 rounded-xl bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border-[2px] border-black/5 dark:border-white/10 cursor-pointer hover:border-purple-500/30 dark:hover:border-purple-400/30 hover:from-zinc-300/20 hover:via-purple-400/20 hover:to-transparent dark:hover:from-zinc-300/10 dark:hover:via-purple-400/10 transition-all duration-300 hover:scale-105 hover:shadow-lg"
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="text-sm font-medium text-gray-800 dark:text-gray-200 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors duration-300">
+                      {template.name}
+                    </div>
+                    <span className={cn(
+                      "text-[10px] px-2 py-0.5 rounded-full font-medium",
+                      template.difficulty === 'Beginner' && "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
+                      template.difficulty === 'Intermediate' && "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300",
+                      template.difficulty === 'Advanced' && "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                    )}>
+                      {template.difficulty}
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+                    {template.description}
+                  </div>
                 </div>
-                <div className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
-                  {template.description}
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
         
         {!expanded && (
           <div className="flex flex-col items-center space-y-4 pt-2">
-            {nodeTypes.map((node) => (
+            {[...nodeCategories.core, ...nodeCategories.advanced].map((node) => (
               <div
                 key={node.type}
                 className="group w-10 h-10 rounded-xl flex items-center justify-center cursor-grab bg-gradient-to-tr from-zinc-300/20 via-gray-400/20 to-transparent dark:from-zinc-300/10 dark:via-gray-400/10 backdrop-blur-sm border-[2px] border-black/5 dark:border-white/10 hover:border-purple-500/30 dark:hover:border-purple-400/30 hover:from-purple-500/20 hover:via-pink-500/20 hover:to-transparent dark:hover:from-purple-400/20 dark:hover:via-orange-200/20 transition-all duration-300 hover:scale-110"

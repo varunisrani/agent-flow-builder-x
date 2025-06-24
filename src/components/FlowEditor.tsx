@@ -293,7 +293,7 @@ export function FlowEditor({
         
         {/* Generate Code Panel */}
         <Panel position="bottom-right" className="m-4" style={{ bottom: 100 }}>
-          <div className="bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-xl rounded-xl border-[2px] border-black/5 dark:border-white/10 p-3 shadow-2xl hover:border-purple-500/30 dark:hover:border-purple-400/30 transition-all duration-300 group">
+          <div className="generate-code-button bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-xl rounded-xl border-[2px] border-black/5 dark:border-white/10 p-3 shadow-2xl hover:border-purple-500/30 dark:hover:border-purple-400/30 transition-all duration-300 group">
             <span className="relative inline-block overflow-hidden rounded-xl p-[1px]">
               <span className="absolute inset-[-1000%] animate-[spin_2s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#E2CBFF_0%,#393BB2_50%,#E2CBFF_100%)] group-hover:animate-[spin_1s_linear_infinite]" />
               <div className="inline-flex h-full w-full cursor-pointer items-center justify-center rounded-xl bg-white dark:bg-gray-950 backdrop-blur-3xl">
@@ -309,18 +309,35 @@ export function FlowEditor({
           </div>
         </Panel>
         
-        {/* AI Assistant Tip Panel */}
+        {/* Enhanced User Guide Panel */}
         <Panel position="bottom-left" className="m-4">
-          <div className="bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-transparent dark:from-blue-400/10 dark:via-purple-400/10 backdrop-blur-xl rounded-xl border-[2px] border-blue-500/20 dark:border-blue-400/20 p-4 shadow-2xl hover:border-blue-500/40 dark:hover:border-blue-400/40 transition-all duration-300 group max-w-xs">
-            <div className="flex items-start gap-3">
-              <div className="p-1.5 rounded-lg bg-gradient-to-tr from-blue-500/20 via-purple-500/20 to-transparent dark:from-blue-400/20 dark:via-purple-400/20 border border-blue-500/30 dark:border-blue-400/30 flex-shrink-0">
-                <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400 group-hover:rotate-12 transition-transform duration-300" />
+          <div className="bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-transparent dark:from-blue-400/10 dark:via-purple-400/10 backdrop-blur-xl rounded-xl border-[2px] border-blue-500/20 dark:border-blue-400/20 p-4 shadow-2xl hover:border-blue-500/40 dark:hover:border-blue-400/40 transition-all duration-300 group max-w-sm">
+            <div className="space-y-3">
+              <div className="flex items-start gap-3">
+                <div className="p-1.5 rounded-lg bg-gradient-to-tr from-blue-500/20 via-purple-500/20 to-transparent dark:from-blue-400/20 dark:via-purple-400/20 border border-blue-500/30 dark:border-blue-400/30 flex-shrink-0">
+                  <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400 group-hover:rotate-12 transition-transform duration-300" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-1">Quick Start Guide</p>
+                  <p className="text-xs text-blue-600 dark:text-blue-300 leading-relaxed">
+                    Build your AI agent in 3 simple steps
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-1">AI Assistant Tip</p>
-                <p className="text-xs text-blue-600 dark:text-blue-300 leading-relaxed">
-                  Use natural language builder for quick setup and intelligent suggestions
-                </p>
+              
+              <div className="space-y-2 text-xs text-blue-600 dark:text-blue-300">
+                <div className="flex items-start gap-2">
+                  <span className="inline-flex items-center justify-center w-4 h-4 bg-blue-500/20 rounded-full text-blue-700 dark:text-blue-300 font-medium text-[10px] flex-shrink-0 mt-0.5">1</span>
+                  <span>Use natural language input below to describe your agent</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="inline-flex items-center justify-center w-4 h-4 bg-blue-500/20 rounded-full text-blue-700 dark:text-blue-300 font-medium text-[10px] flex-shrink-0 mt-0.5">2</span>
+                  <span>Drag and connect components from the sidebar</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="inline-flex items-center justify-center w-4 h-4 bg-blue-500/20 rounded-full text-blue-700 dark:text-blue-300 font-medium text-[10px] flex-shrink-0 mt-0.5">3</span>
+                  <span>Generate and deploy your agent code</span>
+                </div>
               </div>
             </div>
           </div>

@@ -4,6 +4,33 @@ import { ChevronRight, Sparkles, Workflow, Braces, Bot, Zap, Check, ArrowRight }
 import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button.js'
 
+// Add CSS animations for blob effect
+const blobStyles = `
+  @keyframes blob {
+    0% {
+      transform: translate(0px, 0px) scale(1);
+    }
+    33% {
+      transform: translate(30px, -50px) scale(1.1);
+    }
+    66% {
+      transform: translate(-20px, 20px) scale(0.9);
+    }
+    100% {
+      transform: translate(0px, 0px) scale(1);
+    }
+  }
+  .animate-blob {
+    animation: blob 7s infinite;
+  }
+  .animation-delay-2000 {
+    animation-delay: 2s;
+  }
+  .animation-delay-4000 {
+    animation-delay: 4s;
+  }
+`
+
 interface HeroSectionProps extends React.HTMLAttributes<HTMLDivElement> {
   title?: string
   subtitle?: {
@@ -53,7 +80,7 @@ const RetroGrid = ({
       <div className="absolute inset-0 [transform:rotateX(var(--grid-angle))]">
         <div className="animate-grid [background-image:linear-gradient(to_right,var(--light-line)_1px,transparent_0),linear-gradient(to_bottom,var(--light-line)_1px,transparent_0)] [background-repeat:repeat] [background-size:var(--cell-size)_var(--cell-size)] [height:300vh] [inset:0%_0px] [margin-left:-200%] [transform-origin:100%_0_0] [width:600vw] dark:[background-image:linear-gradient(to_right,var(--dark-line)_1px,transparent_0),linear-gradient(to_bottom,var(--dark-line)_1px,transparent_0)]" />
       </div>
-      <div className="absolute inset-0 bg-gradient-to-t from-white to-transparent to-90% dark:from-black" />
+      <div className="absolute inset-0 bg-gradient-to-t from-white/80 via-transparent to-transparent to-70% dark:from-black/60" />
     </div>
   )
 }
@@ -88,25 +115,81 @@ const HeroSection = React.forwardRef<HTMLDivElement, HeroSectionProps>(
 
     return (
       <div className={cn("relative min-h-screen", className)} ref={ref} {...props}>
-        {/* Extended background that covers all sections */}
-        <div className="absolute top-0 z-[0] h-full w-full bg-purple-950/10 dark:bg-purple-950/10 bg-[radial-gradient(ellipse_20%_80%_at_50%_-20%,rgba(120,119,198,0.15),rgba(255,255,255,0))] dark:bg-[radial-gradient(ellipse_20%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))]" />
+        {/* Add blob animation styles */}
+        <style dangerouslySetInnerHTML={{ __html: blobStyles }} />
+        
+        {/* Enhanced unified background with purple gradients */}
+        <div className="fixed top-0 left-0 right-0 bottom-0 z-[-1] w-full h-full">
+          {/* Base gradient background */}
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-50/30 via-pink-50/20 to-blue-50/10 dark:from-purple-900/60 dark:via-pink-900/50 dark:to-blue-900/40" />
+          
+          {/* Enhanced radial gradient overlays for dark mode */}
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(139,92,246,0.15),transparent)] dark:bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(139,92,246,0.6),transparent)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_80%_60%,rgba(236,72,153,0.1),transparent)] dark:bg-[radial-gradient(ellipse_60%_40%_at_80%_60%,rgba(236,72,153,0.4),transparent)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_40%_30%_at_20%_80%,rgba(59,130,246,0.08),transparent)] dark:bg-[radial-gradient(ellipse_40%_30%_at_20%_80%,rgba(59,130,246,0.3),transparent)]" />
+          
+          {/* Additional purple shadow effects for dark mode */}
+          <div className="absolute inset-0 bg-[radial-gradient(circle_600px_at_50%_300px,rgba(139,92,246,0.4),transparent)] dark:bg-[radial-gradient(circle_600px_at_50%_300px,rgba(139,92,246,0.8),transparent)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_400px_at_80%_200px,rgba(236,72,153,0.3),transparent)] dark:bg-[radial-gradient(circle_400px_at_80%_200px,rgba(236,72,153,0.6),transparent)]" />
+          
+          {/* Animated gradient mesh with more vibrant colors in dark mode */}
+          <div className="absolute inset-0 opacity-40 dark:opacity-80">
+            <div className="absolute top-0 -left-4 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-2xl opacity-30 animate-blob dark:bg-purple-500 dark:opacity-60 dark:mix-blend-screen"></div>
+            <div className="absolute top-0 -right-4 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-2xl opacity-30 animate-blob animation-delay-2000 dark:bg-pink-500 dark:opacity-60 dark:mix-blend-screen"></div>
+            <div className="absolute -bottom-8 left-20 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-2xl opacity-30 animate-blob animation-delay-4000 dark:bg-indigo-500 dark:opacity-60 dark:mix-blend-screen"></div>
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-violet-300 rounded-full mix-blend-multiply filter blur-2xl opacity-25 animate-blob animation-delay-4000 dark:bg-violet-500 dark:opacity-50 dark:mix-blend-screen"></div>
+          </div>
+          
+          {/* Extra purple glow effect for dark mode */}
+          <div className="absolute inset-0 dark:bg-[conic-gradient(from_0deg_at_50%_50%,transparent_0deg,rgba(139,92,246,0.1)_60deg,rgba(236,72,153,0.1)_120deg,transparent_180deg,rgba(59,130,246,0.1)_240deg,rgba(139,92,246,0.1)_300deg,transparent_360deg)] dark:opacity-60"></div>
+        </div>
+        
+        {/* Extended RetroGrid for entire page */}
+        <div className="absolute top-0 left-0 right-0 h-[200vh] z-[0] opacity-30">
+          <RetroGrid {...gridOptions} />
+        </div>
         
         {/* Hero Section */}
         <section className="relative max-w-full mx-auto z-1">
-          <RetroGrid {...gridOptions} />
           <div className="max-w-screen-xl z-10 mx-auto px-4 py-28 gap-12 md:px-8">
-            <div className="space-y-5 max-w-3xl leading-0 lg:leading-5 mx-auto text-center">
-              <h1 className="text-sm text-gray-600 dark:text-gray-400 group font-geist mx-auto px-5 py-2 bg-gradient-to-tr from-zinc-300/20 via-gray-400/20 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 border-[2px] border-black/5 dark:border-white/5 rounded-3xl w-fit">
+            <div className="space-y-5 max-w-3xl leading-0 lg:leading-5 mx-auto text-center relative">
+              {/* Purple glow background behind text */}
+              <div className="absolute inset-0 -z-10">
+                <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-full h-32 bg-gradient-to-r from-transparent via-purple-500/20 to-transparent blur-3xl dark:via-purple-400/40 dark:blur-2xl"></div>
+                <div className="absolute top-16 left-1/2 transform -translate-x-1/2 w-3/4 h-40 bg-gradient-to-r from-transparent via-pink-500/15 to-transparent blur-2xl dark:via-pink-400/30"></div>
+                <div className="absolute top-32 left-1/2 transform -translate-x-1/2 w-1/2 h-24 bg-gradient-to-r from-transparent via-violet-500/20 to-transparent blur-xl dark:via-violet-400/35"></div>
+              </div>
+              
+              <h1 className="text-sm text-gray-600 dark:text-gray-400 group font-geist mx-auto px-5 py-2 bg-gradient-to-tr from-zinc-300/20 via-gray-400/20 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 border-[2px] border-black/5 dark:border-white/5 rounded-3xl w-fit relative">
+                {/* Purple shadow behind badge */}
+                <div className="absolute inset-0 -z-10 bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-purple-500/20 blur-lg rounded-3xl dark:from-purple-400/40 dark:via-pink-400/40 dark:to-purple-400/40"></div>
                 {title}
                 <ChevronRight className="inline w-4 h-4 ml-2 group-hover:translate-x-1 duration-300" />
               </h1>
-              <h2 className="text-4xl tracking-tighter font-geist bg-clip-text text-transparent mx-auto md:text-6xl bg-[linear-gradient(180deg,_#000_0%,_rgba(0,_0,_0,_0.75)_100%)] dark:bg-[linear-gradient(180deg,_#FFF_0%,_rgba(255,_255,_255,_0.00)_202.08%)]">
+              
+              <h2 className="text-4xl tracking-tighter font-geist bg-clip-text text-transparent mx-auto md:text-6xl bg-[linear-gradient(180deg,_#000_0%,_rgba(0,_0,_0,_0.75)_100%)] dark:bg-[linear-gradient(180deg,_#FFF_0%,_rgba(255,_255,_255,_0.00)_202.08%)] relative">
+                {/* Strong purple shadow behind main heading */}
+                <div className="absolute inset-0 -z-10 text-4xl md:text-6xl font-geist tracking-tighter blur-md text-purple-400/60 dark:text-purple-300/80">
+                  {subtitle.regular}
+                  <span className="text-pink-400/60 dark:text-pink-300/80">
+                    {subtitle.gradient}
+                  </span>
+                </div>
+                <div className="absolute inset-0 -z-20 text-4xl md:text-6xl font-geist tracking-tighter blur-xl text-purple-500/40 dark:text-purple-400/60">
+                  {subtitle.regular}
+                  <span className="text-pink-500/40 dark:text-pink-400/60">
+                    {subtitle.gradient}
+                  </span>
+                </div>
                 {subtitle.regular}
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-500 dark:from-purple-300 dark:to-orange-200">
                   {subtitle.gradient}
                 </span>
               </h2>
-              <p className="max-w-2xl mx-auto text-gray-600 dark:text-gray-300">
+              
+              <p className="max-w-2xl mx-auto text-gray-600 dark:text-gray-300 relative">
+                {/* Subtle purple glow behind description */}
+                <div className="absolute inset-0 -z-10 bg-gradient-to-r from-transparent via-purple-500/10 to-transparent blur-lg dark:via-purple-400/20 rounded-lg"></div>
                 {description}
               </p>
               <div className="items-center justify-center gap-x-3 space-y-3 sm:flex sm:space-y-0">
@@ -125,16 +208,22 @@ const HeroSection = React.forwardRef<HTMLDivElement, HeroSectionProps>(
             </div>
             {bottomImage && (
               <div className="mt-32 mx-10 relative z-10">
-                <img
-                  src={bottomImage.light}
-                  className="w-full shadow-lg rounded-lg border border-gray-200 dark:hidden"
-                  alt="Dashboard preview"
-                />
-                <img
-                  src={bottomImage.dark}
-                  className="hidden w-full shadow-lg rounded-lg border border-gray-800 dark:block"
-                  alt="Dashboard preview"
-                />
+                <div className="relative">
+                  <img
+                    src={bottomImage.light}
+                    className="w-full shadow-lg rounded-lg border border-gray-200 dark:hidden"
+                    alt="Dashboard preview"
+                  />
+                  <img
+                    src={bottomImage.dark}
+                    className="hidden w-full shadow-lg rounded-lg border border-gray-800 dark:block"
+                    alt="Dashboard preview"
+                  />
+                  {/* Gradient fade overlay for smooth transition */}
+                  <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-transparent via-transparent to-transparent pointer-events-none" />
+                </div>
+                {/* Extended gradient below dashboard for smooth transition */}
+                <div className="h-32 bg-gradient-to-b from-transparent via-purple-950/1 to-purple-950/2 dark:via-purple-950/2 dark:to-purple-950/4" />
               </div>
             )}
           </div>
@@ -142,7 +231,8 @@ const HeroSection = React.forwardRef<HTMLDivElement, HeroSectionProps>(
 
         {/* Features Section */}
         <section className="relative py-20 px-4 md:px-6 lg:px-8">
-          <div className="absolute top-0 z-[0] h-full w-full bg-purple-950/5 dark:bg-purple-950/5 bg-[radial-gradient(ellipse_20%_80%_at_50%_-20%,rgba(120,119,198,0.1),rgba(255,255,255,0))] dark:bg-[radial-gradient(ellipse_20%_80%_at_50%_-20%,rgba(120,119,198,0.2),rgba(255,255,255,0))]" />
+          {/* Subtle overlay for depth */}
+          <div className="absolute top-0 z-[0] h-full w-full bg-gradient-to-b from-transparent via-purple-950/2 to-transparent dark:via-purple-950/4" />
           <div className="max-w-6xl mx-auto relative z-10">
             <div className="text-center mb-16">
               <h1 className="text-sm text-gray-600 dark:text-gray-400 group font-geist mx-auto px-5 py-2 bg-gradient-to-tr from-zinc-300/20 via-gray-400/20 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 border-[2px] border-black/5 dark:border-white/5 rounded-3xl w-fit mb-6">
@@ -211,8 +301,9 @@ const HeroSection = React.forwardRef<HTMLDivElement, HeroSectionProps>(
         </section>
         
         {/* Pricing Section */}
-        <section className="relative py-20 px-4 md:px-6 lg:px-8 bg-purple-950/5 dark:bg-purple-950/5">
-          <div className="absolute top-0 z-[0] h-full w-full bg-[radial-gradient(ellipse_20%_80%_at_50%_-20%,rgba(120,119,198,0.1),rgba(255,255,255,0))] dark:bg-[radial-gradient(ellipse_20%_80%_at_50%_-20%,rgba(120,119,198,0.2),rgba(255,255,255,0))]" />
+        <section className="relative py-20 px-4 md:px-6 lg:px-8">
+          {/* Subtle overlay for section distinction */}
+          <div className="absolute top-0 z-[0] h-full w-full bg-gradient-to-b from-purple-950/2 via-transparent to-purple-950/2 dark:from-purple-950/4 dark:to-purple-950/4" />
           <div className="max-w-6xl mx-auto relative z-10">
             <div className="text-center mb-16">
               <h1 className="text-sm text-gray-600 dark:text-gray-400 group font-geist mx-auto px-5 py-2 bg-gradient-to-tr from-zinc-300/20 via-gray-400/20 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 border-[2px] border-black/5 dark:border-white/5 rounded-3xl w-fit mb-6">
@@ -365,7 +456,8 @@ const HeroSection = React.forwardRef<HTMLDivElement, HeroSectionProps>(
         
         {/* Call To Action */}
         <section className="relative py-20 px-4 md:px-6 lg:px-8">
-          <div className="absolute top-0 z-[0] h-full w-full bg-purple-950/5 dark:bg-purple-950/5 bg-[radial-gradient(ellipse_20%_80%_at_50%_-20%,rgba(120,119,198,0.15),rgba(255,255,255,0))] dark:bg-[radial-gradient(ellipse_20%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))]" />
+          {/* Subtle highlight for final CTA */}
+          <div className="absolute top-0 z-[0] h-full w-full bg-gradient-to-b from-transparent via-purple-950/3 to-transparent dark:via-purple-950/6" />
           <motion.div 
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
@@ -404,7 +496,9 @@ const HeroSection = React.forwardRef<HTMLDivElement, HeroSectionProps>(
         
         {/* Footer */}
         <footer className="relative py-10 px-4 md:px-6 lg:px-8 border-t border-white/10">
-          <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center">
+          {/* Footer background overlay */}
+          <div className="absolute top-0 z-[0] h-full w-full bg-gradient-to-b from-purple-950/1 to-purple-950/3 dark:from-purple-950/2 dark:to-purple-950/5" />
+          <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center relative z-10">
             <div className="mb-6 md:mb-0">
               <h2 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-500 dark:from-purple-300 dark:to-orange-200">CogentX</h2>
               <p className="text-gray-600 dark:text-gray-400">Build smart agents without code</p>

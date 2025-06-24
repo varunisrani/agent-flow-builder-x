@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button.js';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.js';
 import { BaseNodeData } from './nodes/BaseNode.js';
-import { Copy, AlertCircle, Loader2, Play, Code } from 'lucide-react';
+import { Copy, AlertCircle, Loader2, Play, Code, Sparkles } from 'lucide-react';
 import { toast } from '@/hooks/use-toast.js';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -32,14 +32,14 @@ const CodeHighlighter: React.FC<{ code: string }> = ({ code }) => {
       style={vscDarkPlus}
       showLineNumbers
       customStyle={{
-        fontSize: '14px',
-        borderRadius: '6px',
-        maxHeight: '60vh',
+        fontSize: '12px',
+        borderRadius: '8px',
+        height: '100%',
         overflowY: 'auto',
         margin: 0,
-        padding: '16px',
+        padding: '12px',
         backgroundColor: '#1E1E1E',
-        border: '1px solid #333'
+        border: 'none'
       }}
       lineProps={{ style: { wordBreak: 'break-all', whiteSpace: 'pre-wrap' } }}
       wrapLines={true}
@@ -898,8 +898,8 @@ __all__ = ["root_agent"]`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl bg-gradient-to-br from-zinc-300/10 via-purple-400/10 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 backdrop-blur-xl border-[2px] border-black/5 dark:border-white/10 shadow-2xl">
-        <DialogHeader className="pb-6 border-b-[2px] border-black/5 dark:border-white/10 bg-gradient-to-r from-purple-500/5 via-pink-500/5 to-transparent dark:from-purple-400/5 dark:via-orange-200/5 rounded-t-lg -mx-6 -mt-6 px-6 pt-6">
+      <DialogContent className="w-[98vw] max-w-7xl h-[95vh] max-h-[95vh] sm:w-[95vw] sm:h-[90vh] sm:max-h-[90vh] lg:max-w-6xl bg-gradient-to-br from-zinc-300/10 via-purple-400/10 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 backdrop-blur-xl border-[2px] border-black/5 dark:border-white/10 shadow-2xl p-0 overflow-hidden flex flex-col">
+        <DialogHeader className="flex-shrink-0 pb-4 border-b-[2px] border-black/5 dark:border-white/10 bg-gradient-to-r from-purple-500/5 via-pink-500/5 to-transparent dark:from-purple-400/5 dark:via-orange-200/5 px-6 pt-6">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-xl bg-gradient-to-tr from-purple-500/20 via-pink-500/20 to-transparent dark:from-purple-400/20 dark:via-orange-200/20 border border-purple-500/30 dark:border-purple-400/30">
               <Code className="w-5 h-5 text-purple-600 dark:text-purple-400" />
@@ -909,17 +909,34 @@ __all__ = ["root_agent"]`;
                 Generated Agent Code
               </DialogTitle>
               <DialogDescription className="text-gray-600 dark:text-gray-300 mt-1">
-                This code represents the agent flow you've designed. The code is generated based on your workflow diagram.
-                {!isFirstGeneration && (
-                  <span className="text-sm text-gray-500 dark:text-gray-400"> (Loaded from saved version)</span>
-                )}
+                <div className="space-y-2">
+                  <p>Your visual workflow has been converted into production-ready code. This code can be deployed and run anywhere.</p>
+                  <div className="flex items-center gap-2 text-sm">
+                    <div className="flex items-center gap-1">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span className="text-green-700 dark:text-green-400">No coding required</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                      <span className="text-blue-700 dark:text-blue-400">Production ready</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                      <span className="text-purple-700 dark:text-purple-400">Instantly deployable</span>
+                    </div>
+                  </div>
+                  {!isFirstGeneration && (
+                    <span className="text-sm text-gray-500 dark:text-gray-400"> (Loaded from saved version)</span>
+                  )}
+                </div>
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
-        <Tabs defaultValue="adk" value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="bg-gradient-to-tr from-zinc-300/20 via-gray-400/20 to-transparent dark:from-zinc-300/10 dark:via-gray-400/10 backdrop-blur-sm border-[2px] border-black/5 dark:border-white/10 p-1">
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <Tabs defaultValue="adk" value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+            <TabsList className="flex-shrink-0 bg-gradient-to-tr from-zinc-300/20 via-gray-400/20 to-transparent dark:from-zinc-300/10 dark:via-gray-400/10 backdrop-blur-sm border-[2px] border-black/5 dark:border-white/10 p-1 mx-6 mt-4">
             <TabsTrigger 
               value="adk" 
               className="data-[state=active]:bg-gradient-to-tr data-[state=active]:from-purple-500/20 data-[state=active]:via-pink-500/20 data-[state=active]:to-transparent dark:data-[state=active]:from-purple-400/20 dark:data-[state=active]:via-orange-200/20 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:border data-[state=active]:border-purple-500/30 dark:data-[state=active]:border-purple-400/30"
@@ -940,9 +957,10 @@ __all__ = ["root_agent"]`;
             </TabsTrigger>
           </TabsList>
           
-          <TabsContent value={activeTab} className="mt-4">
-            {activeTab === 'adk' && (
-              <div className="flex justify-between items-center mb-2">
+          <TabsContent value={activeTab} className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 flex flex-col overflow-hidden px-6">
+              {activeTab === 'adk' && (
+                <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <div className="flex items-center gap-2">
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input 
@@ -985,90 +1003,136 @@ __all__ = ["root_agent"]`;
               </div>
             )}
             
-            <div className="relative">
+            <div className="flex-1 flex flex-col overflow-hidden">
               {error && (
-                <div className="mb-2 p-2 bg-red-100 border border-red-200 rounded-md text-red-800 text-sm flex items-center gap-2">
+                <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg text-red-800 dark:text-red-300 text-sm flex items-center gap-2 flex-shrink-0">
                   <AlertCircle className="h-4 w-4" />
                   <span>{error}</span>
                 </div>
               )}
 
               {/* Verification Progress Display */}
-              <VerificationProgress progress={verificationProgress} />
+              <div className="flex-shrink-0">
+                <VerificationProgress progress={verificationProgress} />
+              </div>
 
               {loading ? (
-                <div className="flex items-center justify-center h-40 gap-2 bg-gray-900 rounded-md text-gray-200">
-                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                  <span>{verificationProgress ? verificationProgress.message : "Generating code..."}</span>
+                <div className="flex-1 flex items-center justify-center gap-3 bg-gradient-to-br from-gray-900/50 to-gray-800/50 rounded-xl text-gray-200 min-h-[200px]">
+                  <Loader2 className="h-6 w-6 animate-spin text-purple-400" />
+                  <div className="text-center">
+                    <div className="text-sm font-medium">{verificationProgress ? verificationProgress.message : "Generating your agent code..."}</div>
+                    <div className="text-xs text-gray-400 mt-1">This may take a few moments</div>
+                  </div>
                 </div>
               ) : (
-                <>
-                  <div className="relative">
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  <div className="flex-1 relative rounded-xl overflow-hidden border border-gray-700">
                     <CodeHighlighter code={generatedCode} />
-                    <div className="absolute top-2 right-2 flex gap-2">
+                    <div className="absolute top-3 right-3 flex gap-2">
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="bg-gray-800/70 hover:bg-gray-800/90 flex items-center gap-2"
+                        className="bg-gray-800/90 hover:bg-gray-700/90 flex items-center gap-2 text-xs"
                         onClick={() => executeInSandbox(generatedCode)}
                         disabled={loading || isExecuting}
                       >
                         {isExecuting ? (
                           <>
-                            <Loader2 className="h-4 w-4 animate-spin text-gray-200" />
+                            <Loader2 className="h-3 w-3 animate-spin text-gray-200" />
                             <span className="text-gray-200">Running...</span>
                           </>
                         ) : (
                           <>
-                            <Play className="h-4 w-4 text-gray-200" />
-                            <span className="text-gray-200">Execute</span>
+                            <Play className="h-3 w-3 text-green-400" />
+                            <span className="text-gray-200">Test Run</span>
                           </>
                         )}
                       </Button>
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="bg-gray-800/70 hover:bg-gray-800/90 flex items-center gap-2"
+                        className="bg-gray-800/90 hover:bg-gray-700/90 flex items-center gap-2 text-xs"
                         onClick={handleCopyCode}
                         disabled={loading}
                       >
-                        <Copy className="h-4 w-4 text-gray-200" />
-                        <span className="text-gray-200">Copy</span>
+                        <Copy className="h-3 w-3 text-blue-400" />
+                        <span className="text-gray-200">Copy Code</span>
                       </Button>
                     </div>
                   </div>
                   
-                  <SandboxOutput output={sandboxOutput} />
-                </>
+                  {sandboxOutput && (
+                    <div className="flex-shrink-0 mt-4">
+                      <SandboxOutput output={sandboxOutput} />
+                    </div>
+                  )}
+                </div>
               )}
             </div>
             
-            <div className="mt-2 text-xs text-muted-foreground">
-              <strong>Note:</strong> The generated code uses {activeTab === 'adk' 
-                ? `Google's Agent Development Kit${mcpEnabled ? ' with MCP integration' : ' with Google Search'}`
-                : activeTab === 'vertex' 
-                  ? "Google Vertex AI"
-                  : "a custom framework"}.
+            <div className="flex-shrink-0 mt-4 p-3 rounded-lg bg-gradient-to-br from-blue-50/50 via-purple-50/30 to-pink-50/20 dark:from-blue-950/20 dark:via-purple-950/20 dark:to-pink-950/20 border border-blue-200/50 dark:border-blue-800/50">
+              <div className="flex items-start gap-3">
+                <div className="p-1 rounded bg-blue-500/20 border border-blue-500/30 flex-shrink-0">
+                  <Sparkles className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-medium text-blue-800 dark:text-blue-300 mb-1">
+                    🚀 What you get:
+                  </h4>
+                  <div className="grid grid-cols-2 gap-1 text-[10px] text-blue-700 dark:text-blue-400">
+                    <div className="flex items-center gap-1">
+                      <div className="w-1 h-1 bg-blue-500 rounded-full"></div>
+                      <span>Production-ready code</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-1 h-1 bg-blue-500 rounded-full"></div>
+                      <span>Error handling built-in</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-1 h-1 bg-blue-500 rounded-full"></div>
+                      <span>Cloud deployable</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-1 h-1 bg-blue-500 rounded-full"></div>
+                      <span>No coding needed</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
             </div>
           </TabsContent>
-        </Tabs>
+          </Tabs>
+        </div>
 
-        <DialogFooter className="flex justify-between items-center">
-          <div className="text-xs text-muted-foreground">
-            {isFirstGeneration ? 'Initial generation' : 'Saved version'}
+        <DialogFooter className="flex-shrink-0 flex justify-between items-center border-t border-black/5 dark:border-white/10 bg-gradient-to-r from-purple-500/2 via-pink-500/2 to-transparent dark:from-purple-400/2 dark:via-orange-200/2 px-6 py-4">
+          <div className="flex items-center gap-4">
+            <div className="text-xs text-muted-foreground">
+              {isFirstGeneration ? '✨ Fresh generation' : '💾 Saved version'}
+            </div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span>Ready to deploy</span>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <Button 
-              disabled={loading} 
-              onClick={handleRegenerate}
-              variant="default"
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              {loading ? "Generating..." : "Regenerate Code"}
-            </Button>
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => onOpenChange(false)} size="sm">
               Close
             </Button>
+            <span className="relative inline-block overflow-hidden rounded-lg p-[1px]">
+              <span className="absolute inset-[-1000%] animate-[spin_2s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#E2CBFF_0%,#393BB2_50%,#E2CBFF_100%)]" />
+              <div className="inline-flex h-full w-full cursor-pointer items-center justify-center rounded-lg bg-white dark:bg-gray-950 backdrop-blur-3xl">
+                <Button 
+                  disabled={loading} 
+                  onClick={handleRegenerate}
+                  size="sm"
+                  className="bg-gradient-to-tr from-zinc-300/20 via-purple-400/30 to-transparent dark:from-zinc-300/5 dark:via-purple-400/20 border-0 hover:scale-105"
+                >
+                  {loading ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Sparkles className="h-3 w-3 mr-2" />}
+                  {loading ? "Generating..." : "Regenerate Code"}
+                </Button>
+              </div>
+            </span>
           </div>
         </DialogFooter>
       </DialogContent>
