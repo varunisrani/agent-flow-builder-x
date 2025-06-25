@@ -18,7 +18,8 @@ import {
   Zap,
   Filter,
   Grid3X3,
-  List
+  List,
+  BarChart3
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button.js';
@@ -190,6 +191,10 @@ const Projects = () => {
     navigate('/');
   };
 
+  const handleViewAnalytics = () => {
+    navigate('/analytics');
+  };
+
   const starredProjects = filteredProjects.filter(p => p.starred);
   const regularProjects = filteredProjects.filter(p => !p.starred);
 
@@ -247,6 +252,14 @@ const Projects = () => {
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFilterValue(e.target.value)}
             />
           </div>
+          <Button
+            variant="outline"
+            onClick={handleViewAnalytics}
+            className="bg-gradient-to-tr from-zinc-300/10 via-purple-400/10 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 border border-purple-400/20 hover:border-purple-400/40 text-purple-700 dark:text-purple-300 hover:text-purple-800 dark:hover:text-purple-200 backdrop-blur-sm"
+          >
+            <BarChart3 className="h-4 w-4 mr-2" />
+            See Analysis
+          </Button>
           <div className="flex items-center gap-2 p-1 bg-gradient-to-tr from-zinc-300/20 via-gray-400/20 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 border border-black/5 dark:border-white/5 rounded-xl backdrop-blur-sm">
             <Button
               variant={viewMode === 'grid' ? 'default' : 'ghost'}

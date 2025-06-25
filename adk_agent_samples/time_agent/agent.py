@@ -13,6 +13,7 @@ from google.adk.sessions import InMemorySessionService
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
 import mcp
 from mcp.client.streamable_http import streamablehttp_client
+from langfuse import Langfuse
 
 # Configure logging
 logging.basicConfig(
@@ -32,6 +33,22 @@ def create_root_agent():
     GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
     if not GOOGLE_API_KEY:
         raise ValueError("GOOGLE_API_KEY environment variable is not set")
+
+    # Initialize Langfuse
+    langfuse_secret_key = os.getenv('LANGFUSE_SECRET_KEY')
+    langfuse_public_key = os.getenv('LANGFUSE_PUBLIC_KEY')
+    langfuse_host = os.getenv('LANGFUSE_HOST', 'https://cloud.langfuse.com')
+    
+    if langfuse_secret_key and langfuse_public_key:
+        langfuse = Langfuse(
+            secret_key=langfuse_secret_key,
+            public_key=langfuse_public_key,
+            host=langfuse_host
+        )
+        logger.info("Langfuse initialized successfully")
+    else:
+        logger.warning("Langfuse credentials not found in environment variables. Please set LANGFUSE_SECRET_KEY and LANGFUSE_PUBLIC_KEY")
+        langfuse = None
 
     # Initialize Google AI client
     genai_client = genai.Client(api_key=GOOGLE_API_KEY)
