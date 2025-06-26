@@ -32,6 +32,15 @@ export interface MemoryConfig {
   retentionDays: number;
 }
 
+export interface EventHandlingConfig {
+  enabled: boolean;
+  eventTypes: string[];
+  middleware: string[];
+  listeners: { [key: string]: boolean };
+  historyEnabled: boolean;
+  analyticsEnabled: boolean;
+}
+
 function varNameFromPackage(mcpPackage: string, idx: number): string {
   const slug = mcpPackage.split('/').pop() || `mcp_${idx}`;
   const base = slug.replace(/-mcp$/i, '').replace(/[^a-zA-Z0-9_]/g, '_');
@@ -107,6 +116,34 @@ export function extractMemoryConfigFromNodes(nodes: Node<BaseNodeData>[]): Memor
 // Function to check if nodes contain Memory configuration
 export function hasMemoryNodes(nodes: Node<BaseNodeData>[]): boolean {
   return nodes.some(n => n.data.type === 'memory' && n.data.memoryEnabled);
+}
+
+// Function to extract Event Handling configuration from nodes
+export function extractEventHandlingConfigFromNodes(nodes: Node<BaseNodeData>[]): EventHandlingConfig | null {
+  const eventHandlingNode = nodes.find(n => n.data.type === 'event-handling');
+  
+  if (!eventHandlingNode || !eventHandlingNode.data.eventHandlingEnabled) {
+    return null;
+  }
+  
+  return {
+    enabled: true,
+    eventTypes: eventHandlingNode.data.eventTypes as string[] || ['user_message', 'agent_response', 'tool_call', 'error'],
+    middleware: eventHandlingNode.data.eventMiddleware as string[] || ['logging_middleware'],
+    listeners: eventHandlingNode.data.eventListeners as { [key: string]: boolean } || {
+      'user_message': true,
+      'agent_response': true,
+      'tool_call': true,
+      'error': true
+    },
+    historyEnabled: eventHandlingNode.data.eventHistoryEnabled as boolean || true,
+    analyticsEnabled: eventHandlingNode.data.eventAnalyticsEnabled as boolean || false
+  };
+}
+
+// Function to check if nodes contain Event Handling configuration
+export function hasEventHandlingNodes(nodes: Node<BaseNodeData>[]): boolean {
+  return nodes.some(n => n.data.type === 'event-handling' && n.data.eventHandlingEnabled);
 }
 
 
@@ -299,6 +336,470 @@ if __name__ == '__main__':
 
 # Export the agent and tracking functions
 __all__ = ['root_agent', 'track_conversation']
+`;
+}
+
+// Generate Event Handling-enabled code for agents
+export function generateEventHandlingCode(nodes: Node<BaseNodeData>[], eventHandlingConfig: EventHandlingConfig, langfuseConfig?: LangfuseConfig, memoryConfig?: MemoryConfig, mcpConfigs?: MCPConfig[]): string {
+  const agentNode = nodes.find(n => n.data.type === 'agent');
+  if (!agentNode) {
+    return generateDefaultEventHandlingAgentCode(eventHandlingConfig);
+  }
+
+  const agentName = agentNode.data.label?.replace(/[^a-zA-Z0-9_]/g, '_') || 'EventHandlingAgent';
+  const agentDescription = agentNode.data.description || 'Event handling enabled agent with comprehensive monitoring';
+  const agentInstruction = agentNode.data.instruction || agentNode.data.prompt ||
+    "You are a helpful assistant with comprehensive event handling for monitoring and analytics.";
+
+  // Check if we also have other integrations
+  const hasLangfuse = langfuseConfig && langfuseConfig.enabled;
+  const hasMemory = memoryConfig && memoryConfig.enabled;
+  const hasMcpTools = mcpConfigs && mcpConfigs.length > 0;
+  const dedupedConfigs = hasMcpTools ? dedupeConfigs(mcpConfigs) : [];
+
+  // Generate event types based on configuration
+  const eventTypes = eventHandlingConfig.eventTypes || ['user_message', 'agent_response', 'tool_call', 'error'];
+  const middleware = eventHandlingConfig.middleware || ['logging_middleware'];
+  const listeners = eventHandlingConfig.listeners || {};
+
+  return `"""${agentName} with Enhanced Event Handling"""
+import os
+import asyncio
+import logging
+import json
+from typing import Dict, List, Callable, Any
+from enum import Enum
+from datetime import datetime
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types
+from google.adk.agents import LlmAgent
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+${hasMcpTools ? `from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
+import mcp
+from mcp.client.streamable_http import streamablehttp_client` : 'from google.adk.tools import google_search'}
+${hasLangfuse ? 'from langfuse import Langfuse' : ''}
+${hasMemory ? 'from mem0 import Memory' : ''}
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger(__name__)
+
+class EventType(Enum):
+    """Event types for better categorization"""
+    ${eventTypes.map(type => `${type.toUpperCase()} = "${type}"`).join('\n    ')}
+
+class EventHandler:
+    """Enhanced event handler with callback management"""
+    
+    def __init__(self):
+        self.listeners: Dict[EventType, List[Callable]] = {event_type: [] for event_type in EventType}
+        self.event_history: List[Dict] = []
+        self.middleware: List[Callable] = []
+    
+    def add_listener(self, event_type: EventType, callback: Callable):
+        """Register an event listener"""
+        self.listeners[event_type].append(callback)
+        logger.info(f"Added listener for {event_type.value}")
+    
+    def remove_listener(self, event_type: EventType, callback: Callable):
+        """Remove an event listener"""
+        if callback in self.listeners[event_type]:
+            self.listeners[event_type].remove(callback)
+            logger.info(f"Removed listener for {event_type.value}")
+    
+    def add_middleware(self, middleware: Callable):
+        """Add middleware for event processing"""
+        self.middleware.append(middleware)
+    
+    async def emit_event(self, event_type: EventType, data: Any):
+        """Emit an event with data"""
+        event_data = {
+            'type': event_type.value,
+            'data': data,
+            'timestamp': datetime.now().isoformat(),
+            'id': len(self.event_history)
+        }
+        
+        # Process through middleware
+        for middleware in self.middleware:
+            try:
+                event_data = await self._call_if_async(middleware, event_data)
+            except Exception as e:
+                logger.error(f"Middleware error: {e}")
+        
+        # Store in history
+        ${eventHandlingConfig.historyEnabled ? 'self.event_history.append(event_data)' : '# Event history disabled'}
+        
+        # Notify listeners
+        for listener in self.listeners[event_type]:
+            try:
+                await self._call_if_async(listener, event_data)
+            except Exception as e:
+                logger.error(f"Listener error for {event_type.value}: {e}")
+    
+    async def _call_if_async(self, func: Callable, *args) -> Any:
+        """Call function whether it's async or sync"""
+        if asyncio.iscoroutinefunction(func):
+            return await func(*args)
+        else:
+            return func(*args)
+
+# Event Listeners
+${listeners.user_message !== false ? `async def on_user_message(event_data: Dict):
+    """Handle user message events"""
+    logger.info(f"📨 User message: {event_data['data'].get('content', 'N/A')}")` : ''}
+
+${listeners.agent_response !== false ? `async def on_agent_response(event_data: Dict):
+    """Handle agent response events"""
+    logger.info(f"🤖 Agent responded: {event_data['data'].get('content', 'N/A')}")` : ''}
+
+${listeners.tool_call !== false ? `async def on_tool_call(event_data: Dict):
+    """Handle tool call events"""
+    tool_name = event_data['data'].get('tool_name', 'Unknown')
+    logger.info(f"🛠️ Tool called: {tool_name}")` : ''}
+
+${listeners.error !== false ? `async def on_error(event_data: Dict):
+    """Handle error events"""
+    error = event_data['data'].get('error', 'Unknown error')
+    logger.error(f"❌ Error occurred: {error}")` : ''}
+
+# Middleware
+${middleware.includes('logging_middleware') ? `async def logging_middleware(event_data: Dict) -> Dict:
+    """Log all events"""
+    logger.debug(f"Event: {event_data['type']} at {event_data['timestamp']}")
+    return event_data` : ''}
+
+${middleware.includes('analytics_middleware') ? `async def analytics_middleware(event_data: Dict) -> Dict:
+    """Add analytics data"""
+    event_data['analytics'] = {
+        'processed_at': datetime.now().isoformat(),
+        'user_agent': '${agentName}/1.0'
+    }
+    return event_data` : ''}
+
+def create_root_agent():
+    """Create and return the root agent instance with event handling."""
+    # Load environment variables from both locations
+    load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
+    load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
+
+    # Configure Google AI client
+    GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+    if not GOOGLE_API_KEY:
+        raise ValueError("GOOGLE_API_KEY environment variable is not set")
+
+${hasLangfuse ? `    # Initialize Langfuse
+    langfuse_secret_key = os.getenv('LANGFUSE_SECRET_KEY')
+    langfuse_public_key = os.getenv('LANGFUSE_PUBLIC_KEY')
+    langfuse_host = os.getenv('LANGFUSE_HOST', '${langfuseConfig?.host}')
+    
+    if langfuse_secret_key and langfuse_public_key:
+        langfuse = Langfuse(
+            secret_key=langfuse_secret_key,
+            public_key=langfuse_public_key,
+            host=langfuse_host
+        )
+        logger.info("Langfuse initialized successfully")
+    else:
+        logger.warning("Langfuse credentials not found in environment variables")
+        langfuse = None` : ''}
+
+${hasMemory ? `    # Initialize Mem0 Memory
+    mem0_api_key = os.getenv('MEM0_API_KEY')
+    mem0_host = os.getenv('MEM0_HOST', '${memoryConfig?.host}')
+    mem0_user_id = os.getenv('MEM0_USER_ID', '${memoryConfig?.userId}')
+    
+    if mem0_api_key:
+        os.environ["MEM0_API_KEY"] = mem0_api_key
+        memory = Memory()
+        logger.info("Mem0 memory initialized successfully")
+    else:
+        logger.warning("Mem0 API key not found in environment variables")
+        memory = None` : ''}
+
+    # Initialize Google AI client
+    genai_client = genai.Client(api_key=GOOGLE_API_KEY)
+
+${hasMcpTools ? `    # MCP Configuration${dedupedConfigs.map((config, idx) => {
+    const packageName = config.smitheryMcp?.split('/').pop() || `mcp_${idx}`;
+    const envKey = `SMITHERY_API_KEY`;
+    return `
+    ${envKey.toLowerCase()}_key = os.getenv('${envKey}')
+    if not ${envKey.toLowerCase()}_key:
+        raise ValueError("${envKey} environment variable is not set")`;
+  }).join('')}` : ''}
+
+    # Create event handling enhanced agent
+    return LlmAgent(
+        model='gemini-2.0-flash',
+        name='${agentName}',
+        description="${agentDescription}",
+        instruction="""${agentInstruction}${hasMcpTools ? `
+
+Available functions through MCP:
+${dedupedConfigs.map(config => `- ${config.smitheryMcp} tools for ${config.availableFunctions || 'operations'}`).join('\n')}` : ''}
+
+EVENT HANDLING FEATURES:
+- Comprehensive event tracking for all agent interactions
+- Real-time event monitoring and logging
+- Event history for debugging and analytics
+- Middleware support for custom event processing
+
+IMPORTANT RULES:
+1. All interactions are automatically tracked through event handling
+2. Use available tools to perform requested operations
+3. Provide clear explanations for actions taken
+4. Handle errors gracefully with automatic error event tracking${hasMcpTools ? `
+5. Use the available MCP tools to perform requested operations
+6. Always provide clear explanations for actions taken
+7. Handle errors gracefully and provide helpful feedback` : ''}""",
+        tools=[
+${hasMcpTools ? dedupedConfigs.map((config, idx) => {
+            const packageName = config.smitheryMcp?.split('/').pop() || `mcp_${idx}`;
+            const fixedArgs = [...config.args];
+            if (config.smitheryMcp) {
+              const runIndex = fixedArgs.indexOf('run');
+              if (runIndex !== -1 && runIndex + 1 < fixedArgs.length) {
+                fixedArgs[runIndex + 1] = config.smitheryMcp;
+              }
+            }
+            if (!fixedArgs.includes('--key')) {
+              fixedArgs.push('--key', 'smithery_api_key_key');
+            }
+            
+            return `            MCPToolset(
+                connection_params=StdioServerParameters(
+                    command="${config.command}",
+                    args=[
+${fixedArgs.map(arg => `                        "${arg}"`).join(',\n')}
+                    ]
+                )
+            )`;
+          }).join(',\n') : '            google_search'}
+        ]
+    )
+
+# Create the root agent instance
+root_agent = create_root_agent()
+
+# Global event handler
+event_handler = EventHandler()
+
+# Setup event listeners
+${listeners.user_message !== false ? 'event_handler.add_listener(EventType.USER_MESSAGE, on_user_message)' : ''}
+${listeners.agent_response !== false ? 'event_handler.add_listener(EventType.AGENT_RESPONSE, on_agent_response)' : ''}
+${listeners.tool_call !== false ? 'event_handler.add_listener(EventType.TOOL_CALL, on_tool_call)' : ''}
+${listeners.error !== false ? 'event_handler.add_listener(EventType.ERROR, on_error)' : ''}
+
+# Setup middleware
+${middleware.includes('logging_middleware') ? 'event_handler.add_middleware(logging_middleware)' : ''}
+${middleware.includes('analytics_middleware') ? 'event_handler.add_middleware(analytics_middleware)' : ''}
+
+${hasLangfuse ? `def track_conversation(conversation_id, user_id, message):
+    """Track conversation interactions with Langfuse."""
+    try:
+        langfuse_secret_key = os.getenv('LANGFUSE_SECRET_KEY')
+        langfuse_public_key = os.getenv('LANGFUSE_PUBLIC_KEY')
+        langfuse_host = os.getenv('LANGFUSE_HOST', '${langfuseConfig?.host}')
+        
+        if langfuse_secret_key and langfuse_public_key:
+            langfuse = Langfuse(
+                secret_key=langfuse_secret_key,
+                public_key=langfuse_public_key,
+                host=langfuse_host
+            )
+            
+            langfuse.track_event(
+                event_name="conversation_interaction",
+                properties={
+                    "conversation_id": conversation_id,
+                    "user_id": user_id,
+                    "message": message,
+                    "project": "${langfuseConfig?.projectName}",
+                    "agent_name": "${agentName}"
+                }
+            )
+            logger.info(f"Tracked conversation interaction for user {user_id}")
+        else:
+            logger.warning("Langfuse tracking skipped - credentials not configured")
+    except Exception as e:
+        logger.error(f"Failed to track conversation: {e}")` : ''}
+
+${hasMemory ? `def add_to_memory(user_message: str, assistant_response: str, user_id: str = "${memoryConfig?.userId}", metadata: dict = None):
+    """Add conversation to memory for learning and context."""
+    if not memory:
+        return []
+    
+    try:
+        conversation = [
+            {"role": "user", "content": user_message},
+            {"role": "assistant", "content": assistant_response}
+        ]
+        
+        result = memory.add(
+            conversation, 
+            user_id=user_id, 
+            metadata={
+                "agent": "${agentName}",
+                "memory_type": "${memoryConfig?.memoryType}",
+                "timestamp": json.dumps({"created": "now"}),
+                **(metadata or {})
+            }
+        )
+        logger.info(f"Added conversation to memory for user {user_id}")
+        return result
+    except Exception as e:
+        logger.error(f"Failed to add to memory: {e}")
+        return []` : ''}
+
+async def process_agent_events():
+    """Enhanced event processing with comprehensive handling"""
+    user_id = "user"
+    session_service = InMemorySessionService()
+    runner = Runner(agent=root_agent, session_service=session_service, app_name="${agentName}")
+    
+    session = session_service.create_session(state={}, app_name="${agentName}", user_id=user_id)
+    session_id = session.id
+    
+    # Emit session start event
+    await event_handler.emit_event(EventType.SESSION_START, {
+        'session_id': session_id,
+        'user_id': user_id
+    })
+    
+    # Sample conversations with event tracking
+    messages = [
+        "Hello, can you help me?",
+        "What tools are available to you?",
+        "Can you demonstrate your capabilities?"
+    ]
+    
+    try:
+        for message_text in messages:
+            # Emit user message event
+            await event_handler.emit_event(EventType.USER_MESSAGE, {
+                'content': message_text,
+                'session_id': session_id
+            })
+            
+            # Create message
+            new_message = types.Content(
+                role="user",
+                parts=[types.Part(text=message_text)]
+            )
+            
+            # Process with agent and handle events
+            async for event in runner.run_async(
+                user_id=user_id,
+                session_id=session_id,
+                new_message=new_message
+            ):
+                await handle_event(event)
+            
+            # Brief pause between messages
+            await asyncio.sleep(1)
+            
+    except Exception as e:
+        await event_handler.emit_event(EventType.ERROR, {
+            'error': str(e),
+            'session_id': session_id
+        })
+    finally:
+        # Emit session end event
+        await event_handler.emit_event(EventType.SESSION_END, {
+            'session_id': session_id,
+            'total_events': len(event_handler.event_history)
+        })
+
+async def handle_event(event):
+    """Enhanced event handler with type-specific processing"""
+    try:
+        event_data = {
+            'raw_event': str(event),
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        # Classify and emit appropriate events
+        if hasattr(event, 'content') and event.content:
+            # Agent response
+            await event_handler.emit_event(EventType.AGENT_RESPONSE, {
+                'content': str(event.content),
+                'event_type': type(event).__name__
+            })
+${hasLangfuse ? `            # Track with Langfuse if enabled
+            track_conversation("session", "user", str(event.content))` : ''}
+${hasMemory ? `            # Add to memory if enabled
+            add_to_memory("user_input", str(event.content), "user")` : ''}
+        elif hasattr(event, 'actions') and event.actions:
+            # Tool call
+            await event_handler.emit_event(EventType.TOOL_CALL, {
+                'actions': str(event.actions),
+                'tool_name': getattr(event, 'tool_name', 'Unknown')
+            })
+        
+        # Print formatted event
+        print(f"🔄 Event: {type(event).__name__} | {datetime.now().strftime('%H:%M:%S')}")
+        print(f"   Content: {getattr(event, 'content', 'No content')}")
+        print(f"   Actions: {getattr(event, 'actions', 'No actions')}")
+        print("-" * 50)
+        
+    except Exception as e:
+        await event_handler.emit_event(EventType.ERROR, {
+            'error': f"Event handling error: {str(e)}",
+            'event': str(event)
+        })
+
+${eventHandlingConfig.analyticsEnabled ? `async def show_event_summary():
+    """Display event summary and statistics"""
+    print("\\n" + "="*60)
+    print("📊 EVENT SUMMARY")
+    print("="*60)
+    
+    # Event type counts
+    event_counts = {}
+    for event in event_handler.event_history:
+        event_type = event['type']
+        event_counts[event_type] = event_counts.get(event_type, 0) + 1
+    
+    for event_type, count in event_counts.items():
+        print(f"  {event_type}: {count} events")
+    
+    print(f"\\n  Total Events: {len(event_handler.event_history)}")
+    print(f"  Active Listeners: {sum(len(listeners) for listeners in event_handler.listeners.values())}")
+    print(f"  Middleware: {len(event_handler.middleware)}")` : ''}
+
+async def main():
+    """Main execution with comprehensive event handling"""
+    print("🚀 Starting ${agentName} with Enhanced Event Handling")
+    print("-" * 60)
+    
+    try:
+        await process_agent_events()
+        ${eventHandlingConfig.analyticsEnabled ? 'await show_event_summary()' : ''}
+        
+    except KeyboardInterrupt:
+        await event_handler.emit_event(EventType.ERROR, {
+            'error': 'User interrupted execution'
+        })
+        print("\\n⏹️ Agent stopped by user")
+    except Exception as e:
+        await event_handler.emit_event(EventType.ERROR, {
+            'error': f'Unexpected error: {str(e)}'
+        })
+        print(f"\\n❌ Error: {e}")
+    finally:
+        print("\\n✅ Agent execution completed")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
+__all__ = ["root_agent", "event_handler"${hasLangfuse ? ', "track_conversation"' : ''}${hasMemory ? ', "add_to_memory"' : ''}]
 `;
 }
 
@@ -560,6 +1061,205 @@ if __name__ == '__main__':
 # Export the agent and memory functions
 __all__ = ['root_agent', 'add_to_memory', 'get_relevant_memories', 'run_with_memory']
 `;
+}
+
+// Generate default event handling agent code
+export function generateDefaultEventHandlingAgentCode(eventHandlingConfig: EventHandlingConfig): string {
+  const eventTypes = eventHandlingConfig.eventTypes || ['user_message', 'agent_response', 'tool_call', 'error'];
+  const middleware = eventHandlingConfig.middleware || ['logging_middleware'];
+  const listeners = eventHandlingConfig.listeners || {};
+
+  return `"""Default Event Handling Agent"""
+import os
+import asyncio
+import logging
+import json
+from typing import Dict, List, Callable, Any
+from enum import Enum
+from datetime import datetime
+from dotenv import load_dotenv
+from google.adk.agents import Agent
+from google.adk.tools import google_search
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("event_handling_agent")
+
+class EventType(Enum):
+    """Event types for better categorization"""
+    ${eventTypes.map(type => `${type.toUpperCase()} = "${type}"`).join('\n    ')}
+
+class EventHandler:
+    """Event handler with callback management"""
+    
+    def __init__(self):
+        self.listeners: Dict[EventType, List[Callable]] = {event_type: [] for event_type in EventType}
+        self.event_history: List[Dict] = []
+        self.middleware: List[Callable] = []
+    
+    def add_listener(self, event_type: EventType, callback: Callable):
+        """Register an event listener"""
+        self.listeners[event_type].append(callback)
+        logger.info(f"Added listener for {event_type.value}")
+    
+    async def emit_event(self, event_type: EventType, data: Any):
+        """Emit an event with data"""
+        event_data = {
+            'type': event_type.value,
+            'data': data,
+            'timestamp': datetime.now().isoformat(),
+            'id': len(self.event_history)
+        }
+        
+        # Process through middleware
+        for middleware in self.middleware:
+            try:
+                event_data = await self._call_if_async(middleware, event_data)
+            except Exception as e:
+                logger.error(f"Middleware error: {e}")
+        
+        # Store in history
+        ${eventHandlingConfig.historyEnabled ? 'self.event_history.append(event_data)' : '# Event history disabled'}
+        
+        # Notify listeners
+        for listener in self.listeners[event_type]:
+            try:
+                await self._call_if_async(listener, event_data)
+            except Exception as e:
+                logger.error(f"Listener error for {event_type.value}: {e}")
+    
+    async def _call_if_async(self, func: Callable, *args) -> Any:
+        """Call function whether it's async or sync"""
+        if asyncio.iscoroutinefunction(func):
+            return await func(*args)
+        else:
+            return func(*args)
+
+# Event Listeners
+${listeners.user_message !== false ? `async def on_user_message(event_data: Dict):
+    """Handle user message events"""
+    logger.info(f"📨 User message: {event_data['data'].get('content', 'N/A')}")` : ''}
+
+${listeners.agent_response !== false ? `async def on_agent_response(event_data: Dict):
+    """Handle agent response events"""
+    logger.info(f"🤖 Agent responded: {event_data['data'].get('content', 'N/A')}")` : ''}
+
+${listeners.tool_call !== false ? `async def on_tool_call(event_data: Dict):
+    """Handle tool call events"""
+    tool_name = event_data['data'].get('tool_name', 'Unknown')
+    logger.info(f"🛠️ Tool called: {tool_name}")` : ''}
+
+${listeners.error !== false ? `async def on_error(event_data: Dict):
+    """Handle error events"""
+    error = event_data['data'].get('error', 'Unknown error')
+    logger.error(f"❌ Error occurred: {error}")` : ''}
+
+# Middleware
+${middleware.includes('logging_middleware') ? `async def logging_middleware(event_data: Dict) -> Dict:
+    """Log all events"""
+    logger.debug(f"Event: {event_data['type']} at {event_data['timestamp']}")
+    return event_data` : ''}
+
+${middleware.includes('analytics_middleware') ? `async def analytics_middleware(event_data: Dict) -> Dict:
+    """Add analytics data"""
+    event_data['analytics'] = {
+        'processed_at': datetime.now().isoformat(),
+        'user_agent': 'EventHandlingAgent/1.0'
+    }
+    return event_data` : ''}
+
+# Load environment variables
+load_dotenv()
+
+# Create the event handling agent
+root_agent = Agent(
+    name="event_handling_agent",
+    model="gemini-2.0-flash",
+    description="Agent with comprehensive event handling for monitoring and analytics",
+    instruction="Use Google Search to find information and automatically track all interactions through event handling.",
+    tools=[google_search]
+)
+
+# Global event handler
+event_handler = EventHandler()
+
+# Setup event listeners
+${listeners.user_message !== false ? 'event_handler.add_listener(EventType.USER_MESSAGE, on_user_message)' : ''}
+${listeners.agent_response !== false ? 'event_handler.add_listener(EventType.AGENT_RESPONSE, on_agent_response)' : ''}
+${listeners.tool_call !== false ? 'event_handler.add_listener(EventType.TOOL_CALL, on_tool_call)' : ''}
+${listeners.error !== false ? 'event_handler.add_listener(EventType.ERROR, on_error)' : ''}
+
+# Setup middleware
+${middleware.includes('logging_middleware') ? 'event_handler.add_middleware(logging_middleware)' : ''}
+${middleware.includes('analytics_middleware') ? 'event_handler.add_middleware(analytics_middleware)' : ''}
+
+# Enhanced agent wrapper with event handling
+class EventHandlingAgent:
+    def __init__(self, agent):
+        self.agent = agent
+    
+    async def chat_with_events(self, message: str):
+        """Chat with automatic event tracking"""
+        try:
+            # Emit user message event
+            await event_handler.emit_event(EventType.USER_MESSAGE, {
+                'content': message
+            })
+            
+            # Get response from agent
+            response = self.agent.chat(message)
+            
+            # Emit agent response event
+            await event_handler.emit_event(EventType.AGENT_RESPONSE, {
+                'content': str(response)
+            })
+            
+            return response
+        except Exception as e:
+            # Emit error event
+            await event_handler.emit_event(EventType.ERROR, {
+                'error': str(e),
+                'message': message
+            })
+            logger.error(f"Error in event handling chat: {e}")
+            # Fallback to regular chat
+            return self.agent.chat(message)
+
+# Create event handling enabled agent
+event_agent = EventHandlingAgent(root_agent)
+
+${eventHandlingConfig.analyticsEnabled ? `def show_event_summary():
+    """Display event summary and statistics"""
+    print("\\n" + "="*60)
+    print("📊 EVENT SUMMARY")
+    print("="*60)
+    
+    # Event type counts
+    event_counts = {}
+    for event in event_handler.event_history:
+        event_type = event['type']
+        event_counts[event_type] = event_counts.get(event_type, 0) + 1
+    
+    for event_type, count in event_counts.items():
+        print(f"  {event_type}: {count} events")
+    
+    print(f"\\n  Total Events: {len(event_handler.event_history)}")
+    print(f"  Active Listeners: {sum(len(listeners) for listeners in event_handler.listeners.values())}")
+    print(f"  Middleware: {len(event_handler.middleware)}")` : ''}
+
+__all__ = ["root_agent", "event_handler", "event_agent"${eventHandlingConfig.analyticsEnabled ? ', "show_event_summary"' : ''}]
+
+if __name__ == "__main__":
+    try:
+        async def main():
+            response = await event_agent.chat_with_events("Hello, I'm testing event handling")
+            print("Agent Response:", response)
+            ${eventHandlingConfig.analyticsEnabled ? 'show_event_summary()' : ''}
+        
+        asyncio.run(main())
+    except Exception as e:
+        logger.error(f"Error running agent: {e}")
+        raise`;
 }
 
 // Generate default memory agent code
@@ -1029,7 +1729,10 @@ export function generateFallbackMcpCode(mcpPackage?: string): string {
 
 // Generate ADK code (compatibility function)
 export function generateADKCode(nodes: Node<BaseNodeData>[], _edges: Edge[], mcpConfigs?: MCPConfig[]): string {
-  // Check for Memory nodes first (highest priority)
+  // Check for Event Handling nodes first (highest priority for comprehensive monitoring)
+  const eventHandlingConfig = extractEventHandlingConfigFromNodes(nodes);
+  
+  // Check for Memory nodes (second priority)
   const memoryConfig = extractMemoryConfigFromNodes(nodes);
   
   // Check for Langfuse nodes
@@ -1045,6 +1748,7 @@ export function generateADKCode(nodes: Node<BaseNodeData>[], _edges: Edge[], mcp
   // Debug logging
   console.log('generateADKCode called with:', {
     totalNodes: nodes.length,
+    eventHandlingConfig: eventHandlingConfig ? 'detected' : 'none',
     memoryConfig: memoryConfig ? 'detected' : 'none',
     langfuseConfig: langfuseConfig ? 'detected' : 'none',
     mcpNodes: mcpNodes.length,
@@ -1052,7 +1756,41 @@ export function generateADKCode(nodes: Node<BaseNodeData>[], _edges: Edge[], mcp
     nodeTypes: nodes.map(n => ({ id: n.id, type: n.data.type, label: n.data.label }))
   });
 
-  // If we have Memory configuration, use Memory-enabled code generation (highest priority)
+  // If we have Event Handling configuration, use Event Handling-enabled code generation (highest priority)
+  if (eventHandlingConfig) {
+    console.log('Generating Event Handling-enabled code');
+    
+    if (mcpConfigs && mcpConfigs.length > 0) {
+      console.log('Using provided MCP configs with Event Handling');
+      return generateEventHandlingCode(nodes, eventHandlingConfig, langfuseConfig, memoryConfig, dedupeConfigs(mcpConfigs));
+    }
+    
+    if (mcpNodes.length > 0) {
+      console.log('Creating MCP config from nodes for Event Handling');
+      // Extract MCP packages from all MCP nodes
+      const defaultConfigs: MCPConfig[] = mcpNodes.map(mcpNode => {
+        const mcpPackage = (mcpNode.data.smitheryMcp as string) ||
+                          (mcpNode.data.mcpToolId as string) ||
+                          '@smithery/mcp-example';
+
+        return {
+          enabled: true,
+          type: 'smithery',
+          command: 'npx',
+          args: ['-y', '@smithery/cli@latest', 'run', mcpPackage, '--key', 'smithery_api_key'],
+          envVars: { 'NODE_OPTIONS': '--no-warnings --experimental-fetch', 'SMITHERY_API_KEY': 'smithery_api_key' },
+          smitheryMcp: mcpPackage
+        };
+      });
+      
+      return generateEventHandlingCode(nodes, eventHandlingConfig, langfuseConfig, memoryConfig, dedupeConfigs(defaultConfigs));
+    }
+    
+    console.log('Generating Event Handling-only code');
+    return generateEventHandlingCode(nodes, eventHandlingConfig, langfuseConfig, memoryConfig);
+  }
+
+  // If we have Memory configuration, use Memory-enabled code generation (second priority)
   if (memoryConfig) {
     console.log('Generating Memory-enabled code');
     
@@ -1120,8 +1858,8 @@ export function generateADKCode(nodes: Node<BaseNodeData>[], _edges: Edge[], mcp
     return generateLangfuseCode(nodes, langfuseConfig);
   }
 
-  // No Langfuse, use standard generation
-  console.log('No Langfuse detected, using standard generation');
+  // No special features, use standard generation
+  console.log('No special features detected, using standard generation');
   
   if (mcpConfigs && mcpConfigs.length > 0) {
     console.log('Using provided MCP configs');
@@ -1232,8 +1970,12 @@ export async function generateCodeWithAI(
   const dedupedConfig = mcpConfig ? dedupeConfigs(mcpConfig) : undefined;
   const langfuseConfig = extractLangfuseConfigFromNodes(nodes);
   const memoryConfig = extractMemoryConfigFromNodes(nodes);
+  const eventHandlingConfig = extractEventHandlingConfigFromNodes(nodes);
 
   // Enhanced prompts for integrations
+  if (eventHandlingConfig) {
+    console.log('Event handling config detected, enhancing OpenRouter prompts with event handling integration');
+  }
   if (memoryConfig) {
     console.log('Memory config detected, enhancing OpenRouter prompts with memory integration');
   }
@@ -1304,6 +2046,24 @@ if (!apiKey) {
     2. Use Agent class (not LlmAgent) for non-MCP agents
     3. ALWAYS include __all__ = ["root_agent"] export`;
 
+  // Add Event Handling-specific instructions if detected
+  if (eventHandlingConfig) {
+    systemPrompt += `
+
+    EVENT HANDLING INTEGRATION REQUIRED:
+    - Import typing: from typing import Dict, List, Callable, Any
+    - Import enum: from enum import Enum
+    - Import datetime: from datetime import datetime
+    - Create EventType enum with: ${eventHandlingConfig.eventTypes.join(', ')}
+    - Create EventHandler class with listeners, middleware, and event history
+    - Implement event listeners for: ${Object.keys(eventHandlingConfig.listeners).filter(k => eventHandlingConfig.listeners[k]).join(', ')}
+    - Add middleware: ${eventHandlingConfig.middleware.join(', ')}
+    - Event history: ${eventHandlingConfig.historyEnabled ? 'enabled' : 'disabled'}
+    - Event analytics: ${eventHandlingConfig.analyticsEnabled ? 'enabled' : 'disabled'}
+    - MUST export event_handler and all event functions
+    - Emit events at key points: user messages, agent responses, tool calls, errors`;
+  }
+
   // Add Memory-specific instructions if detected
   if (memoryConfig) {
     systemPrompt += `
@@ -1373,6 +2133,21 @@ CRITICAL:
 - Use deduplication logic to prevent duplicate toolsets
 - Ensure each toolset has unique variable name
 - Include SMITHERY_API_KEY environment variable` : 'Disabled - use google_search tool instead'}
+
+${eventHandlingConfig ? `
+**EVENT HANDLING CONFIGURATION:**
+- Enabled: YES
+- Event Types: ${eventHandlingConfig.eventTypes.join(', ')}
+- Middleware: ${eventHandlingConfig.middleware.join(', ')}
+- Event Listeners: ${Object.keys(eventHandlingConfig.listeners).filter(k => eventHandlingConfig.listeners[k]).join(', ')}
+- Event History: ${eventHandlingConfig.historyEnabled ? 'Enabled' : 'Disabled'}
+- Event Analytics: ${eventHandlingConfig.analyticsEnabled ? 'Enabled' : 'Disabled'}
+- Requirements:
+  * Create EventType enum and EventHandler class
+  * Implement comprehensive event tracking system
+  * Add event listeners and middleware support
+  * Emit events at key interaction points
+  * Export event_handler and all event management functions` : ''}
 
 ${memoryConfig ? `
 **MEM0 MEMORY CONFIGURATION:**

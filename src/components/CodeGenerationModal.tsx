@@ -15,7 +15,7 @@ import { Copy, AlertCircle, Loader2, Play, Code, Sparkles } from 'lucide-react';
 import { toast } from '@/hooks/use-toast.js';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { generateMCPCode, MCPConfig, generateFallbackMcpCode, isMcpCode, generateVerifiedCode, dedupeConfigs, generateCodeWithAI, hasMemoryNodes, extractMemoryConfigFromNodes } from '@/lib/codeGeneration';
+import { generateMCPCode, MCPConfig, generateFallbackMcpCode, isMcpCode, generateVerifiedCode, dedupeConfigs, generateCodeWithAI, hasMemoryNodes, extractMemoryConfigFromNodes, hasEventHandlingNodes, extractEventHandlingConfigFromNodes } from '@/lib/codeGeneration';
 import { type VerificationProgress, type VerificationResult } from '@/lib/codeVerification';
 
 // OpenRouter configuration - Use environment variable for API key
@@ -34,11 +34,13 @@ const CodeHighlighter: React.FC<{ code: string }> = ({ code }) => {
       customStyle={{
         fontSize: '12px',
         borderRadius: '8px',
-        minHeight: '100%',
+        maxHeight: '100%',
+        height: '100%',
         margin: 0,
         padding: '12px',
         backgroundColor: '#1E1E1E',
-        border: 'none'
+        border: 'none',
+        overflow: 'auto'
       }}
       lineProps={{ style: { wordBreak: 'break-all', whiteSpace: 'pre-wrap' } }}
       wrapLines={true}
@@ -709,20 +711,38 @@ export function CodeGenerationModal({
     node.data.description?.toLowerCase().includes('persistent')
   );
 
+  // Check if there are Event Handling nodes in the diagram
+  const hasEventHandlingNodes = nodes.some(node => 
+    node.data.type === 'event-handling' ||
+    node.data.eventHandlingEnabled ||
+    node.data.label?.toLowerCase().includes('event') ||
+    node.data.label?.toLowerCase().includes('tracking') ||
+    node.data.label?.toLowerCase().includes('monitoring') ||
+    node.data.description?.toLowerCase().includes('event') ||
+    node.data.description?.toLowerCase().includes('tracking') ||
+    node.data.description?.toLowerCase().includes('monitoring') ||
+    node.data.description?.toLowerCase().includes('logging') ||
+    node.data.description?.toLowerCase().includes('observability')
+  );
+
   // Debug logging for integrations detection
   console.log('Integrations detection:', {
     hasLangfuseNodes,
     hasMemoryNodes,
+    hasEventHandlingNodes,
     langfuseNodeCount: nodes.filter(n => n.data.type === 'langfuse').length,
     memoryNodeCount: nodes.filter(n => n.data.type === 'memory').length,
+    eventHandlingNodeCount: nodes.filter(n => n.data.type === 'event-handling').length,
     enabledLangfuseNodes: nodes.filter(n => n.data.langfuseEnabled).length,
     enabledMemoryNodes: nodes.filter(n => n.data.memoryEnabled).length,
+    enabledEventHandlingNodes: nodes.filter(n => n.data.eventHandlingEnabled).length,
     nodeDetails: nodes.map(n => ({
       id: n.id,
       type: n.data.type,
       label: n.data.label,
       langfuseEnabled: n.data.langfuseEnabled,
       memoryEnabled: n.data.memoryEnabled,
+      eventHandlingEnabled: n.data.eventHandlingEnabled,
       description: n.data.description
     }))
   });
@@ -768,7 +788,7 @@ export function CodeGenerationModal({
       let generatedCode: string;
       
       if (activeTab === 'adk') {
-        console.log('Generating initial ADK code with:', { mcpEnabled, hasMcpNodes, hasLangfuseNodes, hasMemoryNodes });
+        console.log('Generating initial ADK code with:', { mcpEnabled, hasMcpNodes, hasLangfuseNodes, hasMemoryNodes, hasEventHandlingNodes });
         
         // Use OpenRouter AI for code generation
         if (!OPENROUTER_API_KEY) {
@@ -826,7 +846,7 @@ export function CodeGenerationModal({
       let generatedCode: string;
       
       if (activeTab === 'adk') {
-        console.log('Regenerating ADK code with:', { mcpEnabled, hasMcpNodes, hasLangfuseNodes });
+        console.log('Regenerating ADK code with:', { mcpEnabled, hasMcpNodes, hasLangfuseNodes, hasMemoryNodes, hasEventHandlingNodes });
         
         // If we have MCP components, enable MCP mode
         if (hasMcpNodes && !mcpEnabled) {
@@ -852,12 +872,13 @@ export function CodeGenerationModal({
       
       const features = [];
       if (mcpEnabled) features.push('MCP tools');
+      if (hasEventHandlingNodes) features.push('event handling');
       if (hasLangfuseNodes) features.push('Langfuse analytics');
       if (hasMemoryNodes) features.push('Mem0 memory');
       
       toast({
         title: "Code regenerated",
-        description: `The code has been regenerated successfully${features.length > 0 ? ` with ${features.join(' and ')}` : ''}.`
+        description: `The code has been regenerated successfully${features.length > 0 ? ` with ${features.join(', ')}` : ''}.`
       });
       
       console.log('Code regeneration completed successfully');
@@ -960,13 +981,15 @@ __all__ = ["root_agent"]`;
                 <div className="space-y-2">
                   <p>Your visual workflow has been converted into production-ready code{
                     [
+                      hasEventHandlingNodes && 'comprehensive event handling',
                       hasMemoryNodes && 'persistent memory',
                       hasLangfuseNodes && 'analytics and observability'
                     ].filter(Boolean).length > 0 
                       ? ' with ' + [
+                          hasEventHandlingNodes && 'comprehensive event handling',
                           hasMemoryNodes && 'persistent memory',
                           hasLangfuseNodes && 'analytics and observability'
-                        ].filter(Boolean).join(' and ')
+                        ].filter(Boolean).join(', ')
                       : ''
                   }. This code can be deployed and run anywhere.</p>
                   <div className="flex items-center gap-2 text-sm">
@@ -992,6 +1015,12 @@ __all__ = ["root_agent"]`;
                       <div className="flex items-center gap-1">
                         <div className="w-2 h-2 bg-pink-500 rounded-full"></div>
                         <span className="text-pink-700 text-pink-400">Memory enabled</span>
+                      </div>
+                    )}
+                    {hasEventHandlingNodes && (
+                      <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
+                        <span className="text-amber-700 text-amber-400">Event handling enabled</span>
                       </div>
                     )}
                   </div>
@@ -1096,8 +1125,8 @@ __all__ = ["root_agent"]`;
                 </div>
               ) : (
                 <div className="flex-1 flex flex-col min-h-0">
-                  <div className="flex-1 relative rounded-xl border border-gray-700 min-h-0">
-                    <div className="h-full overflow-auto max-h-full">
+                  <div className="flex-1 relative rounded-xl border border-gray-700 min-h-0 max-h-[600px]">
+                    <div className="h-full overflow-hidden">
                       <CodeHighlighter code={generatedCode} />
                     </div>
                     <div className="absolute top-3 right-3 flex gap-2">

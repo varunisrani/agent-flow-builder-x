@@ -174,6 +174,21 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
   const [memoryType, setMemoryType] = useState<'preferences' | 'conversation' | 'knowledge' | 'all'>('all');
   const [memoryRetention, setMemoryRetention] = useState(30);
   
+  // Event handling configuration state
+  const [eventHandlingEnabled, setEventHandlingEnabled] = useState(false);
+  const [selectedEventTypes, setSelectedEventTypes] = useState<string[]>(['user_message', 'agent_response', 'tool_call', 'error']);
+  const [selectedMiddleware, setSelectedMiddleware] = useState<string[]>(['logging_middleware']);
+  const [selectedListeners, setSelectedListeners] = useState<{ [key: string]: boolean }>({
+    'user_message': true,
+    'agent_response': true,
+    'tool_call': true,
+    'error': true,
+    'session_start': false,
+    'session_end': false
+  });
+  const [eventHistoryEnabled, setEventHistoryEnabled] = useState(true);
+  const [eventAnalyticsEnabled, setEventAnalyticsEnabled] = useState(false);
+  
   // Smithery-specific state
   const [smitheryMcps, setSmitheryMcps] = useState<string[]>([]);
   const [smitheryApiKey, setSmitheryApiKey] = useState('');
@@ -643,8 +658,8 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
               id: `node_${Date.now()}_langfuse`,
               type: 'baseNode',
               position: { 
-                x: agentNode.position.x - 200, 
-                y: agentNode.position.y + 150 // Position it below and to the left
+                x: agentNode.position.x - 250, 
+                y: agentNode.position.y + 200 // Position it further below for better hierarchy
               },
               data: {
                 label: 'Langfuse Analytics',
@@ -672,6 +687,90 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
         }
       }
       
+      // Add Event Handling node if event handling keywords are mentioned or event handling is enabled
+      console.log('Event handling detection check:', {
+        eventHandlingEnabled,
+        promptContainsEvent: prompt.toLowerCase().includes('event'),
+        promptContainsTracking: prompt.toLowerCase().includes('tracking'),
+        promptContainsMonitoring: prompt.toLowerCase().includes('monitoring'),
+        promptContainsLogging: prompt.toLowerCase().includes('logging'),
+        promptContainsObservability: prompt.toLowerCase().includes('observability'),
+        shouldAddEventHandlingNode: eventHandlingEnabled || 
+          prompt.toLowerCase().includes('event') || 
+          prompt.toLowerCase().includes('tracking') || 
+          prompt.toLowerCase().includes('monitoring') ||
+          prompt.toLowerCase().includes('logging') ||
+          prompt.toLowerCase().includes('observability')
+      });
+      
+      if (eventHandlingEnabled || 
+          prompt.toLowerCase().includes('event') || 
+          prompt.toLowerCase().includes('tracking') || 
+          prompt.toLowerCase().includes('monitoring') ||
+          prompt.toLowerCase().includes('logging') ||
+          prompt.toLowerCase().includes('observability')) {
+        
+        const agentNode = nodes.find(n => n.data.type === 'agent');
+        console.log('Event handling node creation - Agent node found:', !!agentNode);
+        
+        if (agentNode) {
+          // Check if we already have an event handling node
+          const existingEventHandlingNode = nodes.find(n => 
+            n.data.type === 'event-handling' || 
+            (n.data.label?.toLowerCase().includes('event') || n.data.description?.toLowerCase().includes('event'))
+          );
+          
+          console.log('Event handling node creation - Existing event handling node:', !!existingEventHandlingNode);
+          
+          // Only add if not already present
+          if (!existingEventHandlingNode) {
+            console.log('Creating event handling node with config:', {
+              selectedEventTypes: selectedEventTypes.length,
+              selectedMiddleware: selectedMiddleware.length,
+              eventHistoryEnabled,
+              eventAnalyticsEnabled
+            });
+            const eventHandlingNode: Node<BaseNodeData> = {
+              id: `node_${Date.now()}_event_handling`,
+              type: 'baseNode',
+              position: { 
+                x: agentNode.position.x - 250, 
+                y: agentNode.position.y - 100 // Position it above and to the left for better visual flow
+              },
+              data: {
+                label: 'Event Handling',
+                type: 'event-handling',
+                description: 'Comprehensive event tracking and monitoring for agent interactions',
+                eventHandlingEnabled: true,
+                eventTypes: selectedEventTypes,
+                eventMiddleware: selectedMiddleware,
+                eventListeners: selectedListeners,
+                eventHistoryEnabled: eventHistoryEnabled,
+                eventAnalyticsEnabled: eventAnalyticsEnabled
+              },
+              draggable: true
+            };
+            
+            const eventHandlingEdge: Edge = {
+              id: `edge_${Date.now()}_agent_event_handling`,
+              source: eventHandlingNode.id,
+              target: agentNode.id,
+              type: 'default'
+            };
+            
+            nodes = [...nodes, eventHandlingNode];
+            edges = [...edges, eventHandlingEdge];
+            console.log('Event handling node added! Total nodes now:', nodes.length, 'Event handling node ID:', eventHandlingNode.id);
+          } else {
+            console.log('Event handling node already exists, skipping creation');
+          }
+        } else {
+          console.log('No agent node found, cannot create event handling node');
+        }
+      } else {
+        console.log('Event handling node creation conditions not met');
+      }
+
       // Add Memory node if memory keywords are mentioned or memory is enabled
       console.log('Memory detection check:', {
         memoryEnabled,
@@ -723,8 +822,8 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
               id: `node_${Date.now()}_memory`,
               type: 'baseNode',
               position: { 
-                x: agentNode.position.x - 200, 
-                y: agentNode.position.y - 150 // Position it above and to the left
+                x: agentNode.position.x - 250, 
+                y: agentNode.position.y + 50 // Position it below and to the left for better visual hierarchy
               },
               data: {
                 label: 'Mem0 Memory',
@@ -1598,6 +1697,164 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
               </div>
             )}
           </div>
+
+          {/* Event Handling Configuration */}
+          <div className="border-t border-gray-200 border-gray-700 pt-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <Switch
+                  id="event-handling-mode"
+                  checked={eventHandlingEnabled}
+                  onCheckedChange={setEventHandlingEnabled}
+                />
+                <Label htmlFor="event-handling-mode" className="text-sm font-medium text-gray-300 text-gray-300">
+                  Enable Event Handling & Monitoring
+                </Label>
+              </div>
+            </div>
+            {eventHandlingEnabled && (
+              <div className="mt-4 p-4 bg-amber-50/50 bg-amber-950/20 rounded-lg border border-amber-200/50 border-amber-800/50">
+                <p className="text-sm text-amber-300 text-amber-300 mb-3">
+                  🔍 Comprehensive event tracking and monitoring for your agent interactions and system events
+                </p>
+                
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-sm font-medium text-gray-300 text-gray-300">Event Types to Track</Label>
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      {[
+                        { id: 'user_message', name: 'User Messages', icon: '💬' },
+                        { id: 'agent_response', name: 'Agent Responses', icon: '🤖' },
+                        { id: 'tool_call', name: 'Tool Calls', icon: '🛠️' },
+                        { id: 'tool_response', name: 'Tool Responses', icon: '⚙️' },
+                        { id: 'error', name: 'Errors', icon: '❌' },
+                        { id: 'session_start', name: 'Session Start', icon: '🚀' },
+                        { id: 'session_end', name: 'Session End', icon: '🏁' }
+                      ].map(eventType => (
+                        <div key={eventType.id} className="flex items-center space-x-2 p-2 rounded border border-amber-200 border-amber-700 bg-amber-50/50 bg-amber-900/20">
+                          <input 
+                            type="checkbox" 
+                            id={eventType.id}
+                            className="rounded"
+                            checked={selectedEventTypes.includes(eventType.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedEventTypes(prev => [...prev, eventType.id]);
+                              } else {
+                                setSelectedEventTypes(prev => prev.filter(t => t !== eventType.id));
+                              }
+                            }}
+                          />
+                          <label htmlFor={eventType.id} className="flex items-center gap-2 text-sm">
+                            <span>{eventType.icon}</span>
+                            {eventType.name}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Select which types of events should be tracked and monitored
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="text-sm font-medium text-gray-300 text-gray-300">Event Listeners</Label>
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      {Object.entries(selectedListeners).map(([listenerType, enabled]) => (
+                        <div key={listenerType} className="flex items-center space-x-2 p-2 rounded border border-amber-200 border-amber-700 bg-amber-50/50 bg-amber-900/20">
+                          <input 
+                            type="checkbox" 
+                            id={`listener_${listenerType}`}
+                            className="rounded"
+                            checked={enabled}
+                            onChange={(e) => {
+                              setSelectedListeners(prev => ({
+                                ...prev,
+                                [listenerType]: e.target.checked
+                              }));
+                            }}
+                          />
+                          <label htmlFor={`listener_${listenerType}`} className="text-sm">
+                            {listenerType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Choose which event listeners should be active
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="text-sm font-medium text-gray-300 text-gray-300">Event Middleware</Label>
+                    <div className="grid grid-cols-1 gap-2 mt-2">
+                      {[
+                        { id: 'logging_middleware', name: 'Logging Middleware', description: 'Log all events with timestamps' },
+                        { id: 'analytics_middleware', name: 'Analytics Middleware', description: 'Add analytics metadata to events' },
+                        { id: 'filtering_middleware', name: 'Filtering Middleware', description: 'Filter events based on criteria' },
+                        { id: 'transform_middleware', name: 'Transform Middleware', description: 'Transform event data structure' }
+                      ].map(middleware => (
+                        <div key={middleware.id} className="flex items-start space-x-2 p-3 rounded border border-amber-200 border-amber-700 bg-amber-50/50 bg-amber-900/20">
+                          <input 
+                            type="checkbox" 
+                            id={middleware.id}
+                            className="rounded mt-1"
+                            checked={selectedMiddleware.includes(middleware.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedMiddleware(prev => [...prev, middleware.id]);
+                              } else {
+                                setSelectedMiddleware(prev => prev.filter(m => m !== middleware.id));
+                              }
+                            }}
+                          />
+                          <div className="flex-1">
+                            <label htmlFor={middleware.id} className="text-sm font-medium block">
+                              {middleware.name}
+                            </label>
+                            <div className="text-xs text-muted-foreground">
+                              {middleware.description}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Select middleware for event processing and transformation
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="event-history"
+                        checked={eventHistoryEnabled}
+                        onCheckedChange={setEventHistoryEnabled}
+                      />
+                      <Label htmlFor="event-history" className="text-sm">
+                        Event History
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="event-analytics"
+                        checked={eventAnalyticsEnabled}
+                        onCheckedChange={setEventAnalyticsEnabled}
+                      />
+                      <Label htmlFor="event-analytics" className="text-sm">
+                        Event Analytics
+                      </Label>
+                    </div>
+                  </div>
+                  
+                  <div className="text-xs text-muted-foreground">
+                    Event handling provides comprehensive monitoring and debugging capabilities for your agent. 
+                    All events are processed securely within your agent's runtime environment.
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
           
           <div className="mb-4 p-4 rounded-xl bg-gradient-to-br from-green-50/50 via-blue-50/30 to-purple-50/20 from-green-950/20 via-blue-950/20 to-purple-950/20 border border-green-200/50 border-green-800/50">
             <div className="flex items-start gap-3 mb-3">
@@ -1611,11 +1868,13 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
                 <p className="text-xs text-green-300 text-green-400 leading-relaxed">
                   {mcpEnabled
                     ? "Describe what you want your AI agent to do using external tools and services"
-                    : memoryEnabled
-                      ? "Describe your AI agent and mention 'memory', 'remember', or 'learn' to automatically include memory capabilities"
-                      : langfuseEnabled
-                        ? "Describe your AI agent and mention 'analytics' or 'tracking' to automatically include observability"
-                        : "Simply describe what you want your AI agent to do in plain English"}
+                    : eventHandlingEnabled
+                      ? "Describe your AI agent and mention 'event', 'tracking', or 'monitoring' to automatically include comprehensive event handling"
+                      : memoryEnabled
+                        ? "Describe your AI agent and mention 'memory', 'remember', or 'learn' to automatically include memory capabilities"
+                        : langfuseEnabled
+                          ? "Describe your AI agent and mention 'analytics' or 'tracking' to automatically include observability"
+                          : "Simply describe what you want your AI agent to do in plain English"}
                 </p>
               </div>
             </div>
@@ -1633,6 +1892,18 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
                     </div>
                     <div className="p-2 bg-white/60 bg-gray-800/60 rounded-lg border border-green-200/50 border-green-700/50">
                       <span className="text-gray-300 text-gray-300">"I need an agent that can analyze documents and extract key information"</span>
+                    </div>
+                  </>
+                ) : eventHandlingEnabled ? (
+                  <>
+                    <div className="p-2 bg-white/60 bg-gray-800/60 rounded-lg border border-green-200/50 border-green-700/50">
+                      <span className="text-gray-300 text-gray-300">"Create a customer support agent with event tracking to monitor all user interactions"</span>
+                    </div>
+                    <div className="p-2 bg-white/60 bg-gray-800/60 rounded-lg border border-green-200/50 border-green-700/50">
+                      <span className="text-gray-300 text-gray-300">"Build a research assistant with comprehensive logging and monitoring capabilities"</span>
+                    </div>
+                    <div className="p-2 bg-white/60 bg-gray-800/60 rounded-lg border border-green-200/50 border-green-700/50">
+                      <span className="text-gray-300 text-gray-300">"I want an agent with detailed event handling for debugging and performance monitoring"</span>
                     </div>
                   </>
                 ) : memoryEnabled ? (
