@@ -151,20 +151,20 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-b from-background to-background/90 text-foreground flex flex-col items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen w-full bg-[#0a0b1e] text-white flex flex-col items-center justify-center p-4 relative overflow-hidden">
       {/* Background matching landing page exactly */}
       <div className="fixed top-0 left-0 right-0 bottom-0 z-[-1] w-full h-full">
         {/* Base gradient background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-zinc-300/5 via-purple-400/10 to-transparent dark:from-zinc-300/2 dark:via-purple-400/5" />
+        <div className="absolute inset-0 bg-gradient-to-br from-zinc-300/2 via-purple-400/5 to-transparent" />
         
         {/* Radial gradient for depth - matching landing page */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(139,92,246,0.15),transparent)] dark:bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(139,92,246,0.3),transparent)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(139,92,246,0.3),transparent)]" />
       </div>
       
       {/* Back to Home Button - matching landing page style */}
       <Button 
         variant="ghost" 
-        className="absolute top-6 left-6 flex items-center gap-2 bg-gradient-to-tr from-zinc-300/10 via-purple-400/20 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 backdrop-blur-sm border border-black/5 dark:border-white/5 hover:border-purple-500/30 dark:hover:border-purple-400/30 text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-gradient-to-tr hover:from-zinc-300/20 hover:via-purple-400/30 hover:to-transparent dark:hover:from-zinc-300/10 dark:hover:via-purple-400/20 transition-all duration-300 rounded-lg group"
+        className="absolute top-6 left-6 flex items-center gap-2 bg-gradient-to-tr from-zinc-300/5 via-purple-400/10 to-transparent backdrop-blur-sm border border-white/5 hover:border-purple-400/30 text-gray-300 hover:text-purple-400 hover:bg-gradient-to-tr hover:from-zinc-300/10 hover:via-purple-400/20 hover:to-transparent transition-all duration-300 rounded-lg group"
         onClick={() => navigate('/')}
       >
         <ArrowLeft className="w-4 h-4 group-hover:scale-110 transition-transform duration-300" />
@@ -180,33 +180,33 @@ export default function Auth() {
         {/* Header Section - matching landing page style */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-4 group cursor-pointer">
-            <div className="relative p-3 rounded-xl bg-gradient-to-tr from-purple-500/20 via-pink-500/20 to-transparent dark:from-purple-400/20 dark:via-orange-200/20 border border-purple-500/30 dark:border-purple-400/30 group-hover:scale-105 transition-all duration-300">
-              <Sparkles className="w-6 h-6 text-purple-600 dark:text-purple-400 group-hover:rotate-12 transition-transform duration-300" />
+            <div className="relative p-3 rounded-xl bg-gradient-to-tr from-purple-400/20 via-orange-200/20 to-transparent border border-purple-400/30 group-hover:scale-105 transition-all duration-300">
+              <Sparkles className="w-6 h-6 text-purple-400 group-hover:rotate-12 transition-transform duration-300" />
               <div className="absolute inset-0 bg-gradient-to-tr from-purple-600/10 to-pink-500/10 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             </div>
-            <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-500 dark:from-purple-300 dark:to-orange-200 group-hover:from-purple-500 group-hover:to-pink-400 transition-all duration-300">
+            <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-300 to-orange-200 group-hover:from-purple-500 group-hover:to-pink-400 transition-all duration-300">
               CogentX
             </h1>
           </div>
-          <p className="text-gray-600 dark:text-gray-300 leading-relaxed">
+          <p className="text-gray-300 leading-relaxed">
             {activeTab === 'login' ? 'Welcome back! Sign in to continue building amazing AI agents' : 'Join thousands of developers building the future of AI'}
           </p>
         </div>
         
         {/* Main Auth Card - matching landing page style */}
-        <Card className="bg-gradient-to-br from-zinc-300/10 via-purple-400/5 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 backdrop-blur-xl border border-black/5 dark:border-white/10 shadow-2xl hover:shadow-purple-500/10 dark:hover:shadow-purple-400/20 transition-all duration-300">
+        <Card className="bg-gradient-to-br from-zinc-300/5 via-purple-400/10 to-transparent backdrop-blur-xl border border-white/10 shadow-2xl hover:shadow-purple-400/20 transition-all duration-300">
           <CardHeader className="pb-6">
             <Tabs defaultValue="login" value={activeTab} onValueChange={(v) => setActiveTab(v as 'login' | 'signup')}>
-              <TabsList className="grid w-full grid-cols-2 bg-gradient-to-tr from-zinc-300/20 via-gray-400/20 to-transparent dark:from-zinc-300/10 dark:via-gray-400/10 backdrop-blur-sm border border-black/5 dark:border-white/10 p-1">
+              <TabsList className="grid w-full grid-cols-2 bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent backdrop-blur-sm border border-white/10 p-1">
                 <TabsTrigger 
                   value="login" 
-                  className="data-[state=active]:bg-gradient-to-tr data-[state=active]:from-purple-500/20 data-[state=active]:via-pink-500/20 data-[state=active]:to-transparent dark:data-[state=active]:from-purple-400/20 dark:data-[state=active]:via-orange-200/20 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:border data-[state=active]:border-purple-500/30 dark:data-[state=active]:border-purple-400/30 transition-all duration-300"
+                  className="data-[state=active]:bg-gradient-to-tr data-[state=active]:from-purple-400/20 data-[state=active]:via-orange-200/20 data-[state=active]:to-transparent data-[state=active]:text-purple-300 data-[state=active]:border data-[state=active]:border-purple-400/30 transition-all duration-300"
                 >
                   Sign In
                 </TabsTrigger>
                 <TabsTrigger 
                   value="signup" 
-                  className="data-[state=active]:bg-gradient-to-tr data-[state=active]:from-purple-500/20 data-[state=active]:via-pink-500/20 data-[state=active]:to-transparent dark:data-[state=active]:from-purple-400/20 dark:data-[state=active]:via-orange-200/20 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:border data-[state=active]:border-purple-500/30 dark:data-[state=active]:border-purple-400/30 transition-all duration-300"
+                  className="data-[state=active]:bg-gradient-to-tr data-[state=active]:from-purple-400/20 data-[state=active]:via-orange-200/20 data-[state=active]:to-transparent data-[state=active]:text-purple-300 data-[state=active]:border data-[state=active]:border-purple-400/30 transition-all duration-300"
                 >
                   Sign Up
                 </TabsTrigger>
@@ -220,11 +220,11 @@ export default function Auth() {
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-3">
                     <div className="relative">
-                      <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-purple-600 dark:text-purple-400" />
+                      <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-purple-400" />
                       <Input 
                         type="email" 
                         placeholder="Enter your email"
-                        className="pl-12 bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border border-black/5 dark:border-white/10 focus:border-purple-500/50 dark:focus:border-purple-400/50 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-xl py-3 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30"
+                        className="pl-12 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent backdrop-blur-sm border border-white/10 focus:border-purple-400/50 text-white placeholder-gray-400 rounded-xl py-3 transition-all duration-300 hover:border-purple-400/30"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         disabled={loading}
@@ -234,11 +234,11 @@ export default function Auth() {
                   </div>
                   <div className="space-y-3">
                     <div className="relative">
-                      <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-purple-600 dark:text-purple-400" />
+                      <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-purple-400" />
                       <Input 
                         type={showPassword ? "text" : "password"}
                         placeholder="Enter your password" 
-                        className="pl-12 pr-12 bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border border-black/5 dark:border-white/10 focus:border-purple-500/50 dark:focus:border-purple-400/50 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-xl py-3 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30"
+                        className="pl-12 pr-12 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent backdrop-blur-sm border border-white/10 focus:border-purple-400/50 text-white placeholder-gray-400 rounded-xl py-3 transition-all duration-300 hover:border-purple-400/30"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         disabled={loading}
@@ -248,7 +248,7 @@ export default function Auth() {
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors duration-300"
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 text-gray-400 hover:text-purple-400 transition-colors duration-300"
                         onClick={() => setShowPassword(!showPassword)}
                       >
                         {showPassword ? (
@@ -261,10 +261,10 @@ export default function Auth() {
                   </div>
                   <span className="relative inline-block overflow-hidden rounded-xl p-[1px] w-full">
                     <span className="absolute inset-[-1000%] animate-[spin_2s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#E2CBFF_0%,#393BB2_50%,#E2CBFF_100%)] group-hover:animate-[spin_1s_linear_infinite]" />
-                    <div className="inline-flex h-full w-full cursor-pointer items-center justify-center rounded-xl bg-white dark:bg-gray-950 backdrop-blur-3xl">
+                    <div className="inline-flex h-full w-full cursor-pointer items-center justify-center rounded-xl bg-gray-950 backdrop-blur-3xl">
                       <Button 
                         type="submit" 
-                        className="w-full bg-gradient-to-tr from-zinc-300/20 via-purple-400/30 to-transparent dark:from-zinc-300/5 dark:via-purple-400/20 text-gray-900 dark:text-white border-0 hover:bg-gradient-to-tr hover:from-zinc-300/30 hover:via-purple-400/40 hover:to-transparent dark:hover:from-zinc-300/10 dark:hover:via-purple-400/30 transition-all duration-300 py-3 font-medium rounded-xl hover:scale-105 disabled:opacity-50 disabled:hover:scale-100" 
+                        className="w-full bg-gradient-to-tr from-zinc-300/5 via-purple-400/20 to-transparent text-white border-0 hover:bg-gradient-to-tr hover:from-zinc-300/10 hover:via-purple-400/30 hover:to-transparent transition-all duration-300 py-3 font-medium rounded-xl hover:scale-105 disabled:opacity-50 disabled:hover:scale-100" 
                         disabled={loading}
                       >
                         {loading ? (
@@ -288,11 +288,11 @@ export default function Auth() {
                 <form onSubmit={handleSignup} className="space-y-4">
                   <div className="space-y-3">
                     <div className="relative">
-                      <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-purple-600 dark:text-purple-400" />
+                      <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-purple-400" />
                       <Input 
                         type="email" 
                         placeholder="Enter your email"
-                        className="pl-12 bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border border-black/5 dark:border-white/10 focus:border-purple-500/50 dark:focus:border-purple-400/50 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-xl py-3 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30"
+                        className="pl-12 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent backdrop-blur-sm border border-white/10 focus:border-purple-400/50 text-white placeholder-gray-400 rounded-xl py-3 transition-all duration-300 hover:border-purple-400/30"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         disabled={loading}
@@ -302,11 +302,11 @@ export default function Auth() {
                   </div>
                   <div className="space-y-3">
                     <div className="relative">
-                      <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-purple-600 dark:text-purple-400" />
+                      <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-purple-400" />
                       <Input 
                         type={showPassword ? "text" : "password"}
                         placeholder="Create a password (min. 6 characters)" 
-                        className="pl-12 pr-12 bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border border-black/5 dark:border-white/10 focus:border-purple-500/50 dark:focus:border-purple-400/50 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 rounded-xl py-3 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30"
+                        className="pl-12 pr-12 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent backdrop-blur-sm border border-white/10 focus:border-purple-400/50 text-white placeholder-gray-400 rounded-xl py-3 transition-all duration-300 hover:border-purple-400/30"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         disabled={loading}
@@ -316,7 +316,7 @@ export default function Auth() {
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors duration-300"
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 text-gray-400 hover:text-purple-400 transition-colors duration-300"
                         onClick={() => setShowPassword(!showPassword)}
                       >
                         {showPassword ? (
@@ -329,10 +329,10 @@ export default function Auth() {
                   </div>
                   <span className="relative inline-block overflow-hidden rounded-xl p-[1px] w-full">
                     <span className="absolute inset-[-1000%] animate-[spin_2s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#E2CBFF_0%,#393BB2_50%,#E2CBFF_100%)] group-hover:animate-[spin_1s_linear_infinite]" />
-                    <div className="inline-flex h-full w-full cursor-pointer items-center justify-center rounded-xl bg-white dark:bg-gray-950 backdrop-blur-3xl">
+                    <div className="inline-flex h-full w-full cursor-pointer items-center justify-center rounded-xl bg-gray-950 backdrop-blur-3xl">
                       <Button 
                         type="submit" 
-                        className="w-full bg-gradient-to-tr from-zinc-300/20 via-purple-400/30 to-transparent dark:from-zinc-300/5 dark:via-purple-400/20 text-gray-900 dark:text-white border-0 hover:bg-gradient-to-tr hover:from-zinc-300/30 hover:via-purple-400/40 hover:to-transparent dark:hover:from-zinc-300/10 dark:hover:via-purple-400/30 transition-all duration-300 py-3 font-medium rounded-xl hover:scale-105 disabled:opacity-50 disabled:hover:scale-100" 
+                        className="w-full bg-gradient-to-tr from-zinc-300/5 via-purple-400/20 to-transparent text-white border-0 hover:bg-gradient-to-tr hover:from-zinc-300/10 hover:via-purple-400/30 hover:to-transparent transition-all duration-300 py-3 font-medium rounded-xl hover:scale-105 disabled:opacity-50 disabled:hover:scale-100" 
                         disabled={loading}
                       >
                         {loading ? (
@@ -358,7 +358,7 @@ export default function Auth() {
             <div className="relative w-full">
               <Separator className="absolute top-1/2 w-full bg-gradient-to-r from-transparent via-gray-400/20 to-transparent" />
               <div className="relative flex justify-center">
-                <span className="bg-gradient-to-tr from-zinc-300/80 via-gray-400/80 to-transparent dark:from-zinc-300/20 dark:via-gray-400/20 backdrop-blur-sm px-4 py-1 text-xs font-medium text-gray-600 dark:text-gray-400 rounded-full border border-black/5 dark:border-white/10">
+                <span className="bg-gradient-to-tr from-zinc-300/20 via-gray-400/20 to-transparent backdrop-blur-sm px-4 py-1 text-xs font-medium text-gray-400 rounded-full border border-white/10">
                   OR CONTINUE WITH
                 </span>
               </div>
@@ -367,7 +367,7 @@ export default function Auth() {
             <div className="flex gap-3 w-full">
               <Button 
                 variant="outline" 
-                className="w-full flex items-center gap-2 bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border border-black/5 dark:border-white/10 hover:border-purple-500/30 dark:hover:border-purple-400/30 text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-gradient-to-tr hover:from-zinc-300/20 hover:via-purple-400/10 hover:to-transparent dark:hover:from-zinc-300/5 dark:hover:via-purple-400/5 transition-all duration-300 py-3 group"
+                className="w-full flex items-center gap-2 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent backdrop-blur-sm border border-white/10 hover:border-purple-400/30 text-gray-300 hover:text-purple-400 hover:bg-gradient-to-tr hover:from-zinc-300/5 hover:via-purple-400/5 hover:to-transparent transition-all duration-300 py-3 group"
                 onClick={handleGoogleLogin}
               >
                 <svg width="16" height="16" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="group-hover:scale-110 transition-transform duration-300">
@@ -380,7 +380,7 @@ export default function Auth() {
               </Button>
               <Button 
                 variant="outline" 
-                className="w-full flex items-center gap-2 bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border border-black/5 dark:border-white/10 hover:border-purple-500/30 dark:hover:border-purple-400/30 text-gray-700 dark:text-gray-300 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-gradient-to-tr hover:from-zinc-300/20 hover:via-purple-400/10 hover:to-transparent dark:hover:from-zinc-300/5 dark:hover:via-purple-400/5 transition-all duration-300 py-3 group"
+                className="w-full flex items-center gap-2 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent backdrop-blur-sm border border-white/10 hover:border-purple-400/30 text-gray-300 hover:text-purple-400 hover:bg-gradient-to-tr hover:from-zinc-300/5 hover:via-purple-400/5 hover:to-transparent transition-all duration-300 py-3 group"
                 onClick={handleGithubLogin}
               >
                 <Github className="w-4 h-4 group-hover:scale-110 transition-transform duration-300" />
@@ -396,28 +396,28 @@ export default function Auth() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.6, duration: 0.5 }}
-            className="text-center p-4 rounded-xl bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-transparent dark:from-blue-400/10 dark:via-purple-400/10 border border-blue-500/20 dark:border-blue-400/20 backdrop-blur-sm hover:border-blue-500/40 dark:hover:border-blue-400/50 transition-all duration-300 hover:scale-105"
+            className="text-center p-4 rounded-xl bg-gradient-to-br from-blue-400/10 via-purple-400/10 to-transparent border border-blue-400/20 backdrop-blur-sm hover:border-blue-400/50 transition-all duration-300 hover:scale-105"
           >
-            <Shield className="w-6 h-6 text-blue-600 dark:text-blue-400 mx-auto mb-2" />
-            <p className="text-xs font-medium text-blue-700 dark:text-blue-300">Secure</p>
+            <Shield className="w-6 h-6 text-blue-400 mx-auto mb-2" />
+            <p className="text-xs font-medium text-blue-300">Secure</p>
           </motion.div>
           <motion.div 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.7, duration: 0.5 }}
-            className="text-center p-4 rounded-xl bg-gradient-to-br from-green-500/10 via-emerald-500/10 to-transparent dark:from-green-400/10 dark:via-emerald-400/10 border border-green-500/20 dark:border-green-400/20 backdrop-blur-sm hover:border-green-500/40 dark:hover:border-green-400/50 transition-all duration-300 hover:scale-105"
+            className="text-center p-4 rounded-xl bg-gradient-to-br from-green-400/10 via-emerald-400/10 to-transparent border border-green-400/20 backdrop-blur-sm hover:border-green-400/50 transition-all duration-300 hover:scale-105"
           >
-            <Zap className="w-6 h-6 text-green-600 dark:text-green-400 mx-auto mb-2" />
-            <p className="text-xs font-medium text-green-700 dark:text-green-300">Fast</p>
+            <Zap className="w-6 h-6 text-green-400 mx-auto mb-2" />
+            <p className="text-xs font-medium text-green-300">Fast</p>
           </motion.div>
           <motion.div 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.8, duration: 0.5 }}
-            className="text-center p-4 rounded-xl bg-gradient-to-br from-purple-500/10 via-pink-500/10 to-transparent dark:from-purple-400/10 dark:via-orange-200/10 border border-purple-500/20 dark:border-purple-400/20 backdrop-blur-sm hover:border-purple-500/40 dark:hover:border-purple-400/50 transition-all duration-300 hover:scale-105"
+            className="text-center p-4 rounded-xl bg-gradient-to-br from-purple-400/10 via-orange-200/10 to-transparent border border-purple-400/20 backdrop-blur-sm hover:border-purple-400/50 transition-all duration-300 hover:scale-105"
           >
-            <Users className="w-6 h-6 text-purple-600 dark:text-purple-400 mx-auto mb-2" />
-            <p className="text-xs font-medium text-purple-700 dark:text-purple-300">Collaborative</p>
+            <Users className="w-6 h-6 text-purple-400 mx-auto mb-2" />
+            <p className="text-xs font-medium text-purple-300">Collaborative</p>
           </motion.div>
         </div>
       </motion.div>

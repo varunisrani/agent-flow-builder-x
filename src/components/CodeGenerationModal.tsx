@@ -898,35 +898,35 @@ __all__ = ["root_agent"]`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[98vw] max-w-7xl h-[95vh] max-h-[95vh] sm:w-[95vw] sm:h-[90vh] sm:max-h-[90vh] lg:max-w-6xl bg-gradient-to-br from-zinc-300/10 via-purple-400/10 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 backdrop-blur-xl border-[2px] border-black/5 dark:border-white/10 shadow-2xl p-0 overflow-hidden flex flex-col">
-        <DialogHeader className="flex-shrink-0 pb-4 border-b-[2px] border-black/5 dark:border-white/10 bg-gradient-to-r from-purple-500/5 via-pink-500/5 to-transparent dark:from-purple-400/5 dark:via-orange-200/5 px-6 pt-6">
+      <DialogContent className="w-[98vw] max-w-7xl h-[95vh] max-h-[95vh] sm:w-[95vw] sm:h-[90vh] sm:max-h-[90vh] lg:max-w-6xl bg-gradient-to-br from-zinc-300/10 via-purple-400/10 to-transparent from-zinc-300/5 via-purple-400/10 backdrop-blur-xl border-[2px] border-white/10 shadow-2xl p-0 overflow-hidden flex flex-col">
+        <DialogHeader className="flex-shrink-0 pb-4 border-b-[2px] border-white/10 bg-gradient-to-r from-purple-500/5 via-pink-500/5 to-transparent from-purple-400/5 via-orange-200/5 px-6 pt-6">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-gradient-to-tr from-purple-500/20 via-pink-500/20 to-transparent dark:from-purple-400/20 dark:via-orange-200/20 border border-purple-500/30 dark:border-purple-400/30">
-              <Code className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+            <div className="p-2 rounded-xl bg-gradient-to-tr from-purple-500/20 via-pink-500/20 to-transparent from-purple-400/20 via-orange-200/20 border border-purple-500/30 border-purple-400/30">
+              <Code className="w-5 h-5 text-purple-600 text-purple-400" />
             </div>
             <div>
-              <DialogTitle className="text-xl font-semibold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-500 dark:from-purple-300 dark:to-orange-200">
+              <DialogTitle className="text-xl font-semibold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-500 from-purple-300 to-orange-200">
                 Generated Agent Code
               </DialogTitle>
-              <DialogDescription className="text-gray-600 dark:text-gray-300 mt-1">
+              <DialogDescription className="text-gray-600 text-gray-300 mt-1">
                 <div className="space-y-2">
                   <p>Your visual workflow has been converted into production-ready code. This code can be deployed and run anywhere.</p>
                   <div className="flex items-center gap-2 text-sm">
                     <div className="flex items-center gap-1">
                       <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      <span className="text-green-700 dark:text-green-400">No coding required</span>
+                      <span className="text-green-700 text-green-400">No coding required</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                      <span className="text-blue-700 dark:text-blue-400">Production ready</span>
+                      <span className="text-blue-700 text-blue-400">Production ready</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                      <span className="text-purple-700 dark:text-purple-400">Instantly deployable</span>
+                      <span className="text-purple-700 text-purple-400">Instantly deployable</span>
                     </div>
                   </div>
                   {!isFirstGeneration && (
-                    <span className="text-sm text-gray-500 dark:text-gray-400"> (Loaded from saved version)</span>
+                    <span className="text-sm text-gray-500 text-gray-400"> (Loaded from saved version)</span>
                   )}
                 </div>
               </DialogDescription>
@@ -936,22 +936,22 @@ __all__ = ["root_agent"]`;
 
         <div className="flex-1 flex flex-col overflow-hidden">
           <Tabs defaultValue="adk" value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-            <TabsList className="flex-shrink-0 bg-gradient-to-tr from-zinc-300/20 via-gray-400/20 to-transparent dark:from-zinc-300/10 dark:via-gray-400/10 backdrop-blur-sm border-[2px] border-black/5 dark:border-white/10 p-1 mx-6 mt-4">
+            <TabsList className="flex-shrink-0 bg-gradient-to-tr from-zinc-300/20 via-gray-400/20 to-transparent from-zinc-300/10 via-gray-400/10 backdrop-blur-sm border-[2px] border-white/10 p-1 mx-6 mt-4">
             <TabsTrigger 
               value="adk" 
-              className="data-[state=active]:bg-gradient-to-tr data-[state=active]:from-purple-500/20 data-[state=active]:via-pink-500/20 data-[state=active]:to-transparent dark:data-[state=active]:from-purple-400/20 dark:data-[state=active]:via-orange-200/20 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:border data-[state=active]:border-purple-500/30 dark:data-[state=active]:border-purple-400/30"
+              className="data-[state=active]:bg-gradient-to-tr data-[state=active]:from-purple-500/20 data-[state=active]:via-pink-500/20 data-[state=active]:to-transparent data-[state=active]:from-purple-400/20 data-[state=active]:via-orange-200/20 data-[state=active]:text-purple-700 data-[state=active]:text-purple-300 data-[state=active]:border data-[state=active]:border-purple-500/30 data-[state=active]:border-purple-400/30"
             >
               Google ADK
             </TabsTrigger>
             <TabsTrigger 
               value="vertex"
-              className="data-[state=active]:bg-gradient-to-tr data-[state=active]:from-purple-500/20 data-[state=active]:via-pink-500/20 data-[state=active]:to-transparent dark:data-[state=active]:from-purple-400/20 dark:data-[state=active]:via-orange-200/20 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:border data-[state=active]:border-purple-500/30 dark:data-[state=active]:border-purple-400/30"
+              className="data-[state=active]:bg-gradient-to-tr data-[state=active]:from-purple-500/20 data-[state=active]:via-pink-500/20 data-[state=active]:to-transparent data-[state=active]:from-purple-400/20 data-[state=active]:via-orange-200/20 data-[state=active]:text-purple-700 data-[state=active]:text-purple-300 data-[state=active]:border data-[state=active]:border-purple-500/30 data-[state=active]:border-purple-400/30"
             >
               Vertex AI
             </TabsTrigger>
             <TabsTrigger 
               value="custom"
-              className="data-[state=active]:bg-gradient-to-tr data-[state=active]:from-purple-500/20 data-[state=active]:via-pink-500/20 data-[state=active]:to-transparent dark:data-[state=active]:from-purple-400/20 dark:data-[state=active]:via-orange-200/20 data-[state=active]:text-purple-700 dark:data-[state=active]:text-purple-300 data-[state=active]:border data-[state=active]:border-purple-500/30 dark:data-[state=active]:border-purple-400/30"
+              className="data-[state=active]:bg-gradient-to-tr data-[state=active]:from-purple-500/20 data-[state=active]:via-pink-500/20 data-[state=active]:to-transparent data-[state=active]:from-purple-400/20 data-[state=active]:via-orange-200/20 data-[state=active]:text-purple-700 data-[state=active]:text-purple-300 data-[state=active]:border data-[state=active]:border-purple-500/30 data-[state=active]:border-purple-400/30"
             >
               Custom Agent
             </TabsTrigger>
@@ -981,7 +981,7 @@ __all__ = ["root_agent"]`;
                       }}
                       disabled={hasMcpNodes}
                     />
-                    <div className={`w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600 ${hasMcpNodes ? 'opacity-60' : ''}`}></div>
+                    <div className={`w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 peer-focus:ring-blue-800 bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all border-gray-600 peer-checked:bg-blue-600 ${hasMcpNodes ? 'opacity-60' : ''}`}></div>
                     <span className="ms-3 text-sm font-medium">Enable MCP Integration</span>
                   </label>
                   {hasMcpNodes && (
@@ -1005,7 +1005,7 @@ __all__ = ["root_agent"]`;
             
             <div className="flex-1 flex flex-col overflow-hidden">
               {error && (
-                <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg text-red-800 dark:text-red-300 text-sm flex items-center gap-2 flex-shrink-0">
+                <div className="mb-4 p-3 bg-red-50 bg-red-950/30 border border-red-200 border-red-800 rounded-lg text-red-800 text-red-300 text-sm flex items-center gap-2 flex-shrink-0">
                   <AlertCircle className="h-4 w-4" />
                   <span>{error}</span>
                 </div>
@@ -1070,16 +1070,16 @@ __all__ = ["root_agent"]`;
               )}
             </div>
             
-            <div className="flex-shrink-0 mt-4 p-3 rounded-lg bg-gradient-to-br from-blue-50/50 via-purple-50/30 to-pink-50/20 dark:from-blue-950/20 dark:via-purple-950/20 dark:to-pink-950/20 border border-blue-200/50 dark:border-blue-800/50">
+            <div className="flex-shrink-0 mt-4 p-3 rounded-lg bg-gradient-to-br from-blue-50/50 via-purple-50/30 to-pink-50/20 from-blue-950/20 via-purple-950/20 to-pink-950/20 border border-blue-200/50 border-blue-800/50">
               <div className="flex items-start gap-3">
                 <div className="p-1 rounded bg-blue-500/20 border border-blue-500/30 flex-shrink-0">
-                  <Sparkles className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                  <Sparkles className="w-3 h-3 text-blue-600 text-blue-400" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-medium text-blue-800 dark:text-blue-300 mb-1">
+                  <h4 className="text-xs font-medium text-blue-800 text-blue-300 mb-1">
                     🚀 What you get:
                   </h4>
-                  <div className="grid grid-cols-2 gap-1 text-[10px] text-blue-700 dark:text-blue-400">
+                  <div className="grid grid-cols-2 gap-1 text-[10px] text-blue-700 text-blue-400">
                     <div className="flex items-center gap-1">
                       <div className="w-1 h-1 bg-blue-500 rounded-full"></div>
                       <span>Production-ready code</span>
@@ -1105,7 +1105,7 @@ __all__ = ["root_agent"]`;
           </Tabs>
         </div>
 
-        <DialogFooter className="flex-shrink-0 flex justify-between items-center border-t border-black/5 dark:border-white/10 bg-gradient-to-r from-purple-500/2 via-pink-500/2 to-transparent dark:from-purple-400/2 dark:via-orange-200/2 px-6 py-4">
+        <DialogFooter className="flex-shrink-0 flex justify-between items-center border-t border-white/10 bg-gradient-to-r from-purple-500/2 via-pink-500/2 to-transparent from-purple-400/2 via-orange-200/2 px-6 py-4">
           <div className="flex items-center gap-4">
             <div className="text-xs text-muted-foreground">
               {isFirstGeneration ? '✨ Fresh generation' : '💾 Saved version'}
@@ -1121,12 +1121,12 @@ __all__ = ["root_agent"]`;
             </Button>
             <span className="relative inline-block overflow-hidden rounded-lg p-[1px]">
               <span className="absolute inset-[-1000%] animate-[spin_2s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#E2CBFF_0%,#393BB2_50%,#E2CBFF_100%)]" />
-              <div className="inline-flex h-full w-full cursor-pointer items-center justify-center rounded-lg bg-white dark:bg-gray-950 backdrop-blur-3xl">
+              <div className="inline-flex h-full w-full cursor-pointer items-center justify-center rounded-lg bg-gray-950 backdrop-blur-3xl">
                 <Button 
                   disabled={loading} 
                   onClick={handleRegenerate}
                   size="sm"
-                  className="bg-gradient-to-tr from-zinc-300/20 via-purple-400/30 to-transparent dark:from-zinc-300/5 dark:via-purple-400/20 border-0 hover:scale-105"
+                  className="bg-gradient-to-tr from-zinc-300/20 via-purple-400/30 to-transparent from-zinc-300/5 via-purple-400/20 border-0 hover:scale-105"
                 >
                   {loading ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Sparkles className="h-3 w-3 mr-2" />}
                   {loading ? "Generating..." : "Regenerate Code"}

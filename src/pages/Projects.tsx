@@ -74,9 +74,9 @@ const RetroGrid = ({
       style={gridStyles}
     >
       <div className="absolute inset-0 [transform:rotateX(var(--grid-angle))]">
-        <div className="animate-grid [background-image:linear-gradient(to_right,var(--light-line)_1px,transparent_0),linear-gradient(to_bottom,var(--light-line)_1px,transparent_0)] [background-repeat:repeat] [background-size:var(--cell-size)_var(--cell-size)] [height:300vh] [inset:0%_0px] [margin-left:-200%] [transform-origin:100%_0_0] [width:600vw] dark:[background-image:linear-gradient(to_right,var(--dark-line)_1px,transparent_0),linear-gradient(to_bottom,var(--dark-line)_1px,transparent_0)]" />
+        <div className="animate-grid [background-image:linear-gradient(to_right,var(--dark-line)_1px,transparent_0),linear-gradient(to_bottom,var(--dark-line)_1px,transparent_0)] [background-repeat:repeat] [background-size:var(--cell-size)_var(--cell-size)] [height:300vh] [inset:0%_0px] [margin-left:-200%] [transform-origin:100%_0_0] [width:600vw]" />
       </div>
-      <div className="absolute inset-0 bg-gradient-to-t from-white to-transparent to-90% dark:from-black" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent to-90%" />
     </div>
   )
 }
@@ -199,14 +199,14 @@ const Projects = () => {
   const regularProjects = filteredProjects.filter(p => !p.starred);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-background/90 text-foreground relative overflow-hidden">
+    <div className="min-h-screen bg-[#0a0b1e] text-white relative overflow-hidden">
       {/* Background matching landing page exactly */}
-      <div className="absolute top-0 z-[0] h-full w-full bg-gradient-to-br from-zinc-300/5 via-purple-400/10 to-transparent dark:from-zinc-300/2 dark:via-purple-400/5" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(139,92,246,0.15),transparent)] dark:bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(139,92,246,0.3),transparent)]" />
+      <div className="absolute top-0 z-[0] h-full w-full bg-gradient-to-br from-zinc-300/2 via-purple-400/5 to-transparent" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(139,92,246,0.3),transparent)]" />
       <RetroGrid />
       
       {/* Header - matching landing page style */}
-      <header className="relative h-20 z-10 border-b border-black/5 dark:border-white/5 px-4 md:px-6 lg:px-8 flex items-center justify-between bg-gradient-to-tr from-zinc-300/10 via-purple-400/20 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 backdrop-blur-sm">
+      <header className="relative h-20 z-10 border-b border-white/5 px-4 md:px-6 lg:px-8 flex items-center justify-between bg-gradient-to-tr from-zinc-300/5 via-purple-400/10 to-transparent backdrop-blur-sm">
         <motion.div 
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -215,24 +215,24 @@ const Projects = () => {
           <Button 
             variant="ghost" 
             size="icon" 
-            className="relative rounded-lg text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gradient-to-tr hover:from-zinc-300/20 hover:via-purple-400/20 hover:to-transparent dark:hover:from-zinc-300/10 dark:hover:via-purple-400/10 transition-all duration-300 group"
+            className="relative rounded-lg text-gray-300 hover:text-gray-100 hover:bg-gradient-to-tr hover:from-zinc-300/10 hover:via-purple-400/10 hover:to-transparent transition-all duration-300 group"
             onClick={handleBackHome}
           >
             <ChevronLeft className="h-5 w-5 group-hover:scale-110 transition-transform duration-300" />
-            <div className="absolute inset-0 border border-purple-500/20 dark:border-purple-400/20 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <div className="absolute inset-0 border border-purple-400/20 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
           </Button>
           
           <div className="flex items-center gap-3">
             <div className="flex items-center group cursor-pointer">
-              <div className="relative p-2 rounded-xl bg-gradient-to-tr from-purple-500/20 via-pink-500/20 to-transparent dark:from-purple-400/20 dark:via-orange-200/20 border border-purple-500/30 dark:border-purple-400/30 mr-3 group-hover:scale-105 transition-all duration-300">
-                <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400 group-hover:rotate-12 transition-transform duration-300" />
+              <div className="relative p-2 rounded-xl bg-gradient-to-tr from-purple-400/20 via-orange-200/20 to-transparent border border-purple-400/30 mr-3 group-hover:scale-105 transition-all duration-300">
+                <Sparkles className="w-5 h-5 text-purple-400 group-hover:rotate-12 transition-transform duration-300" />
                 <div className="absolute inset-0 bg-gradient-to-tr from-purple-600/10 to-pink-500/10 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
               </div>
-              <h1 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-500 dark:from-purple-300 dark:to-orange-200 group-hover:from-purple-500 group-hover:to-pink-400 transition-all duration-300">
+              <h1 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-300 to-orange-200 group-hover:from-purple-500 group-hover:to-pink-400 transition-all duration-300">
                 My Projects
               </h1>
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400 font-medium">
+            <div className="text-sm text-gray-400 font-medium">
               {projects.length} {projects.length === 1 ? 'project' : 'projects'}
             </div>
         </div>
@@ -244,10 +244,10 @@ const Projects = () => {
           className="flex items-center gap-4"
         >
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-purple-600 dark:text-purple-400" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-purple-400" />
             <Input 
               placeholder="Search projects..." 
-              className="pl-10 w-72 bg-gradient-to-tr from-zinc-300/10 via-purple-400/10 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 border border-black/5 dark:border-white/10 focus:border-purple-400/50 transition-all backdrop-blur-sm"
+              className="pl-10 w-72 bg-gradient-to-tr from-zinc-300/5 via-purple-400/10 to-transparent border border-white/10 focus:border-purple-400/50 transition-all backdrop-blur-sm"
               value={filterValue}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFilterValue(e.target.value)}
             />
@@ -255,12 +255,12 @@ const Projects = () => {
           <Button
             variant="outline"
             onClick={handleViewAnalytics}
-            className="bg-gradient-to-tr from-zinc-300/10 via-purple-400/10 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 border border-purple-400/20 hover:border-purple-400/40 text-purple-700 dark:text-purple-300 hover:text-purple-800 dark:hover:text-purple-200 backdrop-blur-sm"
+            className="bg-gradient-to-tr from-zinc-300/5 via-purple-400/10 to-transparent border border-purple-400/20 hover:border-purple-400/40 text-purple-300 hover:text-purple-200 backdrop-blur-sm"
           >
             <BarChart3 className="h-4 w-4 mr-2" />
             See Analysis
           </Button>
-          <div className="flex items-center gap-2 p-1 bg-gradient-to-tr from-zinc-300/20 via-gray-400/20 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 border border-black/5 dark:border-white/5 rounded-xl backdrop-blur-sm">
+          <div className="flex items-center gap-2 p-1 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent border border-white/5 rounded-xl backdrop-blur-sm">
             <Button
               variant={viewMode === 'grid' ? 'default' : 'ghost'}
               size="sm"
@@ -291,27 +291,27 @@ const Projects = () => {
           className="flex justify-between items-start mb-12"
         >
           <div className="space-y-4">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-100 dark:bg-purple-900/30 rounded-full">
-              <FolderPlus className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-              <span className="text-sm font-medium text-purple-700 dark:text-purple-300">Agent Projects</span>
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-900/30 rounded-full">
+              <FolderPlus className="w-4 h-4 text-purple-400" />
+              <span className="text-sm font-medium text-purple-300">Agent Projects</span>
             </div>
-            <h2 className="text-4xl font-bold text-gray-900 dark:text-white md:text-5xl">
+            <h2 className="text-4xl font-bold text-white md:text-5xl">
               Build amazing{" "}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-500">
                 AI agents
               </span>
             </h2>
-            <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl">
+            <p className="text-lg text-gray-400 max-w-2xl">
               Manage your visual agent flows, deploy with confidence, and scale your AI automation.
             </p>
           </div>
           
           <span className="relative inline-block overflow-hidden rounded-full p-[1.5px]">
             <span className="absolute inset-[-1000%] animate-[spin_2s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#E2CBFF_0%,#393BB2_50%,#E2CBFF_100%)]" />
-            <div className="inline-flex h-full w-full cursor-pointer items-center justify-center rounded-full bg-white dark:bg-gray-950 text-xs font-medium backdrop-blur-3xl">
+            <div className="inline-flex h-full w-full cursor-pointer items-center justify-center rounded-full bg-gray-950 text-xs font-medium backdrop-blur-3xl">
               <button
                 onClick={() => setIsCreating(true)} 
-                className="inline-flex rounded-full text-center group items-center w-full justify-center bg-gradient-to-tr from-zinc-300/20 via-purple-400/30 to-transparent dark:from-zinc-300/5 dark:via-purple-400/20 text-gray-900 dark:text-white border-input border-[1px] hover:bg-gradient-to-tr hover:from-zinc-300/30 hover:via-purple-400/40 hover:to-transparent dark:hover:from-zinc-300/10 dark:hover:via-purple-400/30 transition-all py-4 px-8 gap-2"
+                className="inline-flex rounded-full text-center group items-center w-full justify-center bg-gradient-to-tr from-zinc-300/5 via-purple-400/20 to-transparent text-white border-input border-[1px] hover:bg-gradient-to-tr hover:from-zinc-300/10 hover:via-purple-400/30 hover:to-transparent transition-all py-4 px-8 gap-2"
               >
                 <PlusCircle className="h-5 w-5" />
                 New Project
@@ -329,19 +329,19 @@ const Projects = () => {
             transition={{ duration: 0.3 }}
             className="mb-12"
           >
-            <div className="relative p-8 rounded-2xl border border-black/5 dark:border-white/5 bg-gradient-to-br from-zinc-300/10 via-purple-400/10 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 backdrop-blur-xl">
+            <div className="relative p-8 rounded-2xl border border-white/5 bg-gradient-to-br from-zinc-300/5 via-purple-400/10 to-transparent backdrop-blur-xl">
               <div className="flex items-center gap-3 mb-6">
                 <div className="p-2 rounded-xl bg-gradient-to-r from-purple-600 to-pink-500">
                   <Sparkles className="h-6 w-6 text-white" />
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+                <h3 className="text-2xl font-bold text-white">
                   Create New Project
                 </h3>
               </div>
               
               <div className="space-y-6">
                 <div className="space-y-3">
-                  <label htmlFor="name" className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  <label htmlFor="name" className="text-sm font-semibold text-gray-300">
                     Project Name
                   </label>
                   <Input
@@ -349,7 +349,7 @@ const Projects = () => {
                     placeholder="Enter an amazing project name"
                     value={newProject.name}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewProject({ ...newProject, name: e.target.value })}
-                    className="bg-gradient-to-tr from-zinc-300/10 via-purple-400/10 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 border border-black/5 dark:border-white/10 focus:border-purple-400/50 h-12 text-lg backdrop-blur-sm"
+                    className="bg-gradient-to-tr from-zinc-300/5 via-purple-400/10 to-transparent border border-white/10 focus:border-purple-400/50 h-12 text-lg backdrop-blur-sm"
                     autoFocus
                   />
                 </div>
@@ -371,13 +371,13 @@ const Projects = () => {
                 <Button 
                   variant="outline" 
                   onClick={() => setIsCreating(false)}
-                  className="border border-black/10 dark:border-white/10 bg-gradient-to-tr from-zinc-300/20 via-gray-400/20 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 hover:from-zinc-300/30 hover:to-transparent"
+                  className="border border-white/10 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent hover:from-zinc-300/10 hover:to-transparent"
                 >
                   Cancel
                 </Button>
                 <span className="relative inline-block overflow-hidden rounded-full p-[1px]">
                   <span className="absolute inset-[-1000%] animate-[spin_2s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#E2CBFF_0%,#393BB2_50%,#E2CBFF_100%)]" />
-                  <div className="inline-flex h-full w-full cursor-pointer items-center justify-center rounded-full bg-white dark:bg-gray-950 text-xs font-medium backdrop-blur-3xl">
+                  <div className="inline-flex h-full w-full cursor-pointer items-center justify-center rounded-full bg-gray-950 text-xs font-medium backdrop-blur-3xl">
                     <button
                       onClick={handleCreateProject}
                       className="inline-flex rounded-full text-center group items-center w-full justify-center bg-gradient-to-tr from-zinc-300/20 via-purple-400/30 to-transparent dark:from-zinc-300/5 dark:via-purple-400/20 text-gray-900 dark:text-white border-input border-[1px] hover:bg-gradient-to-tr hover:from-zinc-300/30 hover:via-purple-400/40 hover:to-transparent dark:hover:from-zinc-300/10 dark:hover:via-purple-400/30 transition-all py-3 px-6"
@@ -399,14 +399,14 @@ const Projects = () => {
             className="text-center py-24"
           >
             <div className="relative inline-block mb-8">
-              <div className="p-8 rounded-full bg-purple-100 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800">
-                <FolderPlus className="h-16 w-16 text-purple-600 dark:text-purple-400" />
+              <div className="p-8 rounded-full bg-purple-900/30 border border-purple-800">
+                <FolderPlus className="h-16 w-16 text-purple-400" />
               </div>
             </div>
-            <h3 className="text-3xl font-bold mb-4 text-gray-900 dark:text-white">
+            <h3 className="text-3xl font-bold mb-4 text-white">
               No projects yet
             </h3>
-            <p className="text-lg text-gray-600 dark:text-gray-300 mb-8 max-w-md mx-auto">
+            <p className="text-lg text-gray-300 mb-8 max-w-md mx-auto">
               Create your first project to start building AI agents visually with our powerful drag-and-drop interface
             </p>
             <Button
@@ -428,10 +428,10 @@ const Projects = () => {
           >
             <div className="flex items-center gap-3 mb-6">
               <Star className="h-6 w-6 text-yellow-500 fill-current" />
-              <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+              <h3 className="text-2xl font-bold text-white">
                 Starred Projects
               </h3>
-              <div className="px-3 py-1 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded-full text-sm text-yellow-700 dark:text-yellow-400 font-medium">
+              <div className="px-3 py-1 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded-full text-sm text-yellow-400 font-medium">
                 {starredProjects.length}
               </div>
             </div>
@@ -460,11 +460,11 @@ const Projects = () => {
           >
             {starredProjects.length > 0 && (
               <div className="flex items-center gap-3 mb-6">
-                <Folder className="h-6 w-6 text-purple-600 dark:text-purple-400" />
-                <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+                <Folder className="h-6 w-6 text-purple-400" />
+                <h3 className="text-2xl font-bold text-white">
                   All Projects
                 </h3>
-                <div className="px-3 py-1 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-full text-sm text-purple-700 dark:text-purple-400 font-medium">
+                <div className="px-3 py-1 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-full text-sm text-purple-400 font-medium">
                   {regularProjects.length}
                 </div>
               </div>
@@ -493,20 +493,20 @@ const Projects = () => {
             className="text-center py-16"
           >
             <div className="relative inline-block mb-6">
-              <div className="p-6 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
-                <Search className="h-12 w-12 text-gray-500 dark:text-gray-400" />
+              <div className="p-6 rounded-full bg-gray-800 border border-gray-700">
+                <Search className="h-12 w-12 text-gray-400" />
               </div>
             </div>
-            <h3 className="text-2xl font-bold mb-3 text-gray-900 dark:text-white">
+            <h3 className="text-2xl font-bold mb-3 text-white">
               No projects found
             </h3>
-            <p className="text-gray-600 dark:text-gray-300 mb-6">
+            <p className="text-gray-300 mb-6">
               Try adjusting your search or create a new project
             </p>
             <Button 
               variant="outline" 
               onClick={() => setFilterValue('')}
-              className="border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+              className="border border-gray-600 hover:bg-gray-700"
             >
               Clear Search
             </Button>
@@ -543,7 +543,7 @@ const ProjectCard = ({
               >
       {/* Clean card wrapper */}
       <Card 
-        className={`h-full w-full cursor-pointer overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-purple-400 dark:hover:border-purple-500 hover:shadow-lg transition-all duration-300 group ${viewMode === 'list' ? 'flex flex-row items-center' : 'flex flex-col'}`}
+        className={`h-full w-full cursor-pointer overflow-hidden bg-gray-800 border border-gray-700 hover:border-purple-500 hover:shadow-lg transition-all duration-300 group ${viewMode === 'list' ? 'flex flex-row items-center' : 'flex flex-col'}`}
         onClick={() => onOpen(project.id)}
       >
         <div className={`relative z-10 h-full w-full ${viewMode === 'list' ? 'flex flex-row items-center' : 'flex flex-col'}`}>
@@ -558,7 +558,7 @@ const ProjectCard = ({
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className={`h-8 w-8 rounded-full ${project.starred ? 'text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20' : 'text-gray-400 hover:text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20'} transition-all duration-300`}
+                  className={`h-8 w-8 rounded-full ${project.starred ? 'text-yellow-500 bg-yellow-900/20' : 'text-gray-400 hover:text-yellow-500 hover:bg-yellow-900/20'} transition-all duration-300`}
                   onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                     e.stopPropagation();
                     onToggleStar(project.id);
@@ -573,14 +573,14 @@ const ProjectCard = ({
                     <Button 
                       variant="ghost" 
                       size="icon" 
-                      className="h-8 w-8 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 opacity-0 group-hover:opacity-100 transition-all duration-300"
+                      className="h-8 w-8 rounded-full text-gray-400 hover:text-gray-300 hover:bg-gray-700 opacity-0 group-hover:opacity-100 transition-all duration-300"
                     >
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                   <DropdownMenuContent 
                     align="end" 
-                    className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg"
+                    className="bg-gray-800 border border-gray-700 shadow-lg"
                   >
                           <DropdownMenuItem onClick={(e: React.MouseEvent<HTMLDivElement>) => {
                             e.stopPropagation();
@@ -606,11 +606,11 @@ const ProjectCard = ({
               {/* Project info */}
               <div className={`${viewMode === 'grid' ? 'space-y-3' : 'flex items-center gap-4'}`}>
                 <div className={viewMode === 'grid' ? 'space-y-2' : 'flex-1'}>
-                  <CardTitle className="text-xl font-bold text-gray-900 dark:text-gray-100 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors duration-300">
+                  <CardTitle className="text-xl font-bold text-gray-100 group-hover:text-purple-400 transition-colors duration-300">
                     {project.name}
                   </CardTitle>
                   {project.description && (
-                    <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed line-clamp-2">
+                    <p className="text-gray-400 text-sm leading-relaxed line-clamp-2">
                       {project.description}
                     </p>
                   )}
@@ -618,16 +618,16 @@ const ProjectCard = ({
                     </div>
               
               {viewMode === 'grid' && (
-                <CardFooter className="text-sm text-gray-500 dark:text-gray-400 flex justify-between items-center pt-4 mt-auto px-0 pb-0">
+                <CardFooter className="text-sm text-gray-400 flex justify-between items-center pt-4 mt-auto px-0 pb-0">
                   <div className="flex items-center gap-2">
                     <Clock className="h-4 w-4 text-purple-500" />
                       <span>Created {new Date(project.createdAt).toLocaleDateString()}</span>
                     </div>
                   
                   {/* Node Counter */}
-                  <div className="flex items-center gap-2 px-3 py-1 bg-purple-100 dark:bg-purple-900/30 rounded-full">
+                  <div className="flex items-center gap-2 px-3 py-1 bg-purple-900/30 rounded-full">
                     <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                    <span className="text-purple-700 dark:text-purple-400 font-medium">
+                    <span className="text-purple-400 font-medium">
                       {project.nodes?.length || 0} nodes
                     </span>
                     </div>
@@ -635,22 +635,22 @@ const ProjectCard = ({
               )}
               
               {viewMode === 'list' && (
-                <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
+                <div className="flex items-center gap-6 text-sm text-gray-400">
                   <div className="flex items-center gap-2">
                     <Clock className="h-4 w-4 text-purple-500" />
                     <span>{new Date(project.createdAt).toLocaleDateString()}</span>
                   </div>
                   
                   {/* Node Counter for List View */}
-                  <div className="flex items-center gap-2 px-3 py-1 bg-purple-100 dark:bg-purple-900/30 rounded-full">
+                  <div className="flex items-center gap-2 px-3 py-1 bg-purple-900/30 rounded-full">
                     <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                    <span className="text-purple-700 dark:text-purple-400 font-medium">
+                    <span className="text-purple-400 font-medium">
                       {project.nodes?.length || 0} nodes
                     </span>
                   </div>
                   
                   <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    <span className="text-purple-600 dark:text-purple-400 font-medium">Open</span>
+                    <span className="text-purple-400 font-medium">Open</span>
                     <ArrowRight className="h-4 w-4 text-purple-500 group-hover:translate-x-1 transition-transform duration-300" />
                   </div>
                 </div>

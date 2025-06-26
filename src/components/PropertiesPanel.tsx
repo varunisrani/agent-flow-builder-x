@@ -99,11 +99,11 @@ export function PropertiesPanel({ selectedNode, onClose, onUpdateNode }: Propert
         return (
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 text-gray-300 mb-2">
                 Model Type
               </label>
               <select 
-                className="w-full bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm rounded-xl border-[2px] border-black/5 dark:border-white/10 p-3 text-sm text-gray-900 dark:text-white focus:border-purple-500/50 dark:focus:border-purple-400/50 focus:ring-0 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30"
+                className="w-full bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent from-zinc-300/5 via-gray-400/5 backdrop-blur-sm rounded-xl border-[2px] border-white/10 p-3 text-sm text-gray-900 text-white focus:border-purple-500/50 focus:border-purple-400/50 focus:ring-0 transition-all duration-300 hover:border-purple-500/30 hover:border-purple-400/30"
                 value={modelType}
                 onChange={handleModelTypeChange}
               >
@@ -116,7 +116,7 @@ export function PropertiesPanel({ selectedNode, onClose, onUpdateNode }: Propert
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 text-gray-300 mb-2">
                 Temperature
               </label>
               <input 
@@ -127,7 +127,7 @@ export function PropertiesPanel({ selectedNode, onClose, onUpdateNode }: Propert
                 defaultValue="0.7"
                 className="w-full h-2 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-lg appearance-none slider-thumb" 
               />
-              <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mt-1">
+              <div className="flex justify-between text-xs text-gray-600 text-gray-400 mt-1">
                 <span>0</span>
                 <span>1</span>
               </div>
@@ -139,10 +139,10 @@ export function PropertiesPanel({ selectedNode, onClose, onUpdateNode }: Propert
         return (
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 text-gray-300 mb-2">
                 Tool Type
               </label>
-              <select className="w-full bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm rounded-xl border-[2px] border-black/5 dark:border-white/10 p-3 text-sm text-gray-900 dark:text-white focus:border-purple-500/50 dark:focus:border-purple-400/50 focus:ring-0 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30">
+              <select className="w-full bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent from-zinc-300/5 via-gray-400/5 backdrop-blur-sm rounded-xl border-[2px] border-white/10 p-3 text-sm text-gray-900 text-white focus:border-purple-500/50 focus:border-purple-400/50 focus:ring-0 transition-all duration-300 hover:border-purple-500/30 hover:border-purple-400/30">
                 <option value="google_search">Google Search</option>
                 <option value="calculator">Calculator</option>
                 <option value="weather_api">Weather API</option>
@@ -151,12 +151,12 @@ export function PropertiesPanel({ selectedNode, onClose, onUpdateNode }: Propert
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 text-gray-300 mb-2">
                 API Key (if needed)
               </label>
               <input 
                 type="password"
-                className="w-full bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm rounded-xl border-[2px] border-black/5 dark:border-white/10 p-3 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:border-purple-500/50 dark:focus:border-purple-400/50 focus:ring-0 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30" 
+                className="w-full bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent from-zinc-300/5 via-gray-400/5 backdrop-blur-sm rounded-xl border-[2px] border-white/10 p-3 text-sm text-gray-900 text-white placeholder-gray-500 placeholder-gray-400 focus:border-purple-500/50 focus:border-purple-400/50 focus:ring-0 transition-all duration-300 hover:border-purple-500/30 hover:border-purple-400/30" 
                 placeholder="Enter API key..."
               />
             </div>
@@ -167,23 +167,23 @@ export function PropertiesPanel({ selectedNode, onClose, onUpdateNode }: Propert
         return (
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 text-gray-300 mb-2">
                 System Instruction
               </label>
               <textarea
                 rows={4}
                 value={nodeInstruction}
                 onChange={handleInstructionChange}
-                className="w-full bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm rounded-xl border-[2px] border-black/5 dark:border-white/10 p-3 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:border-purple-500/50 dark:focus:border-purple-400/50 focus:ring-0 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30 resize-none"
+                className="w-full bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent from-zinc-300/5 via-gray-400/5 backdrop-blur-sm rounded-xl border-[2px] border-white/10 p-3 text-sm text-gray-900 text-white placeholder-gray-500 placeholder-gray-400 focus:border-purple-500/50 focus:border-purple-400/50 focus:ring-0 transition-all duration-300 hover:border-purple-500/30 hover:border-purple-400/30 resize-none"
                 placeholder="You are a helpful assistant that..."
               />
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 text-gray-300 mb-2">
                 Agent Type
               </label>
-              <select className="w-full bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm rounded-xl border-[2px] border-black/5 dark:border-white/10 p-3 text-sm text-gray-900 dark:text-white focus:border-purple-500/50 dark:focus:border-purple-400/50 focus:ring-0 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30">
+              <select className="w-full bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent from-zinc-300/5 via-gray-400/5 backdrop-blur-sm rounded-xl border-[2px] border-white/10 p-3 text-sm text-gray-900 text-white focus:border-purple-500/50 focus:border-purple-400/50 focus:ring-0 transition-all duration-300 hover:border-purple-500/30 hover:border-purple-400/30">
                 <option value="LlmAgent">LLM Agent</option>
                 <option value="Agent">Standard Agent</option>
                 <option value="MultiModalAgent">Multi-Modal Agent</option>
@@ -197,24 +197,24 @@ export function PropertiesPanel({ selectedNode, onClose, onUpdateNode }: Propert
         return (
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 text-gray-300 mb-2">
                 MCP Server URL
               </label>
               <input
                 type="text"
                 value={mcpUrl}
                 onChange={handleMcpUrlChange}
-                className="w-full bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm rounded-xl border-[2px] border-black/5 dark:border-white/10 p-3 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:border-purple-500/50 dark:focus:border-purple-400/50 focus:ring-0 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30"
+                className="w-full bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent from-zinc-300/5 via-gray-400/5 backdrop-blur-sm rounded-xl border-[2px] border-white/10 p-3 text-sm text-gray-900 text-white placeholder-gray-500 placeholder-gray-400 focus:border-purple-500/50 focus:border-purple-400/50 focus:ring-0 transition-all duration-300 hover:border-purple-500/30 hover:border-purple-400/30"
                 placeholder="http://localhost:8080"
               />
             </div>
             
-            <div className="p-4 bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-transparent dark:from-blue-400/10 dark:via-purple-400/10 backdrop-blur-sm rounded-xl border-[2px] border-blue-500/20 dark:border-blue-400/20">
+            <div className="p-4 bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-transparent from-blue-400/10 via-purple-400/10 backdrop-blur-sm rounded-xl border-[2px] border-blue-500/20 border-blue-400/20">
               <div className="flex items-center gap-2 mb-2">
-                <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                <p className="font-medium text-blue-700 dark:text-blue-300 text-sm">MCP Client Info</p>
+                <Sparkles className="w-4 h-4 text-blue-600 text-blue-400" />
+                <p className="font-medium text-blue-700 text-blue-300 text-sm">MCP Client Info</p>
               </div>
-              <p className="text-blue-600 dark:text-blue-300 text-xs leading-relaxed">This node will connect to an MCP server to use its tools.</p>
+              <p className="text-blue-600 text-blue-300 text-xs leading-relaxed">This node will connect to an MCP server to use its tools.</p>
             </div>
           </div>
         );
@@ -223,22 +223,22 @@ export function PropertiesPanel({ selectedNode, onClose, onUpdateNode }: Propert
         return (
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 text-gray-300 mb-2">
                 Port (optional)
               </label>
               <input
                 type="text"
                 placeholder="8080"
-                className="w-full bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm rounded-xl border-[2px] border-black/5 dark:border-white/10 p-3 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:border-purple-500/50 dark:focus:border-purple-400/50 focus:ring-0 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30"
+                className="w-full bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent from-zinc-300/5 via-gray-400/5 backdrop-blur-sm rounded-xl border-[2px] border-white/10 p-3 text-sm text-gray-900 text-white placeholder-gray-500 placeholder-gray-400 focus:border-purple-500/50 focus:border-purple-400/50 focus:ring-0 transition-all duration-300 hover:border-purple-500/30 hover:border-purple-400/30"
               />
             </div>
             
-            <div className="p-4 bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-transparent dark:from-blue-400/10 dark:via-purple-400/10 backdrop-blur-sm rounded-xl border-[2px] border-blue-500/20 dark:border-blue-400/20">
+            <div className="p-4 bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-transparent from-blue-400/10 via-purple-400/10 backdrop-blur-sm rounded-xl border-[2px] border-blue-500/20 border-blue-400/20">
               <div className="flex items-center gap-2 mb-2">
-                <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                <p className="font-medium text-blue-700 dark:text-blue-300 text-sm">MCP Server Info</p>
+                <Sparkles className="w-4 h-4 text-blue-600 text-blue-400" />
+                <p className="font-medium text-blue-700 text-blue-300 text-sm">MCP Server Info</p>
               </div>
-              <p className="text-blue-600 dark:text-blue-300 text-xs leading-relaxed">This node will expose your agent tools to other systems via MCP.</p>
+              <p className="text-blue-600 text-blue-300 text-xs leading-relaxed">This node will expose your agent tools to other systems via MCP.</p>
             </div>
           </div>
         );
@@ -247,24 +247,24 @@ export function PropertiesPanel({ selectedNode, onClose, onUpdateNode }: Propert
         return (
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 text-gray-300 mb-2">
                 MCP Tool ID
               </label>
               <input
                 type="text"
                 value={mcpToolId}
                 onChange={handleMcpToolIdChange}
-                className="w-full bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm rounded-xl border-[2px] border-black/5 dark:border-white/10 p-3 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:border-purple-500/50 dark:focus:border-purple-400/50 focus:ring-0 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30"
+                className="w-full bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent from-zinc-300/5 via-gray-400/5 backdrop-blur-sm rounded-xl border-[2px] border-white/10 p-3 text-sm text-gray-900 text-white placeholder-gray-500 placeholder-gray-400 focus:border-purple-500/50 focus:border-purple-400/50 focus:ring-0 transition-all duration-300 hover:border-purple-500/30 hover:border-purple-400/30"
                 placeholder="tool_name"
               />
             </div>
             
-            <div className="p-4 bg-gradient-to-br from-amber-500/10 via-orange-500/10 to-transparent dark:from-amber-400/10 dark:via-orange-400/10 backdrop-blur-sm rounded-xl border-[2px] border-amber-500/20 dark:border-amber-400/20">
+            <div className="p-4 bg-gradient-to-br from-amber-500/10 via-orange-500/10 to-transparent from-amber-400/10 via-orange-400/10 backdrop-blur-sm rounded-xl border-[2px] border-amber-500/20 border-amber-400/20">
               <div className="flex items-center gap-2 mb-2">
-                <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                <p className="font-medium text-amber-700 dark:text-amber-300 text-sm">MCP Tool Info</p>
+                <Sparkles className="w-4 h-4 text-amber-600 text-amber-400" />
+                <p className="font-medium text-amber-700 text-amber-300 text-sm">MCP Tool Info</p>
               </div>
-              <p className="text-amber-600 dark:text-amber-300 text-xs leading-relaxed">Connect this node to an MCP client to use it in your agent.</p>
+              <p className="text-amber-600 text-amber-300 text-xs leading-relaxed">Connect this node to an MCP client to use it in your agent.</p>
             </div>
           </div>
         );
@@ -276,25 +276,25 @@ export function PropertiesPanel({ selectedNode, onClose, onUpdateNode }: Propert
   
   return (
     <div className={cn(
-      "fixed top-0 right-0 h-screen w-80 bg-gradient-to-br from-zinc-300/10 via-purple-400/10 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 backdrop-blur-xl border-l-[2px] border-black/5 dark:border-white/10 transition-transform duration-300 z-10 shadow-2xl",
+      "fixed top-0 right-0 h-screen w-80 bg-gradient-to-br from-zinc-300/10 via-purple-400/10 to-transparent from-zinc-300/5 via-purple-400/10 backdrop-blur-xl border-l-[2px] border-white/10 transition-transform duration-300 z-10 shadow-2xl",
       selectedNode ? "translate-x-0" : "translate-x-full"
     )}>
       {/* Header with gradient background */}
-      <div className="p-6 border-b-[2px] border-black/5 dark:border-white/10 bg-gradient-to-r from-purple-500/5 via-pink-500/5 to-transparent dark:from-purple-400/5 dark:via-orange-200/5">
+      <div className="p-6 border-b-[2px] border-white/10 bg-gradient-to-r from-purple-500/5 via-pink-500/5 to-transparent from-purple-400/5 via-orange-200/5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-gradient-to-tr from-purple-500/20 via-pink-500/20 to-transparent dark:from-purple-400/20 dark:via-orange-200/20 border border-purple-500/30 dark:border-purple-400/30">
-              <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+            <div className="p-2 rounded-xl bg-gradient-to-tr from-purple-500/20 via-pink-500/20 to-transparent from-purple-400/20 via-orange-200/20 border border-purple-500/30 border-purple-400/30">
+              <Sparkles className="w-4 h-4 text-purple-600 text-purple-400" />
             </div>
-            <h2 className="text-lg font-semibold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-500 dark:from-purple-300 dark:to-orange-200">
+            <h2 className="text-lg font-semibold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-500 from-purple-300 to-orange-200">
               {getPanelTitle()}
             </h2>
           </div>
           <button 
             onClick={onClose}
-            className="p-2 rounded-xl bg-gradient-to-tr from-zinc-300/20 via-gray-400/20 to-transparent dark:from-zinc-300/10 dark:via-gray-400/10 border-[2px] border-black/5 dark:border-white/10 hover:border-purple-500/30 dark:hover:border-purple-400/30 transition-all duration-300 group"
+            className="p-2 rounded-xl bg-gradient-to-tr from-zinc-300/20 via-gray-400/20 to-transparent from-zinc-300/10 via-gray-400/10 border-[2px] border-white/10 hover:border-purple-500/30 hover:border-purple-400/30 transition-all duration-300 group"
           >
-            <X className="w-4 h-4 text-gray-700 dark:text-gray-300 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors duration-300" />
+            <X className="w-4 h-4 text-gray-700 text-gray-300 group-hover:text-purple-600 group-hover:text-purple-400 transition-colors duration-300" />
           </button>
         </div>
       </div>
@@ -304,26 +304,26 @@ export function PropertiesPanel({ selectedNode, onClose, onUpdateNode }: Propert
         {selectedNode && (
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 text-gray-300 mb-2">
                 Name
               </label>
               <input 
                 type="text"
                 value={nodeName}
                 onChange={handleNameChange}
-                className="w-full bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm rounded-xl border-[2px] border-black/5 dark:border-white/10 p-3 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:border-purple-500/50 dark:focus:border-purple-400/50 focus:ring-0 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30" 
+                className="w-full bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent from-zinc-300/5 via-gray-400/5 backdrop-blur-sm rounded-xl border-[2px] border-white/10 p-3 text-sm text-gray-900 text-white placeholder-gray-500 placeholder-gray-400 focus:border-purple-500/50 focus:border-purple-400/50 focus:ring-0 transition-all duration-300 hover:border-purple-500/30 hover:border-purple-400/30" 
                 placeholder="Node name..."
               />
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-700 text-gray-300 mb-2">
                 Description
               </label>
               <textarea 
                 value={nodeDescription}
                 onChange={handleDescriptionChange}
-                className="w-full bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm rounded-xl border-[2px] border-black/5 dark:border-white/10 p-3 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:border-purple-500/50 dark:focus:border-purple-400/50 focus:ring-0 transition-all duration-300 hover:border-purple-500/30 dark:hover:border-purple-400/30 resize-none"
+                className="w-full bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent from-zinc-300/5 via-gray-400/5 backdrop-blur-sm rounded-xl border-[2px] border-white/10 p-3 text-sm text-gray-900 text-white placeholder-gray-500 placeholder-gray-400 focus:border-purple-500/50 focus:border-purple-400/50 focus:ring-0 transition-all duration-300 hover:border-purple-500/30 hover:border-purple-400/30 resize-none"
                 rows={3}
                 placeholder="Describe this node..."
               />
@@ -335,7 +335,7 @@ export function PropertiesPanel({ selectedNode, onClose, onUpdateNode }: Propert
       </div>
       
       {/* Footer gradient */}
-      <div className="h-4 bg-gradient-to-t from-purple-500/5 via-pink-500/5 to-transparent dark:from-purple-400/5 dark:via-orange-200/5"></div>
+      <div className="h-4 bg-gradient-to-t from-purple-500/5 via-pink-500/5 to-transparent from-purple-400/5 via-orange-200/5"></div>
     </div>
   );
 }

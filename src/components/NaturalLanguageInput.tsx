@@ -676,34 +676,34 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
   
   return (
     <div className={cn(
-      "natural-language-input fixed left-1/2 transform -translate-x-1/2 transition-all duration-500 bg-gradient-to-br from-zinc-300/10 via-purple-400/10 to-transparent dark:from-zinc-300/5 dark:via-purple-400/10 backdrop-blur-xl rounded-t-xl border-[2px] border-black/5 dark:border-white/10 shadow-2xl z-50",
+      "natural-language-input fixed left-1/2 transform -translate-x-1/2 transition-all duration-500 bg-gradient-to-br from-zinc-300/5 via-purple-400/10 to-transparent backdrop-blur-xl rounded-t-xl border-[2px] border-white/10 shadow-2xl z-50",
       expanded 
         ? "bottom-0 w-[min(95vw,1000px)] h-[70vh] sm:w-[min(90vw,900px)]" 
         : "bottom-6 w-[min(400px,90vw)] sm:w-[min(350px,30vw)] h-auto"
     )}>
       <div 
-        className="flex items-center justify-between p-4 border-b-[2px] border-black/5 dark:border-white/10 cursor-pointer bg-gradient-to-r from-purple-500/5 via-pink-500/5 to-transparent dark:from-purple-400/5 dark:via-orange-200/5 hover:from-purple-500/10 hover:via-pink-500/10 hover:to-transparent dark:hover:from-purple-400/10 dark:hover:via-orange-200/10 transition-all duration-300 group"
+        className="flex items-center justify-between p-4 border-b-[2px] border-white/10 cursor-pointer bg-gradient-to-r from-purple-400/5 via-orange-200/5 to-transparent hover:from-purple-400/10 hover:via-orange-200/10 hover:to-transparent transition-all duration-300 group"
         onClick={() => {
           console.log('NaturalLanguageInput: Toggle clicked, current state:', expanded);
           onToggle();
         }}
       >
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-gradient-to-tr from-purple-500/20 via-pink-500/20 to-transparent dark:from-purple-400/20 dark:via-orange-200/20 border border-purple-500/30 dark:border-purple-400/30 group-hover:scale-110 transition-transform duration-300">
-            <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400 group-hover:rotate-12 transition-transform duration-300" />
+          <div className="p-2 rounded-lg bg-gradient-to-tr from-purple-400/20 via-orange-200/20 to-transparent border border-purple-400/30 group-hover:scale-110 transition-transform duration-300">
+            <Sparkles className="w-5 h-5 text-purple-400 group-hover:rotate-12 transition-transform duration-300" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-500 dark:from-purple-300 dark:to-orange-200">
+            <h3 className="text-sm font-semibold text-transparent bg-clip-text bg-gradient-to-r from-purple-300 to-orange-200">
               🤖 AI Agent Builder
             </h3>
-            <p className="text-xs text-gray-600 dark:text-gray-400">
+            <p className="text-xs text-gray-400">
               {expanded ? "Describe your agent below" : "Click to build your AI agent"}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 animate-pulse" />
-          <PanelTop className={cn("w-4 h-4 text-purple-600 dark:text-purple-400 transition-transform duration-300", expanded && "rotate-180")} />
+          <PanelTop className={cn("w-4 h-4 text-purple-400 transition-transform duration-300", expanded && "rotate-180")} />
         </div>
       </div>
       
@@ -713,10 +713,10 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
             {/* Simplified No-Code Interface */}
             <div className="space-y-4">
               <div className="text-center space-y-2">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                <h2 className="text-xl font-bold text-white">
                   Build Your AI Agent
                 </h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-sm text-gray-400">
                   Describe what you want your AI agent to do in plain English
                 </p>
               </div>
@@ -747,16 +747,16 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
                 ].map((item, index) => (
                   <div 
                     key={index}
-                    className="p-4 rounded-lg border border-purple-200/50 dark:border-purple-800/50 bg-gradient-to-br from-purple-50/50 to-blue-50/30 dark:from-purple-950/30 dark:to-blue-950/20 hover:border-purple-300/70 dark:hover:border-purple-700/70 transition-all cursor-pointer group"
+                    className="p-4 rounded-lg border border-purple-200/50 border-purple-800/50 bg-gradient-to-br from-purple-50/50 to-blue-50/30 from-purple-950/30 to-blue-950/20 hover:border-purple-300/70 hover:border-purple-700/70 transition-all cursor-pointer group"
                     onClick={() => setPrompt(item.example)}
                   >
                     <div className="flex items-start gap-3">
                       <span className="text-2xl">{item.icon}</span>
                       <div className="flex-1">
-                        <h3 className="font-medium text-gray-900 dark:text-white text-sm mb-1">
+                        <h3 className="font-medium text-white text-white text-sm mb-1">
                           {item.title}
                         </h3>
-                        <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
+                        <p className="text-xs text-gray-400 text-gray-400 line-clamp-2 group-hover:text-purple-400 group-hover:text-purple-400 transition-colors">
                           {item.example}
                         </p>
                       </div>
@@ -767,7 +767,7 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
             </div>
 
             {/* Advanced Options Toggle */}
-            <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+            <div className="border-t border-gray-200 border-gray-700 pt-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <Switch
@@ -775,14 +775,14 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
                     checked={mcpEnabled}
                     onCheckedChange={setMcpEnabled}
                   />
-                  <Label htmlFor="advanced-mode" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <Label htmlFor="advanced-mode" className="text-sm font-medium text-gray-300 text-gray-300">
                     Advanced Features (External Tools & APIs)
                   </Label>
                 </div>
               </div>
               {mcpEnabled && (
-                <div className="mt-4 p-4 bg-blue-50/50 dark:bg-blue-950/20 rounded-lg border border-blue-200/50 dark:border-blue-800/50">
-                  <p className="text-sm text-blue-700 dark:text-blue-300 mb-3">
+                <div className="mt-4 p-4 bg-blue-50/50 bg-blue-950/20 rounded-lg border border-blue-200/50 border-blue-800/50">
+                  <p className="text-sm text-blue-300 text-blue-300 mb-3">
                     ⚡ Advanced mode enables your agent to use external tools and APIs
                   </p>
                 </div>
@@ -790,16 +790,16 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
             </div>
           
           {mcpEnabled && (
-            <div className="space-y-4 p-4 bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-transparent dark:from-blue-400/10 dark:via-purple-400/10 backdrop-blur-sm rounded-xl border-[2px] border-blue-500/20 dark:border-blue-400/20">
+            <div className="space-y-4 p-4 bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-transparent from-blue-400/10 via-purple-400/10 backdrop-blur-sm rounded-xl border-[2px] border-blue-500/20 border-blue-400/20">
               <div className="flex items-center gap-2 mb-4">
-                <div className="p-1.5 rounded-lg bg-gradient-to-tr from-blue-500/20 via-purple-500/20 to-transparent dark:from-blue-400/20 dark:via-purple-400/20 border border-blue-500/30 dark:border-blue-400/30">
-                  <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <div className="p-1.5 rounded-lg bg-gradient-to-tr from-blue-500/20 via-purple-500/20 to-transparent from-blue-400/20 via-purple-400/20 border border-blue-500/30 border-blue-400/30">
+                  <Sparkles className="w-4 h-4 text-blue-400 text-blue-400" />
                 </div>
-                <div className="text-sm font-semibold text-blue-700 dark:text-blue-300">External Tools Configuration</div>
+                <div className="text-sm font-semibold text-blue-300 text-blue-300">External Tools Configuration</div>
               </div>
               
               <div className="space-y-3">
-                <div className="text-sm text-blue-600 dark:text-blue-300">
+                <div className="text-sm text-blue-400 text-blue-300">
                   Select tools your agent can use:
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -809,7 +809,7 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
                     { id: 'files', name: 'File System', icon: '📁' },
                     { id: 'api', name: 'API Calls', icon: '🌐' }
                   ].map(tool => (
-                    <div key={tool.id} className="flex items-center space-x-2 p-2 rounded border border-blue-200 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/20">
+                    <div key={tool.id} className="flex items-center space-x-2 p-2 rounded border border-blue-200 border-blue-700 bg-blue-50/50 bg-blue-900/20">
                       <input 
                         type="checkbox" 
                         id={tool.id}
@@ -826,22 +826,22 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
               </div>
               
               <div className="space-y-3">
-                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Command</Label>
+                <Label className="text-sm font-medium text-gray-300 text-gray-300">Command</Label>
                 <Input 
                   value={mcpCommand}
                   onChange={(e) => setMcpCommand(e.target.value)}
                   placeholder="Command (e.g., npx)"
-                  className="bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border-[2px] border-black/5 dark:border-white/10 focus:border-purple-500/50 dark:focus:border-purple-400/50"
+                  className="bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent from-zinc-300/5 via-gray-400/5 backdrop-blur-sm border-[2px] border-white/10 focus:border-purple-500/50 focus:border-purple-400/50"
                 />
               </div>
               
               <div className="space-y-3">
-                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Arguments</Label>
+                <Label className="text-sm font-medium text-gray-300 text-gray-300">Arguments</Label>
                 <Input 
                   value={mcpArgs.join(' ')}
                   onChange={(e) => setMcpArgs(e.target.value.split(' ').filter(Boolean))}
                   placeholder="Command arguments"
-                  className="bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent dark:from-zinc-300/5 dark:via-gray-400/5 backdrop-blur-sm border-[2px] border-black/5 dark:border-white/10 focus:border-purple-500/50 dark:focus:border-purple-400/50"
+                  className="bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent from-zinc-300/5 via-gray-400/5 backdrop-blur-sm border-[2px] border-white/10 focus:border-purple-500/50 focus:border-purple-400/50"
                 />
               </div>
               
@@ -1257,16 +1257,16 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
             </div>
           )}
           
-          <div className="mb-4 p-4 rounded-xl bg-gradient-to-br from-green-50/50 via-blue-50/30 to-purple-50/20 dark:from-green-950/20 dark:via-blue-950/20 dark:to-purple-950/20 border border-green-200/50 dark:border-green-800/50">
+          <div className="mb-4 p-4 rounded-xl bg-gradient-to-br from-green-50/50 via-blue-50/30 to-purple-50/20 from-green-950/20 via-blue-950/20 to-purple-950/20 border border-green-200/50 border-green-800/50">
             <div className="flex items-start gap-3 mb-3">
               <div className="p-1.5 rounded-lg bg-green-500/20 border border-green-500/30 flex-shrink-0 mt-0.5">
-                <Sparkles className="w-3 h-3 text-green-600 dark:text-green-400" />
+                <Sparkles className="w-3 h-3 text-green-400 text-green-400" />
               </div>
               <div>
-                <h4 className="text-sm font-medium text-green-800 dark:text-green-300 mb-1">
+                <h4 className="text-sm font-medium text-green-300 text-green-300 mb-1">
                   💡 Quick Start Guide
                 </h4>
-                <p className="text-xs text-green-700 dark:text-green-400 leading-relaxed">
+                <p className="text-xs text-green-300 text-green-400 leading-relaxed">
                   {mcpEnabled
                     ? "Describe what you want your AI agent to do using external tools and services"
                     : "Simply describe what you want your AI agent to do in plain English"}
@@ -1275,30 +1275,30 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
             </div>
             
             <div className="space-y-2">
-              <div className="text-xs font-medium text-green-800 dark:text-green-300">Example prompts:</div>
+              <div className="text-xs font-medium text-green-300 text-green-300">Example prompts:</div>
               <div className="space-y-1.5 text-xs">
                 {mcpEnabled ? (
                   <>
-                    <div className="p-2 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-green-200/50 dark:border-green-700/50">
-                      <span className="text-gray-700 dark:text-gray-300">"Create an agent that can search GitHub repositories and create issues"</span>
+                    <div className="p-2 bg-white/60 bg-gray-800/60 rounded-lg border border-green-200/50 border-green-700/50">
+                      <span className="text-gray-300 text-gray-300">"Create an agent that can search GitHub repositories and create issues"</span>
                     </div>
-                    <div className="p-2 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-green-200/50 dark:border-green-700/50">
-                      <span className="text-gray-700 dark:text-gray-300">"Build an agent that manages time zones and scheduling across different regions"</span>
+                    <div className="p-2 bg-white/60 bg-gray-800/60 rounded-lg border border-green-200/50 border-green-700/50">
+                      <span className="text-gray-300 text-gray-300">"Build an agent that manages time zones and scheduling across different regions"</span>
                     </div>
-                    <div className="p-2 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-green-200/50 dark:border-green-700/50">
-                      <span className="text-gray-700 dark:text-gray-300">"I need an agent that can analyze documents and extract key information"</span>
+                    <div className="p-2 bg-white/60 bg-gray-800/60 rounded-lg border border-green-200/50 border-green-700/50">
+                      <span className="text-gray-300 text-gray-300">"I need an agent that can analyze documents and extract key information"</span>
                     </div>
                   </>
                 ) : (
                   <>
-                    <div className="p-2 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-green-200/50 dark:border-green-700/50">
-                      <span className="text-gray-700 dark:text-gray-300">"Create a customer support agent that can search for answers and help users"</span>
+                    <div className="p-2 bg-white/60 bg-gray-800/60 rounded-lg border border-green-200/50 border-green-700/50">
+                      <span className="text-gray-300 text-gray-300">"Create a customer support agent that can search for answers and help users"</span>
                     </div>
-                    <div className="p-2 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-green-200/50 dark:border-green-700/50">
-                      <span className="text-gray-700 dark:text-gray-300">"Build a research assistant that can find information on any topic"</span>
+                    <div className="p-2 bg-white/60 bg-gray-800/60 rounded-lg border border-green-200/50 border-green-700/50">
+                      <span className="text-gray-300 text-gray-300">"Build a research assistant that can find information on any topic"</span>
                     </div>
-                    <div className="p-2 bg-white/60 dark:bg-gray-800/60 rounded-lg border border-green-200/50 dark:border-green-700/50">
-                      <span className="text-gray-700 dark:text-gray-300">"I want an agent that helps users plan trips and find travel information"</span>
+                    <div className="p-2 bg-white/60 bg-gray-800/60 rounded-lg border border-green-200/50 border-green-700/50">
+                      <span className="text-gray-300 text-gray-300">"I want an agent that helps users plan trips and find travel information"</span>
                     </div>
                   </>
                 )}
@@ -1346,7 +1346,7 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
           </div>
           
           {/* Fixed bottom section for input */}
-          <div className="border-t border-black/5 dark:border-white/10 bg-gradient-to-r from-purple-500/2 via-pink-500/2 to-transparent dark:from-purple-400/2 dark:via-orange-200/2 p-4">
+          <div className="border-t border-white/10 bg-gradient-to-r from-purple-500/2 via-pink-500/2 to-transparent from-purple-400/2 via-orange-200/2 p-4">
             <form onSubmit={handleSubmit} className="space-y-3">
               <div className="relative">
                 <textarea
@@ -1381,7 +1381,7 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
               </div>
               
               {error && (
-                <div className="text-xs text-red-500 flex items-center gap-1 bg-red-50 dark:bg-red-950/30 p-2 rounded-lg">
+                <div className="text-xs text-red-500 flex items-center gap-1 bg-red-50 bg-red-950/30 p-2 rounded-lg">
                   <AlertCircle className="w-3 h-3" />
                   <span>{error}</span>
                 </div>
@@ -1393,14 +1393,14 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
                 </div>
                 <span className="relative inline-block overflow-hidden rounded-lg p-[1px]">
                   <span className="absolute inset-[-1000%] animate-[spin_2s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#E2CBFF_0%,#393BB2_50%,#E2CBFF_100%)]" />
-                  <div className="inline-flex h-full w-full cursor-pointer items-center justify-center rounded-lg bg-white dark:bg-gray-950 backdrop-blur-3xl">
+                  <div className="inline-flex h-full w-full cursor-pointer items-center justify-center rounded-lg bg-white bg-gray-950 backdrop-blur-3xl">
                     <button
                       type="submit"
                       disabled={!prompt.trim() || isGenerating}
                       className={cn(
-                        "px-6 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2 bg-gradient-to-tr from-zinc-300/20 via-purple-400/30 to-transparent dark:from-zinc-300/5 dark:via-purple-400/20 border-0",
+                        "px-6 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2 bg-gradient-to-tr from-zinc-300/20 via-purple-400/30 to-transparent from-zinc-300/5 via-purple-400/20 border-0",
                         prompt.trim() && !isGenerating
-                          ? "text-gray-900 dark:text-white hover:scale-105 hover:shadow-lg"
+                          ? "text-white text-white hover:scale-105 hover:shadow-lg"
                           : "text-muted-foreground cursor-not-allowed opacity-50"
                       )}
                     >
