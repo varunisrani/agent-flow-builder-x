@@ -15,7 +15,7 @@ import { Copy, AlertCircle, Loader2, Play, Code, Sparkles } from 'lucide-react';
 import { toast } from '@/hooks/use-toast.js';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { generateMCPCode, MCPConfig, generateFallbackMcpCode, isMcpCode, generateVerifiedCode, dedupeConfigs } from '@/lib/codeGeneration';
+import { generateMCPCode, MCPConfig, generateFallbackMcpCode, isMcpCode, generateVerifiedCode, dedupeConfigs, generateCodeWithAI } from '@/lib/codeGeneration';
 import { type VerificationProgress, type VerificationResult } from '@/lib/codeVerification';
 
 // OpenRouter configuration - Use environment variable for API key
@@ -34,8 +34,7 @@ const CodeHighlighter: React.FC<{ code: string }> = ({ code }) => {
       customStyle={{
         fontSize: '12px',
         borderRadius: '8px',
-        height: '100%',
-        overflowY: 'auto',
+        minHeight: '100%',
         margin: 0,
         padding: '12px',
         backgroundColor: '#1E1E1E',
@@ -684,6 +683,32 @@ export function CodeGenerationModal({
     node.data.description?.toLowerCase().includes('smithery')
   );
 
+  // Check if there are Langfuse nodes in the diagram
+  const hasLangfuseNodes = nodes.some(node => 
+    node.data.type === 'langfuse' ||
+    node.data.langfuseEnabled ||
+    node.data.label?.toLowerCase().includes('langfuse') ||
+    node.data.label?.toLowerCase().includes('analytics') ||
+    node.data.description?.toLowerCase().includes('analytics') ||
+    node.data.description?.toLowerCase().includes('observability') ||
+    node.data.description?.toLowerCase().includes('tracking') ||
+    node.data.description?.toLowerCase().includes('monitor')
+  );
+
+  // Debug logging for Langfuse detection
+  console.log('Langfuse detection:', {
+    hasLangfuseNodes,
+    langfuseNodeCount: nodes.filter(n => n.data.type === 'langfuse').length,
+    enabledLangfuseNodes: nodes.filter(n => n.data.langfuseEnabled).length,
+    nodeDetails: nodes.map(n => ({
+      id: n.id,
+      type: n.data.type,
+      label: n.data.label,
+      langfuseEnabled: n.data.langfuseEnabled,
+      description: n.data.description
+    }))
+  });
+
   // Get unique key for current flow
   const flowKey = getFlowKey(nodes, edges);
 
@@ -715,6 +740,7 @@ export function CodeGenerationModal({
 
   // Function to generate initial code with verification
   const generateInitialCode = async () => {
+    console.log('Generating initial code...');
     setLoading(true);
     setError(null);
     setVerificationProgress(null);
@@ -722,40 +748,38 @@ export function CodeGenerationModal({
 
     try {
       let generatedCode: string;
+      
       if (activeTab === 'adk') {
-        // Use the new verified code generation
-       // Use the new verified code generation
-generatedCode = await generateVerifiedCode(
-  nodes,
-  edges,
-  mcpEnabled,
-  OPENROUTER_API_KEY,
-  (progress) => setVerificationProgress(progress),
-  mcpConfig ? dedupeConfigs(mcpConfig) : undefined
-);
-} else {
-  generatedCode = generateDefaultSearchAgentCode();
-}
+        console.log('Generating initial ADK code with:', { mcpEnabled, hasMcpNodes, hasLangfuseNodes });
+        
+        // Use OpenRouter AI for code generation
+        if (!OPENROUTER_API_KEY) {
+          throw new Error('OpenRouter API key is required for code generation. Please configure VITE_OPENROUTER_API_KEY in your environment.');
+        }
+        
+        console.log('Using OpenRouter AI for code generation');
+        generatedCode = await generateCodeWithAI(nodes, edges, mcpEnabled, OPENROUTER_API_KEY, mcpConfig);
+      } else {
+        console.log('Generating default search agent code for non-ADK tab');
+        generatedCode = generateDefaultSearchAgentCode();
+      }
 
       const formattedCode = formatCodeForDisplay(generatedCode);
       setGeneratedCode(formattedCode);
       storeCode(flowKey, activeTab, formattedCode);
       setIsFirstGeneration(false);
       setVerificationProgress(null);
-    } catch (error) {
-      console.error('Error generating code:', error);
-      setError(error instanceof Error ? error.message : 'An error occurred generating code');
       
-      // Fallback to default generation
-      const defaultCode = generateDefaultSearchAgentCode();
-      const cleanedCode = cleanGeneratedCode(defaultCode, mcpEnabled);
-      setGeneratedCode(cleanedCode);
-      storeCode(flowKey, activeTab, cleanedCode);
+      console.log('Initial code generation completed successfully');
+    } catch (error) {
+      console.error('Error generating initial code:', error);
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred generating code';
+      setError(errorMessage);
 
       toast({
-        title: "Using Default Generation",
-        description: "Error occurred. Using default code generation instead.",
-        variant: "default"
+        title: "Code Generation Failed",
+        description: errorMessage,
+        variant: "destructive"
       });
     } finally {
       setLoading(false);
@@ -773,6 +797,7 @@ generatedCode = await generateVerifiedCode(
 
   // Update the regenerate button click handler with verification
   const handleRegenerate = async () => {
+    console.log('Regenerating code...');
     setLoading(true);
     setError(null);
     setSandboxOutput('');
@@ -781,47 +806,51 @@ generatedCode = await generateVerifiedCode(
     
     try {
       let generatedCode: string;
+      
       if (activeTab === 'adk') {
-          // If we have MCP components, enable MCP mode
+        console.log('Regenerating ADK code with:', { mcpEnabled, hasMcpNodes, hasLangfuseNodes });
+        
+        // If we have MCP components, enable MCP mode
         if (hasMcpNodes && !mcpEnabled) {
-            setMcpEnabled(true);
-          }
-          
-        // Use the new verified code generation
-       generatedCode = await generateVerifiedCode(
-  nodes,
-  edges,
-  mcpEnabled,
-  OPENROUTER_API_KEY,
-  (progress) => setVerificationProgress(progress),
-  mcpConfig ? dedupeConfigs(mcpConfig) : undefined
-);
-} else {
-  generatedCode = generateDefaultSearchAgentCode();
-}
+          setMcpEnabled(true);
+        }
+        
+        // Use OpenRouter AI for code generation
+        if (!OPENROUTER_API_KEY) {
+          throw new Error('OpenRouter API key is required for code generation. Please configure VITE_OPENROUTER_API_KEY in your environment.');
+        }
+        
+        console.log('Using OpenRouter AI for code generation');
+        generatedCode = await generateCodeWithAI(nodes, edges, mcpEnabled, OPENROUTER_API_KEY, mcpConfig);
+      } else {
+        console.log('Generating default search agent code for non-ADK tab');
+        generatedCode = generateDefaultSearchAgentCode();
+      }
 
       const formattedCode = formatCodeForDisplay(generatedCode);
       setGeneratedCode(formattedCode);
       storeCode(flowKey, activeTab, formattedCode);
       setVerificationProgress(null);
+      
+      const features = [];
+      if (mcpEnabled) features.push('MCP tools');
+      if (hasLangfuseNodes) features.push('Langfuse analytics');
+      
       toast({
         title: "Code regenerated",
-        description: "The code has been regenerated and verified successfully."
+        description: `The code has been regenerated successfully${features.length > 0 ? ` with ${features.join(' and ')}` : ''}.`
       });
+      
+      console.log('Code regeneration completed successfully');
     } catch (error) {
       console.error('Error regenerating code:', error);
-      setError(error instanceof Error ? error.message : 'Failed to regenerate code');
-      
-      // Fallback to default generation
-      const defaultCode = generateDefaultSearchAgentCode();
-      const cleanedCode = cleanGeneratedCode(defaultCode, mcpEnabled);
-      setGeneratedCode(cleanedCode);
-      storeCode(flowKey, activeTab, cleanedCode);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to regenerate code';
+      setError(errorMessage);
       
       toast({
-        title: "Using Default Generation",
-        description: "Error occurred. Using default code generation instead.",
-        variant: "default"
+        title: "Code Generation Failed",
+        description: errorMessage,
+        variant: "destructive"
       });
     } finally {
       setLoading(false);
@@ -910,7 +939,7 @@ __all__ = ["root_agent"]`;
               </DialogTitle>
               <DialogDescription className="text-gray-600 text-gray-300 mt-1">
                 <div className="space-y-2">
-                  <p>Your visual workflow has been converted into production-ready code. This code can be deployed and run anywhere.</p>
+                  <p>Your visual workflow has been converted into production-ready code{hasLangfuseNodes ? ' with built-in analytics and observability' : ''}. This code can be deployed and run anywhere.</p>
                   <div className="flex items-center gap-2 text-sm">
                     <div className="flex items-center gap-1">
                       <div className="w-2 h-2 bg-green-500 rounded-full"></div>
@@ -924,6 +953,12 @@ __all__ = ["root_agent"]`;
                       <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
                       <span className="text-purple-700 text-purple-400">Instantly deployable</span>
                     </div>
+                    {hasLangfuseNodes && (
+                      <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 bg-violet-500 rounded-full"></div>
+                        <span className="text-violet-700 text-violet-400">Analytics enabled</span>
+                      </div>
+                    )}
                   </div>
                   {!isFirstGeneration && (
                     <span className="text-sm text-gray-500 text-gray-400"> (Loaded from saved version)</span>
@@ -1003,7 +1038,7 @@ __all__ = ["root_agent"]`;
               </div>
             )}
             
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 flex flex-col min-h-0">
               {error && (
                 <div className="mb-4 p-3 bg-red-50 bg-red-950/30 border border-red-200 border-red-800 rounded-lg text-red-800 text-red-300 text-sm flex items-center gap-2 flex-shrink-0">
                   <AlertCircle className="h-4 w-4" />
@@ -1025,9 +1060,11 @@ __all__ = ["root_agent"]`;
                   </div>
                 </div>
               ) : (
-                <div className="flex-1 flex flex-col overflow-hidden">
-                  <div className="flex-1 relative rounded-xl overflow-hidden border border-gray-700">
-                    <CodeHighlighter code={generatedCode} />
+                <div className="flex-1 flex flex-col min-h-0">
+                  <div className="flex-1 relative rounded-xl border border-gray-700 min-h-0">
+                    <div className="h-full overflow-auto max-h-full">
+                      <CodeHighlighter code={generatedCode} />
+                    </div>
                     <div className="absolute top-3 right-3 flex gap-2">
                       <Button
                         size="sm"

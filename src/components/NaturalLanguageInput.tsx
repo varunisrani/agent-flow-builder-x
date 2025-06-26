@@ -158,6 +158,13 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
   const [mcpArgs, setMcpArgs] = useState<string[]>(MCP_TYPES[0].defaultArgs);
   const [mcpEnvVars, setMcpEnvVars] = useState<{ [key: string]: string }>(MCP_TYPES[0].defaultEnvVars);
   
+  // Langfuse configuration state
+  const [langfuseEnabled, setLangfuseEnabled] = useState(false);
+  const [langfusePublicKey, setLangfusePublicKey] = useState('');
+  const [langfuseSecretKey, setLangfuseSecretKey] = useState('');
+  const [langfuseHost, setLangfuseHost] = useState('https://cloud.langfuse.com');
+  const [langfuseProjectName, setLangfuseProjectName] = useState('');
+  
   // Smithery-specific state
   const [smitheryMcps, setSmitheryMcps] = useState<string[]>([]);
   const [smitheryApiKey, setSmitheryApiKey] = useState('');
@@ -605,6 +612,57 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
         }
       }
       
+      // Add Langfuse analytics node if analytics keywords are mentioned or Langfuse is enabled
+      if (langfuseEnabled || 
+          prompt.toLowerCase().includes('analytics') || 
+          prompt.toLowerCase().includes('tracking') || 
+          prompt.toLowerCase().includes('observability') || 
+          prompt.toLowerCase().includes('langfuse') ||
+          prompt.toLowerCase().includes('monitor')) {
+        
+        const agentNode = nodes.find(n => n.data.type === 'agent');
+        if (agentNode) {
+          // Check if we already have a Langfuse node
+          const existingLangfuseNode = nodes.find(n => 
+            n.data.type === 'langfuse' || 
+            (n.data.label?.toLowerCase().includes('langfuse') || n.data.description?.toLowerCase().includes('analytics'))
+          );
+          
+          // Only add if not already present
+          if (!existingLangfuseNode) {
+            const langfuseNode: Node<BaseNodeData> = {
+              id: `node_${Date.now()}_langfuse`,
+              type: 'baseNode',
+              position: { 
+                x: agentNode.position.x - 200, 
+                y: agentNode.position.y + 150 // Position it below and to the left
+              },
+              data: {
+                label: 'Langfuse Analytics',
+                type: 'langfuse',
+                description: 'Analytics and observability for agent interactions',
+                langfuseEnabled: true,
+                langfusePublicKey: langfusePublicKey,
+                langfuseSecretKey: langfuseSecretKey,
+                langfuseHost: langfuseHost,
+                langfuseProjectName: langfuseProjectName || 'agent-flow-project'
+              },
+              draggable: true
+            };
+            
+            const langfuseEdge: Edge = {
+              id: `edge_${Date.now()}_agent_langfuse`,
+              source: agentNode.id,
+              target: langfuseNode.id,
+              type: 'default'
+            };
+            
+            nodes = [...nodes, langfuseNode];
+            edges = [...edges, langfuseEdge];
+          }
+        }
+      }
+      
       console.log('NaturalLanguageInput: Flow generated successfully:', { 
         nodeCount: nodes.length, 
         edgeCount: edges.length 
@@ -678,7 +736,7 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
     <div className={cn(
       "natural-language-input fixed left-1/2 transform -translate-x-1/2 transition-all duration-500 bg-gradient-to-br from-zinc-300/5 via-purple-400/10 to-transparent backdrop-blur-xl rounded-t-xl border-[2px] border-white/10 shadow-2xl z-50",
       expanded 
-        ? "bottom-0 w-[min(95vw,1000px)] h-[70vh] sm:w-[min(90vw,900px)]" 
+        ? "bottom-0 w-[min(95vw,1000px)] h-[70vh] min-h-[400px] sm:w-[min(90vw,900px)]" 
         : "bottom-6 w-[min(400px,90vw)] sm:w-[min(350px,30vw)] h-auto"
     )}>
       <div 
@@ -708,8 +766,8 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
       </div>
       
       {expanded && (
-        <div className="flex flex-col h-full">
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex flex-col h-full max-h-[calc(70vh-1rem)]">
+          <div className="flex-1 overflow-y-auto p-6 space-y-6 pb-0 max-h-[calc(70vh-12rem)]">
             {/* Simplified No-Code Interface */}
             <div className="space-y-4">
               <div className="text-center space-y-2">
@@ -1256,6 +1314,80 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
               </div>
             </div>
           )}
+
+          {/* Langfuse Analytics Configuration */}
+          <div className="border-t border-gray-200 border-gray-700 pt-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <Switch
+                  id="langfuse-mode"
+                  checked={langfuseEnabled}
+                  onCheckedChange={setLangfuseEnabled}
+                />
+                <Label htmlFor="langfuse-mode" className="text-sm font-medium text-gray-300 text-gray-300">
+                  Enable Analytics & Observability (Langfuse)
+                </Label>
+              </div>
+            </div>
+            {langfuseEnabled && (
+              <div className="mt-4 p-4 bg-violet-50/50 bg-violet-950/20 rounded-lg border border-violet-200/50 border-violet-800/50">
+                <p className="text-sm text-violet-300 text-violet-300 mb-3">
+                  📊 Track your agent's usage, performance, and conversations with Langfuse analytics
+                </p>
+                
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-sm font-medium text-gray-300 text-gray-300">Project Name</Label>
+                    <Input
+                      value={langfuseProjectName}
+                      onChange={(e) => setLangfuseProjectName(e.target.value)}
+                      placeholder="My Agent Project"
+                      className="bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent from-zinc-300/5 via-gray-400/5 backdrop-blur-sm border-[2px] border-white/10 focus:border-violet-500/50 focus:border-violet-400/50"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label className="text-sm font-medium text-gray-300 text-gray-300">Langfuse Host (Optional)</Label>
+                    <Input
+                      value={langfuseHost}
+                      onChange={(e) => setLangfuseHost(e.target.value)}
+                      placeholder="https://cloud.langfuse.com"
+                      className="bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent from-zinc-300/5 via-gray-400/5 backdrop-blur-sm border-[2px] border-white/10 focus:border-violet-500/50 focus:border-violet-400/50"
+                    />
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Leave default for Langfuse Cloud, or enter your self-hosted URL
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <Label className="text-sm font-medium text-gray-300 text-gray-300">Public Key</Label>
+                    <Input
+                      value={langfusePublicKey}
+                      onChange={(e) => setLangfusePublicKey(e.target.value)}
+                      placeholder="pk-lf-..."
+                      className="bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent from-zinc-300/5 via-gray-400/5 backdrop-blur-sm border-[2px] border-white/10 focus:border-violet-500/50 focus:border-violet-400/50"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label className="text-sm font-medium text-gray-300 text-gray-300">Secret Key</Label>
+                    <Input
+                      type="password"
+                      value={langfuseSecretKey}
+                      onChange={(e) => setLangfuseSecretKey(e.target.value)}
+                      placeholder="sk-lf-..."
+                      className="bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent from-zinc-300/5 via-gray-400/5 backdrop-blur-sm border-[2px] border-white/10 focus:border-violet-500/50 focus:border-violet-400/50"
+                    />
+                  </div>
+                  
+                  <div className="text-xs text-muted-foreground">
+                    Get your API keys from <a href="https://cloud.langfuse.com" target="_blank" className="text-violet-400 hover:underline">langfuse.com</a>. 
+                    These will be stored securely as environment variables.
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
           
           <div className="mb-4 p-4 rounded-xl bg-gradient-to-br from-green-50/50 via-blue-50/30 to-purple-50/20 from-green-950/20 via-blue-950/20 to-purple-950/20 border border-green-200/50 border-green-800/50">
             <div className="flex items-start gap-3 mb-3">
@@ -1269,7 +1401,9 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
                 <p className="text-xs text-green-300 text-green-400 leading-relaxed">
                   {mcpEnabled
                     ? "Describe what you want your AI agent to do using external tools and services"
-                    : "Simply describe what you want your AI agent to do in plain English"}
+                    : langfuseEnabled
+                      ? "Describe your AI agent and mention 'analytics' or 'tracking' to automatically include observability"
+                      : "Simply describe what you want your AI agent to do in plain English"}
                 </p>
               </div>
             </div>
@@ -1287,6 +1421,18 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
                     </div>
                     <div className="p-2 bg-white/60 bg-gray-800/60 rounded-lg border border-green-200/50 border-green-700/50">
                       <span className="text-gray-300 text-gray-300">"I need an agent that can analyze documents and extract key information"</span>
+                    </div>
+                  </>
+                ) : langfuseEnabled ? (
+                  <>
+                    <div className="p-2 bg-white/60 bg-gray-800/60 rounded-lg border border-green-200/50 border-green-700/50">
+                      <span className="text-gray-300 text-gray-300">"Create a customer support agent with analytics to track user interactions"</span>
+                    </div>
+                    <div className="p-2 bg-white/60 bg-gray-800/60 rounded-lg border border-green-200/50 border-green-700/50">
+                      <span className="text-gray-300 text-gray-300">"Build a research assistant that tracks usage patterns and performance metrics"</span>
+                    </div>
+                    <div className="p-2 bg-white/60 bg-gray-800/60 rounded-lg border border-green-200/50 border-green-700/50">
+                      <span className="text-gray-300 text-gray-300">"I want an agent with observability to monitor conversation quality and costs"</span>
                     </div>
                   </>
                 ) : (
@@ -1346,7 +1492,7 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
           </div>
           
           {/* Fixed bottom section for input */}
-          <div className="border-t border-white/10 bg-gradient-to-r from-purple-500/2 via-pink-500/2 to-transparent from-purple-400/2 via-orange-200/2 p-4">
+          <div className="flex-shrink-0 border-t border-white/10 bg-gradient-to-r from-purple-500/2 via-pink-500/2 to-transparent from-purple-400/2 via-orange-200/2 p-4">
             <form onSubmit={handleSubmit} className="space-y-3">
               <div className="relative">
                 <textarea

@@ -1,12 +1,9 @@
-import OpenAI from 'openai';
 import { Node, Edge } from '@xyflow/react';
 import { BaseNodeData } from '@/components/nodes/BaseNode';
 
-// Use environment variable for API key with dangerouslyAllowBrowser flag
-const openai = new OpenAI({
-  apiKey: import.meta.env.VITE_OPENAI_API_KEY || '',
-  dangerouslyAllowBrowser: true, // Enable browser usage (not recommended for production)
-});
+// OpenRouter configuration - use environment variable for API key
+const OPENROUTER_API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
+const OPENROUTER_API_BASE = import.meta.env.VITE_OPENROUTER_API_BASE || 'https://openrouter.ai/api/v1';
 
 // Helper types
 type Framework = 'adk' | 'vertex' | 'custom';
@@ -61,17 +58,30 @@ export async function generateCode(
       ${getFrameworkSpecificInstructions(framework)}
     `;
 
-    // Make the API call
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: systemMessage,
-        },
-        {
-          role: 'user',
-          content: `Here is my agent flow diagram represented as nodes and edges. Please generate Python code for this flow using the ${getFrameworkName(framework)} framework.
+    // Check if OpenRouter API key is available
+    if (!OPENROUTER_API_KEY) {
+      throw new Error('OpenRouter API key not configured. Please set VITE_OPENROUTER_API_KEY in your environment.');
+    }
+
+    // Make the OpenRouter API call
+    const response = await fetch(`${OPENROUTER_API_BASE}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : 'https://agent-flow-builder.com',
+        'X-Title': 'Agent Flow Builder'
+      },
+      body: JSON.stringify({
+        model: 'openai/gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: systemMessage,
+          },
+          {
+            role: 'user',
+            content: `Here is my agent flow diagram represented as nodes and edges. Please generate Python code for this flow using the ${getFrameworkName(framework)} framework.
             
             Nodes: ${JSON.stringify(nodeData, null, 2)}
             
@@ -106,13 +116,21 @@ export async function generateCode(
             tools, exit_stack = await MCPToolset.from_server(...)
             
             Please give me the complete Python code implementation.`,
-        },
-      ],
-      temperature: 0.2,
+          },
+        ],
+        temperature: 0.2,
+        max_tokens: 3000
+      })
     });
 
+    if (!response.ok) {
+      throw new Error(`OpenRouter API error: ${response.status} ${response.statusText}`);
+    }
+
+    const result = await response.json();
+
     // Extract and return the generated code
-    const generatedCode = response.choices[0].message.content || '';
+    const generatedCode = result.choices[0]?.message?.content || '';
     
     // Clean up the code (remove markdown code blocks if present)
     return cleanCodeResponse(generatedCode);

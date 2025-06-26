@@ -7,7 +7,7 @@ import { Button } from '../ui/button.js';
 // Modify the interface to extend Record<string, unknown>
 export interface BaseNodeData extends Record<string, unknown> {
   label: string;
-  type: 'agent' | 'tool' | 'input' | 'output' | 'model' | 'mcp-client' | 'mcp-server' | 'mcp-tool';
+  type: 'agent' | 'tool' | 'input' | 'output' | 'model' | 'mcp-client' | 'mcp-server' | 'mcp-tool' | 'langfuse';
   description?: string;
   instruction?: string;
   prompt?: string;
@@ -21,6 +21,12 @@ export interface BaseNodeData extends Record<string, unknown> {
   smitheryApiKey?: string;
   mcpType?: string;
   profileId?: string;
+  // Langfuse-specific properties
+  langfusePublicKey?: string;
+  langfuseSecretKey?: string;
+  langfuseHost?: string;
+  langfuseProjectName?: string;
+  langfuseEnabled?: boolean;
 }
 
 
@@ -53,6 +59,8 @@ const BaseNode = ({ id, data, selected }: BaseNodeProps) => {
         return 'bg-red-500/20 border-red-500/40';
       case 'mcp-tool':
         return 'bg-indigo-500/20 border-indigo-500/40';
+      case 'langfuse':
+        return 'bg-violet-500/20 border-violet-500/40';
       default:
         return 'bg-secondary/20 border-secondary/40';
     }
