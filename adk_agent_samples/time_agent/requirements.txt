@@ -1,0 +1,13 @@
+# Core dependencies for Time Agent with Mem0 Integration
+agentic-flow-builder>=0.1.0
+mem0ai>=1.0.0
+python-dotenv>=1.0.0
+pytz>=2023.3
+
+# Optional dependencies for enhanced features
+chromadb>=0.4.15  # For local memory storage
+openai>=1.0.0     # For enhanced memory features with OpenAI
+
+# Development dependencies
+pytest>=7.0.0
+pytest-asyncio>=0.21.0 

@@ -34,6 +34,36 @@
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 240 4.9% 83.9%;
   }
+
+  .white {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 252 100% 70%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 98%;
+    --secondary-foreground: 240 10% 3.9%;
+    --muted: 210 40% 98%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 260 60% 55%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 62.8% 50.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 215 16.3% 46.9%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 252 100% 70%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 40% 98%;
+    --sidebar-accent-foreground: 240 5.3% 26.1%;
+    --sidebar-border: 214.3 31.8% 91.4%;
+    --sidebar-ring: 215 16.3% 46.9%;
+  }
 }
 
 @layer base {
@@ -65,12 +95,24 @@
     @apply backdrop-blur-xl bg-white/5 border border-white/10 shadow-[0_4px_12px_-2px_rgba(0,0,0,0.3)];
   }
   
+  .white .glass {
+    @apply backdrop-blur-xl bg-black/5 border border-black/10 shadow-[0_4px_12px_-2px_rgba(0,0,0,0.1)];
+  }
+  
   .neo-glass {
     @apply backdrop-blur-2xl bg-black/40 border border-white/10;
   }
 
+  .white .neo-glass {
+    @apply backdrop-blur-2xl bg-white/40 border border-black/10;
+  }
+
   .premium-glass {
     @apply backdrop-blur-xl bg-white/5 border border-premium-light/20 shadow-premium;
+  }
+
+  .white .premium-glass {
+    @apply backdrop-blur-xl bg-black/5 border border-premium/20 shadow-premium;
   }
 
   .premium-card {
