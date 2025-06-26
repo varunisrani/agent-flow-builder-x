@@ -165,6 +165,15 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
   const [langfuseHost, setLangfuseHost] = useState('https://cloud.langfuse.com');
   const [langfuseProjectName, setLangfuseProjectName] = useState('');
   
+  // Mem0 memory configuration state
+  const [memoryEnabled, setMemoryEnabled] = useState(false);
+  const [memoryApiKey, setMemoryApiKey] = useState('');
+  const [memoryHost, setMemoryHost] = useState('https://api.mem0.ai');
+  const [memoryUserId, setMemoryUserId] = useState('default_user');
+  const [memoryOrganization, setMemoryOrganization] = useState('');
+  const [memoryType, setMemoryType] = useState<'preferences' | 'conversation' | 'knowledge' | 'all'>('all');
+  const [memoryRetention, setMemoryRetention] = useState(30);
+  
   // Smithery-specific state
   const [smitheryMcps, setSmitheryMcps] = useState<string[]>([]);
   const [smitheryApiKey, setSmitheryApiKey] = useState('');
@@ -661,6 +670,95 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
             edges = [...edges, langfuseEdge];
           }
         }
+      }
+      
+      // Add Memory node if memory keywords are mentioned or memory is enabled
+      console.log('Memory detection check:', {
+        memoryEnabled,
+        promptContainsMemory: prompt.toLowerCase().includes('memory'),
+        promptContainsRemember: prompt.toLowerCase().includes('remember'),
+        promptContainsLearn: prompt.toLowerCase().includes('learn'),
+        promptContainsContext: prompt.toLowerCase().includes('context'),
+        promptContainsMem0: prompt.toLowerCase().includes('mem0'),
+        promptContainsPersistent: prompt.toLowerCase().includes('persistent'),
+        shouldAddMemoryNode: memoryEnabled || 
+          prompt.toLowerCase().includes('memory') || 
+          prompt.toLowerCase().includes('remember') || 
+          prompt.toLowerCase().includes('learn') || 
+          prompt.toLowerCase().includes('context') ||
+          prompt.toLowerCase().includes('mem0') ||
+          prompt.toLowerCase().includes('persistent')
+      });
+      
+      if (memoryEnabled || 
+          prompt.toLowerCase().includes('memory') || 
+          prompt.toLowerCase().includes('remember') || 
+          prompt.toLowerCase().includes('learn') || 
+          prompt.toLowerCase().includes('context') ||
+          prompt.toLowerCase().includes('mem0') ||
+          prompt.toLowerCase().includes('persistent')) {
+        
+        const agentNode = nodes.find(n => n.data.type === 'agent');
+        console.log('Memory node creation - Agent node found:', !!agentNode);
+        
+        if (agentNode) {
+          // Check if we already have a memory node
+          const existingMemoryNode = nodes.find(n => 
+            n.data.type === 'memory' || 
+            (n.data.label?.toLowerCase().includes('memory') || n.data.description?.toLowerCase().includes('memory'))
+          );
+          
+          console.log('Memory node creation - Existing memory node:', !!existingMemoryNode);
+          
+          // Only add if not already present
+          if (!existingMemoryNode) {
+            console.log('Creating memory node with config:', {
+              memoryApiKey: memoryApiKey ? 'SET' : 'EMPTY',
+              memoryHost,
+              memoryUserId,
+              memoryType,
+              memoryRetention
+            });
+            const memoryNode: Node<BaseNodeData> = {
+              id: `node_${Date.now()}_memory`,
+              type: 'baseNode',
+              position: { 
+                x: agentNode.position.x - 200, 
+                y: agentNode.position.y - 150 // Position it above and to the left
+              },
+              data: {
+                label: 'Mem0 Memory',
+                type: 'memory',
+                description: 'Persistent memory and learning capabilities for agent context',
+                memoryEnabled: true,
+                memoryApiKey: memoryApiKey,
+                memoryHost: memoryHost,
+                memoryUserId: memoryUserId,
+                memoryOrganization: memoryOrganization,
+                memoryType: memoryType,
+                memoryRetention: memoryRetention
+              },
+              draggable: true
+            };
+            
+            const memoryEdge: Edge = {
+              id: `edge_${Date.now()}_agent_memory`,
+              source: memoryNode.id,
+              target: agentNode.id,
+              type: 'default'
+            };
+            
+            nodes = [...nodes, memoryNode];
+            edges = [...edges, memoryEdge];
+            console.log('Memory node added! Total nodes now:', nodes.length, 'Memory node ID:', memoryNode.id);
+          } else {
+            console.log('Memory node already exists, skipping creation');
+          }
+        } else {
+          console.log('No agent node found, cannot create memory node');
+        }
+      } else {
+        console.log('Memory node creation conditions not met');
       }
       
       console.log('NaturalLanguageInput: Flow generated successfully:', { 
@@ -1388,6 +1486,118 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
               </div>
             )}
           </div>
+
+          {/* Mem0 Memory Configuration */}
+          <div className="border-t border-gray-200 border-gray-700 pt-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <Switch
+                  id="memory-mode"
+                  checked={memoryEnabled}
+                  onCheckedChange={setMemoryEnabled}
+                />
+                <Label htmlFor="memory-mode" className="text-sm font-medium text-gray-300 text-gray-300">
+                  Enable Memory & Learning (Mem0)
+                </Label>
+              </div>
+            </div>
+            {memoryEnabled && (
+              <div className="mt-4 p-4 bg-pink-50/50 bg-pink-950/20 rounded-lg border border-pink-200/50 border-pink-800/50">
+                <p className="text-sm text-pink-300 text-pink-300 mb-3">
+                  🧠 Give your agent persistent memory to learn from conversations and remember user preferences
+                </p>
+                
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-sm font-medium text-gray-300 text-gray-300">Memory Type</Label>
+                    <select
+                      value={memoryType}
+                      onChange={(e) => setMemoryType(e.target.value as 'preferences' | 'conversation' | 'knowledge' | 'all')}
+                      className="w-full px-2 py-1 text-sm bg-background border border-border rounded-md"
+                    >
+                      <option value="all">All (Preferences + Conversations + Knowledge)</option>
+                      <option value="preferences">User Preferences Only</option>
+                      <option value="conversation">Conversation History Only</option>
+                      <option value="knowledge">Knowledge Base Only</option>
+                    </select>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Choose what type of information your agent should remember
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="text-sm font-medium text-gray-300 text-gray-300">User ID</Label>
+                    <Input
+                      value={memoryUserId}
+                      onChange={(e) => setMemoryUserId(e.target.value)}
+                      placeholder="default_user"
+                      className="bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent from-zinc-300/5 via-gray-400/5 backdrop-blur-sm border-[2px] border-white/10 focus:border-pink-500/50 focus:border-pink-400/50"
+                    />
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Unique identifier for memory isolation (optional)
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <Label className="text-sm font-medium text-gray-300 text-gray-300">Memory Retention (Days)</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min="1"
+                        max="365"
+                        value={memoryRetention}
+                        onChange={(e) => setMemoryRetention(parseInt(e.target.value) || 30)}
+                        className="w-20 bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent from-zinc-300/5 via-gray-400/5 backdrop-blur-sm border-[2px] border-white/10 focus:border-pink-500/50 focus:border-pink-400/50"
+                      />
+                      <span className="text-xs text-muted-foreground">days</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      How long should memories be retained (1-365 days)
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <Label className="text-sm font-medium text-gray-300 text-gray-300">Mem0 Host (Optional)</Label>
+                    <Input
+                      value={memoryHost}
+                      onChange={(e) => setMemoryHost(e.target.value)}
+                      placeholder="https://api.mem0.ai"
+                      className="bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent from-zinc-300/5 via-gray-400/5 backdrop-blur-sm border-[2px] border-white/10 focus:border-pink-500/50 focus:border-pink-400/50"
+                    />
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Leave default for Mem0 Cloud, or enter your self-hosted URL
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <Label className="text-sm font-medium text-gray-300 text-gray-300">API Key</Label>
+                    <Input
+                      type="password"
+                      value={memoryApiKey}
+                      onChange={(e) => setMemoryApiKey(e.target.value)}
+                      placeholder="m0-..."
+                      className="bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent from-zinc-300/5 via-gray-400/5 backdrop-blur-sm border-[2px] border-white/10 focus:border-pink-500/50 focus:border-pink-400/50"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label className="text-sm font-medium text-gray-300 text-gray-300">Organization (Optional)</Label>
+                    <Input
+                      value={memoryOrganization}
+                      onChange={(e) => setMemoryOrganization(e.target.value)}
+                      placeholder="your-organization-id"
+                      className="bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent from-zinc-300/5 via-gray-400/5 backdrop-blur-sm border-[2px] border-white/10 focus:border-pink-500/50 focus:border-pink-400/50"
+                    />
+                  </div>
+                  
+                  <div className="text-xs text-muted-foreground">
+                    Get your API key from <a href="https://mem0.ai" target="_blank" className="text-pink-400 hover:underline">mem0.ai</a>. 
+                    These will be stored securely as environment variables.
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
           
           <div className="mb-4 p-4 rounded-xl bg-gradient-to-br from-green-50/50 via-blue-50/30 to-purple-50/20 from-green-950/20 via-blue-950/20 to-purple-950/20 border border-green-200/50 border-green-800/50">
             <div className="flex items-start gap-3 mb-3">
@@ -1401,9 +1611,11 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
                 <p className="text-xs text-green-300 text-green-400 leading-relaxed">
                   {mcpEnabled
                     ? "Describe what you want your AI agent to do using external tools and services"
-                    : langfuseEnabled
-                      ? "Describe your AI agent and mention 'analytics' or 'tracking' to automatically include observability"
-                      : "Simply describe what you want your AI agent to do in plain English"}
+                    : memoryEnabled
+                      ? "Describe your AI agent and mention 'memory', 'remember', or 'learn' to automatically include memory capabilities"
+                      : langfuseEnabled
+                        ? "Describe your AI agent and mention 'analytics' or 'tracking' to automatically include observability"
+                        : "Simply describe what you want your AI agent to do in plain English"}
                 </p>
               </div>
             </div>
@@ -1421,6 +1633,18 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
                     </div>
                     <div className="p-2 bg-white/60 bg-gray-800/60 rounded-lg border border-green-200/50 border-green-700/50">
                       <span className="text-gray-300 text-gray-300">"I need an agent that can analyze documents and extract key information"</span>
+                    </div>
+                  </>
+                ) : memoryEnabled ? (
+                  <>
+                    <div className="p-2 bg-white/60 bg-gray-800/60 rounded-lg border border-green-200/50 border-green-700/50">
+                      <span className="text-gray-300 text-gray-300">"Create a customer support agent that remembers user preferences and learns from interactions"</span>
+                    </div>
+                    <div className="p-2 bg-white/60 bg-gray-800/60 rounded-lg border border-green-200/50 border-green-700/50">
+                      <span className="text-gray-300 text-gray-300">"Build a personal assistant that learns my habits and remembers important information"</span>
+                    </div>
+                    <div className="p-2 bg-white/60 bg-gray-800/60 rounded-lg border border-green-200/50 border-green-700/50">
+                      <span className="text-gray-300 text-gray-300">"I want a research agent with memory to track my ongoing projects and maintain context"</span>
                     </div>
                   </>
                 ) : langfuseEnabled ? (

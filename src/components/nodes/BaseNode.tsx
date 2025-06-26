@@ -7,7 +7,7 @@ import { Button } from '../ui/button.js';
 // Modify the interface to extend Record<string, unknown>
 export interface BaseNodeData extends Record<string, unknown> {
   label: string;
-  type: 'agent' | 'tool' | 'input' | 'output' | 'model' | 'mcp-client' | 'mcp-server' | 'mcp-tool' | 'langfuse';
+  type: 'agent' | 'tool' | 'input' | 'output' | 'model' | 'mcp-client' | 'mcp-server' | 'mcp-tool' | 'langfuse' | 'memory';
   description?: string;
   instruction?: string;
   prompt?: string;
@@ -27,6 +27,14 @@ export interface BaseNodeData extends Record<string, unknown> {
   langfuseHost?: string;
   langfuseProjectName?: string;
   langfuseEnabled?: boolean;
+  // Memory-specific properties
+  memoryApiKey?: string;
+  memoryHost?: string;
+  memoryUserId?: string;
+  memoryOrganization?: string;
+  memoryEnabled?: boolean;
+  memoryType?: 'preferences' | 'conversation' | 'knowledge' | 'all';
+  memoryRetention?: number;
 }
 
 
@@ -61,6 +69,8 @@ const BaseNode = ({ id, data, selected }: BaseNodeProps) => {
         return 'bg-indigo-500/20 border-indigo-500/40';
       case 'langfuse':
         return 'bg-violet-500/20 border-violet-500/40';
+      case 'memory':
+        return 'bg-pink-500/20 border-pink-500/40';
       default:
         return 'bg-secondary/20 border-secondary/40';
     }

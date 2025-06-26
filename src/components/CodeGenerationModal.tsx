@@ -15,7 +15,7 @@ import { Copy, AlertCircle, Loader2, Play, Code, Sparkles } from 'lucide-react';
 import { toast } from '@/hooks/use-toast.js';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { generateMCPCode, MCPConfig, generateFallbackMcpCode, isMcpCode, generateVerifiedCode, dedupeConfigs, generateCodeWithAI } from '@/lib/codeGeneration';
+import { generateMCPCode, MCPConfig, generateFallbackMcpCode, isMcpCode, generateVerifiedCode, dedupeConfigs, generateCodeWithAI, hasMemoryNodes, extractMemoryConfigFromNodes } from '@/lib/codeGeneration';
 import { type VerificationProgress, type VerificationResult } from '@/lib/codeVerification';
 
 // OpenRouter configuration - Use environment variable for API key
@@ -695,16 +695,34 @@ export function CodeGenerationModal({
     node.data.description?.toLowerCase().includes('monitor')
   );
 
-  // Debug logging for Langfuse detection
-  console.log('Langfuse detection:', {
+  // Check if there are Memory nodes in the diagram
+  const hasMemoryNodes = nodes.some(node => 
+    node.data.type === 'memory' ||
+    node.data.memoryEnabled ||
+    node.data.label?.toLowerCase().includes('memory') ||
+    node.data.label?.toLowerCase().includes('mem0') ||
+    node.data.description?.toLowerCase().includes('memory') ||
+    node.data.description?.toLowerCase().includes('mem0') ||
+    node.data.description?.toLowerCase().includes('remember') ||
+    node.data.description?.toLowerCase().includes('learn') ||
+    node.data.description?.toLowerCase().includes('context') ||
+    node.data.description?.toLowerCase().includes('persistent')
+  );
+
+  // Debug logging for integrations detection
+  console.log('Integrations detection:', {
     hasLangfuseNodes,
+    hasMemoryNodes,
     langfuseNodeCount: nodes.filter(n => n.data.type === 'langfuse').length,
+    memoryNodeCount: nodes.filter(n => n.data.type === 'memory').length,
     enabledLangfuseNodes: nodes.filter(n => n.data.langfuseEnabled).length,
+    enabledMemoryNodes: nodes.filter(n => n.data.memoryEnabled).length,
     nodeDetails: nodes.map(n => ({
       id: n.id,
       type: n.data.type,
       label: n.data.label,
       langfuseEnabled: n.data.langfuseEnabled,
+      memoryEnabled: n.data.memoryEnabled,
       description: n.data.description
     }))
   });
@@ -750,7 +768,7 @@ export function CodeGenerationModal({
       let generatedCode: string;
       
       if (activeTab === 'adk') {
-        console.log('Generating initial ADK code with:', { mcpEnabled, hasMcpNodes, hasLangfuseNodes });
+        console.log('Generating initial ADK code with:', { mcpEnabled, hasMcpNodes, hasLangfuseNodes, hasMemoryNodes });
         
         // Use OpenRouter AI for code generation
         if (!OPENROUTER_API_KEY) {
@@ -835,6 +853,7 @@ export function CodeGenerationModal({
       const features = [];
       if (mcpEnabled) features.push('MCP tools');
       if (hasLangfuseNodes) features.push('Langfuse analytics');
+      if (hasMemoryNodes) features.push('Mem0 memory');
       
       toast({
         title: "Code regenerated",
@@ -939,7 +958,17 @@ __all__ = ["root_agent"]`;
               </DialogTitle>
               <DialogDescription className="text-gray-600 text-gray-300 mt-1">
                 <div className="space-y-2">
-                  <p>Your visual workflow has been converted into production-ready code{hasLangfuseNodes ? ' with built-in analytics and observability' : ''}. This code can be deployed and run anywhere.</p>
+                  <p>Your visual workflow has been converted into production-ready code{
+                    [
+                      hasMemoryNodes && 'persistent memory',
+                      hasLangfuseNodes && 'analytics and observability'
+                    ].filter(Boolean).length > 0 
+                      ? ' with ' + [
+                          hasMemoryNodes && 'persistent memory',
+                          hasLangfuseNodes && 'analytics and observability'
+                        ].filter(Boolean).join(' and ')
+                      : ''
+                  }. This code can be deployed and run anywhere.</p>
                   <div className="flex items-center gap-2 text-sm">
                     <div className="flex items-center gap-1">
                       <div className="w-2 h-2 bg-green-500 rounded-full"></div>
@@ -957,6 +986,12 @@ __all__ = ["root_agent"]`;
                       <div className="flex items-center gap-1">
                         <div className="w-2 h-2 bg-violet-500 rounded-full"></div>
                         <span className="text-violet-700 text-violet-400">Analytics enabled</span>
+                      </div>
+                    )}
+                    {hasMemoryNodes && (
+                      <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 bg-pink-500 rounded-full"></div>
+                        <span className="text-pink-700 text-pink-400">Memory enabled</span>
                       </div>
                     )}
                   </div>

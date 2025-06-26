@@ -22,6 +22,16 @@ export interface LangfuseConfig {
   projectName: string;
 }
 
+export interface MemoryConfig {
+  enabled: boolean;
+  apiKey: string;
+  host: string;
+  userId: string;
+  organization?: string;
+  memoryType: 'preferences' | 'conversation' | 'knowledge' | 'all';
+  retentionDays: number;
+}
+
 function varNameFromPackage(mcpPackage: string, idx: number): string {
   const slug = mcpPackage.split('/').pop() || `mcp_${idx}`;
   const base = slug.replace(/-mcp$/i, '').replace(/[^a-zA-Z0-9_]/g, '_');
@@ -73,6 +83,30 @@ export function extractLangfuseConfigFromNodes(nodes: Node<BaseNodeData>[]): Lan
 // Function to check if nodes contain Langfuse configuration
 export function hasLangfuseNodes(nodes: Node<BaseNodeData>[]): boolean {
   return nodes.some(n => n.data.type === 'langfuse' && n.data.langfuseEnabled);
+}
+
+// Function to extract Memory configuration from nodes
+export function extractMemoryConfigFromNodes(nodes: Node<BaseNodeData>[]): MemoryConfig | null {
+  const memoryNode = nodes.find(n => n.data.type === 'memory');
+  
+  if (!memoryNode || !memoryNode.data.memoryEnabled) {
+    return null;
+  }
+  
+  return {
+    enabled: true,
+    apiKey: memoryNode.data.memoryApiKey as string || '',
+    host: memoryNode.data.memoryHost as string || 'https://api.mem0.ai',
+    userId: memoryNode.data.memoryUserId as string || 'default_user',
+    organization: memoryNode.data.memoryOrganization as string,
+    memoryType: (memoryNode.data.memoryType as 'preferences' | 'conversation' | 'knowledge' | 'all') || 'all',
+    retentionDays: (memoryNode.data.memoryRetention as number) || 30
+  };
+}
+
+// Function to check if nodes contain Memory configuration
+export function hasMemoryNodes(nodes: Node<BaseNodeData>[]): boolean {
+  return nodes.some(n => n.data.type === 'memory' && n.data.memoryEnabled);
 }
 
 
@@ -266,6 +300,380 @@ if __name__ == '__main__':
 # Export the agent and tracking functions
 __all__ = ['root_agent', 'track_conversation']
 `;
+}
+
+// Generate Memory-enabled code for agents  
+export function generateMemoryCode(nodes: Node<BaseNodeData>[], memoryConfig: MemoryConfig, langfuseConfig?: LangfuseConfig, mcpConfigs?: MCPConfig[]): string {
+  const agentNode = nodes.find(n => n.data.type === 'agent');
+  if (!agentNode) {
+    return generateDefaultMemoryAgentCode(memoryConfig);
+  }
+
+  const agentName = agentNode.data.label?.replace(/[^a-zA-Z0-9_]/g, '_') || 'MemoryAgent';
+  const agentDescription = agentNode.data.description || 'Memory-enabled agent with persistent context and learning';
+  const agentInstruction = agentNode.data.instruction || agentNode.data.prompt ||
+    "You are a helpful assistant with memory capabilities for personalized and context-aware responses.";
+
+  // Check if we also have Langfuse or MCP tools
+  const hasLangfuse = langfuseConfig && langfuseConfig.enabled;
+  const hasMcpTools = mcpConfigs && mcpConfigs.length > 0;
+  const dedupedConfigs = hasMcpTools ? dedupeConfigs(mcpConfigs) : [];
+
+  return `"""${agentName} with Mem0 Memory Integration"""
+import os
+import asyncio
+import logging
+import json
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types
+from google.adk.agents import LlmAgent
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+${hasMcpTools ? `from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
+import mcp
+from mcp.client.streamable_http import streamablehttp_client` : 'from google.adk.tools import google_search'}
+${hasLangfuse ? 'from langfuse import Langfuse' : ''}
+from mem0 import Memory
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger(__name__)
+
+def create_root_agent():
+    """Create and return the root agent instance with memory integration."""
+    # Load environment variables from both locations
+    load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
+    load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
+
+    # Configure Google AI client
+    GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+    if not GOOGLE_API_KEY:
+        raise ValueError("GOOGLE_API_KEY environment variable is not set")
+
+    # Initialize Mem0 Memory
+    mem0_api_key = os.getenv('MEM0_API_KEY')
+    mem0_host = os.getenv('MEM0_HOST', '${memoryConfig.host}')
+    mem0_user_id = os.getenv('MEM0_USER_ID', '${memoryConfig.userId}')
+    
+    if mem0_api_key:
+        os.environ["MEM0_API_KEY"] = mem0_api_key
+        memory = Memory()
+        logger.info("Mem0 memory initialized successfully")
+    else:
+        logger.warning("Mem0 API key not found in environment variables. Please set MEM0_API_KEY")
+        memory = None
+
+${hasLangfuse ? `    # Initialize Langfuse
+    langfuse_secret_key = os.getenv('LANGFUSE_SECRET_KEY')
+    langfuse_public_key = os.getenv('LANGFUSE_PUBLIC_KEY')
+    langfuse_host = os.getenv('LANGFUSE_HOST', '${langfuseConfig?.host}')
+    
+    if langfuse_secret_key and langfuse_public_key:
+        langfuse = Langfuse(
+            secret_key=langfuse_secret_key,
+            public_key=langfuse_public_key,
+            host=langfuse_host
+        )
+        logger.info("Langfuse initialized successfully")
+    else:
+        logger.warning("Langfuse credentials not found in environment variables")
+        langfuse = None` : ''}
+
+    # Initialize Google AI client
+    genai_client = genai.Client(api_key=GOOGLE_API_KEY)
+
+${hasMcpTools ? `    # MCP Configuration${dedupedConfigs.map((config, idx) => {
+    const packageName = config.smitheryMcp?.split('/').pop() || `mcp_${idx}`;
+    const envKey = `SMITHERY_API_KEY`;
+    return `
+    ${envKey.toLowerCase()}_key = os.getenv('${envKey}')
+    if not ${envKey.toLowerCase()}_key:
+        raise ValueError("${envKey} environment variable is not set")`;
+  }).join('')}` : ''}
+
+    # Create memory-enhanced agent with context injection
+    def get_memory_enhanced_instruction(user_id: str = "${memoryConfig.userId}") -> str:
+        """Get instruction enhanced with user's memory context."""
+        base_instruction = """${agentInstruction}${hasMcpTools ? `
+
+Available functions through MCP:
+${dedupedConfigs.map(config => `- ${config.smitheryMcp} tools for ${config.availableFunctions || 'operations'}`).join('\n')}` : ''}
+
+MEMORY INTEGRATION:
+- You have access to persistent memory to remember user preferences and context
+- Always consider relevant memories when responding to provide personalized assistance
+- Learn from interactions to improve future responses
+
+IMPORTANT RULES:
+1. Use memory to provide personalized and context-aware responses
+2. Remember important user preferences and information
+3. Learn from successful interactions and user feedback${hasMcpTools ? `
+4. Use the available MCP tools to perform requested operations
+5. Always provide clear explanations for actions taken
+6. Handle errors gracefully and provide helpful feedback` : ''}"""
+        
+        if memory:
+            try:
+                # Retrieve relevant memories for context
+                memories = memory.search(f"user preferences and context", user_id=user_id, limit=5)
+                memory_context = "\\n".join([f"- {m['memory']}" for m in memories.get('results', [])])
+                
+                if memory_context:
+                    return f"{base_instruction}\\n\\nRelevant Context from Memory:\\n{memory_context}"
+            except Exception as e:
+                logger.error(f"Failed to retrieve memories: {e}")
+        
+        return base_instruction
+
+    return LlmAgent(
+        model='gemini-2.0-flash',
+        name='${agentName}',
+        description="${agentDescription}",
+        instruction=get_memory_enhanced_instruction(),
+        tools=[
+${hasMcpTools ? dedupedConfigs.map((config, idx) => {
+            const packageName = config.smitheryMcp?.split('/').pop() || `mcp_${idx}`;
+            const fixedArgs = [...config.args];
+            if (config.smitheryMcp) {
+              const runIndex = fixedArgs.indexOf('run');
+              if (runIndex !== -1 && runIndex + 1 < fixedArgs.length) {
+                fixedArgs[runIndex + 1] = config.smitheryMcp;
+              }
+            }
+            if (!fixedArgs.includes('--key')) {
+              fixedArgs.push('--key', 'smithery_api_key_key');
+            }
+            
+            return `            MCPToolset(
+                connection_params=StdioServerParameters(
+                    command="${config.command}",
+                    args=[
+${fixedArgs.map(arg => `                        "${arg}"`).join(',\n')}
+                    ]
+                )
+            )`;
+          }).join(',\n') : '            google_search'}
+        ]
+    )
+
+# Create the root agent instance
+root_agent = create_root_agent()
+
+def add_to_memory(user_message: str, assistant_response: str, user_id: str = "${memoryConfig.userId}", metadata: dict = None):
+    """Add conversation to memory for learning and context."""
+    if not memory:
+        return []
+    
+    try:
+        conversation = [
+            {"role": "user", "content": user_message},
+            {"role": "assistant", "content": assistant_response}
+        ]
+        
+        result = memory.add(
+            conversation, 
+            user_id=user_id, 
+            metadata={
+                "agent": "${agentName}",
+                "memory_type": "${memoryConfig.memoryType}",
+                "timestamp": json.dumps({"created": "now"}),
+                **(metadata or {})
+            }
+        )
+        logger.info(f"Added conversation to memory for user {user_id}")
+        return result
+    except Exception as e:
+        logger.error(f"Failed to add to memory: {e}")
+        return []
+
+def get_relevant_memories(query: str, user_id: str = "${memoryConfig.userId}", limit: int = 5):
+    """Retrieve relevant memories for a query."""
+    if not memory:
+        return []
+    
+    try:
+        result = memory.search(query, user_id=user_id, limit=limit)
+        return result.get('results', [])
+    except Exception as e:
+        logger.error(f"Failed to search memories: {e}")
+        return []
+
+async def run_with_memory(user_message: str, user_id: str = "${memoryConfig.userId}"):
+    """Enhanced run function with memory integration."""
+    
+    # Create session
+    runner = Runner(
+        app_name='${agentName}_app',
+        agent=root_agent,
+        session_service=InMemorySessionService(),
+        inputs={
+            'client': genai.Client(api_key=os.getenv('GOOGLE_API_KEY'))
+        }
+    )
+    
+    try:
+        session = runner.session_service.create_session(
+            state={}, app_name='${agentName}_app', user_id=user_id
+        )
+        
+        # Create message
+        new_message = types.Content(
+            role="user",
+            parts=[types.Part(text=user_message)]
+        )
+        
+        response_content = ""
+        
+        # Run agent and collect response
+        async for event in runner.run_async(
+            user_id=user_id,
+            session_id=session.id,
+            new_message=new_message
+        ):
+            if hasattr(event, 'content') and event.content:
+                response_content += str(event.content)
+            print(event)
+        
+        # Add conversation to memory for learning
+        add_to_memory(user_message, response_content, user_id)
+        
+        return response_content
+    finally:
+        if hasattr(root_agent, '_exit_stack'):
+            await root_agent._exit_stack.aclose()
+
+async def main():
+    """Run the memory-enabled agent."""
+    # Example usage with memory
+    await run_with_memory("Hello, I'm interested in learning about AI agents", "${memoryConfig.userId}")
+    await run_with_memory("I prefer concise technical explanations", "${memoryConfig.userId}")  # Will remember this preference
+    await run_with_memory("Can you help me with my project?", "${memoryConfig.userId}")  # Will use remembered preferences
+
+if __name__ == '__main__':
+    asyncio.run(main())
+
+# Export the agent and memory functions
+__all__ = ['root_agent', 'add_to_memory', 'get_relevant_memories', 'run_with_memory']
+`;
+}
+
+// Generate default memory agent code
+export function generateDefaultMemoryAgentCode(memoryConfig: MemoryConfig): string {
+  return `"""Default Memory-Enabled Agent"""
+import os
+import logging
+import json
+from dotenv import load_dotenv
+from google.adk.agents import Agent
+from google.adk.tools import google_search
+from mem0 import Memory
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("memory_agent")
+
+# Load environment variables
+load_dotenv()
+
+# Initialize Mem0 Memory
+mem0_api_key = os.getenv("MEM0_API_KEY")
+mem0_host = os.getenv("MEM0_HOST", "${memoryConfig.host}")
+mem0_user_id = os.getenv("MEM0_USER_ID", "${memoryConfig.userId}")
+
+if not mem0_api_key:
+    logger.warning("Mem0 API key not found. Memory features will be disabled.")
+    memory = None
+else:
+    os.environ["MEM0_API_KEY"] = mem0_api_key
+    memory = Memory()
+    logger.info("Mem0 memory initialized successfully")
+
+# Create the memory-enhanced agent
+root_agent = Agent(
+    name="memory_agent",
+    model="gemini-2.0-flash",
+    description="Agent with persistent memory for personalized responses and learning",
+    instruction="Use Google Search to find information and remember user preferences and context for personalized assistance.",
+    tools=[google_search]
+)
+
+# Memory functions
+def add_conversation_to_memory(user_input: str, agent_response: str, user_id: str = "${memoryConfig.userId}"):
+    """Add conversation to memory for learning"""
+    if memory:
+        try:
+            conversation = [
+                {"role": "user", "content": user_input},
+                {"role": "assistant", "content": agent_response}
+            ]
+            result = memory.add(conversation, user_id=user_id, metadata={
+                "agent_name": "memory_agent",
+                "memory_type": "${memoryConfig.memoryType}",
+                "timestamp": json.dumps({"created": "now"})
+            })
+            return result
+        except Exception as e:
+            logger.error(f"Failed to add conversation to memory: {e}")
+            return []
+    return []
+
+def get_user_context(user_id: str = "${memoryConfig.userId}", limit: int = 5):
+    """Get relevant user context from memory"""
+    if memory:
+        try:
+            result = memory.search(f"user preferences and context", user_id=user_id, limit=limit)
+            return result.get('results', [])
+        except Exception as e:
+            logger.error(f"Failed to retrieve user context: {e}")
+    return []
+
+# Enhanced agent wrapper with memory
+class MemoryAgent:
+    def __init__(self, agent):
+        self.agent = agent
+    
+    def chat_with_memory(self, message: str, user_id: str = "${memoryConfig.userId}"):
+        """Chat with memory integration"""
+        try:
+            # Get user context from memory
+            context = get_user_context(user_id)
+            context_info = "\\n".join([f"- {m['memory']}" for m in context])
+            
+            # Enhance message with context if available
+            if context_info:
+                enhanced_message = f"{message}\\n\\nRelevant context: {context_info}"
+            else:
+                enhanced_message = message
+            
+            # Get response from agent
+            response = self.agent.chat(enhanced_message)
+            
+            # Add conversation to memory
+            add_conversation_to_memory(message, str(response), user_id)
+            
+            return response
+        except Exception as e:
+            logger.error(f"Error in memory chat: {e}")
+            # Fallback to regular chat
+            return self.agent.chat(message)
+
+# Create memory-enabled agent
+memory_agent = MemoryAgent(root_agent)
+
+__all__ = ["root_agent", "memory_agent", "add_conversation_to_memory", "get_user_context"]
+
+if __name__ == "__main__":
+    try:
+        response = memory_agent.chat_with_memory("Hello, I'm interested in AI and machine learning")
+        print("Agent Response:", response)
+    except Exception as e:
+        logger.error(f"Error running agent: {e}")
+        raise`;
 }
 
 // Generate MCP code for agents
@@ -621,7 +1029,10 @@ export function generateFallbackMcpCode(mcpPackage?: string): string {
 
 // Generate ADK code (compatibility function)
 export function generateADKCode(nodes: Node<BaseNodeData>[], _edges: Edge[], mcpConfigs?: MCPConfig[]): string {
-  // Check for Langfuse nodes first
+  // Check for Memory nodes first (highest priority)
+  const memoryConfig = extractMemoryConfigFromNodes(nodes);
+  
+  // Check for Langfuse nodes
   const langfuseConfig = extractLangfuseConfigFromNodes(nodes);
   
   // Check if there are MCP nodes to determine if we should use MCP
@@ -634,11 +1045,46 @@ export function generateADKCode(nodes: Node<BaseNodeData>[], _edges: Edge[], mcp
   // Debug logging
   console.log('generateADKCode called with:', {
     totalNodes: nodes.length,
+    memoryConfig: memoryConfig ? 'detected' : 'none',
     langfuseConfig: langfuseConfig ? 'detected' : 'none',
     mcpNodes: mcpNodes.length,
     mcpConfigs: mcpConfigs ? mcpConfigs.length : 0,
     nodeTypes: nodes.map(n => ({ id: n.id, type: n.data.type, label: n.data.label }))
   });
+
+  // If we have Memory configuration, use Memory-enabled code generation (highest priority)
+  if (memoryConfig) {
+    console.log('Generating Memory-enabled code');
+    
+    if (mcpConfigs && mcpConfigs.length > 0) {
+      console.log('Using provided MCP configs with Memory');
+      return generateMemoryCode(nodes, memoryConfig, langfuseConfig, dedupeConfigs(mcpConfigs));
+    }
+    
+    if (mcpNodes.length > 0) {
+      console.log('Creating MCP config from nodes for Memory');
+      // Extract MCP packages from all MCP nodes
+      const defaultConfigs: MCPConfig[] = mcpNodes.map(mcpNode => {
+        const mcpPackage = (mcpNode.data.smitheryMcp as string) ||
+                          (mcpNode.data.mcpToolId as string) ||
+                          '@smithery/mcp-example';
+
+        return {
+          enabled: true,
+          type: 'smithery',
+          command: 'npx',
+          args: ['-y', '@smithery/cli@latest', 'run', mcpPackage, '--key', 'smithery_api_key'],
+          envVars: { 'NODE_OPTIONS': '--no-warnings --experimental-fetch', 'SMITHERY_API_KEY': 'smithery_api_key' },
+          smitheryMcp: mcpPackage
+        };
+      });
+      
+      return generateMemoryCode(nodes, memoryConfig, langfuseConfig, dedupeConfigs(defaultConfigs));
+    }
+    
+    console.log('Generating Memory-only code');
+    return generateMemoryCode(nodes, memoryConfig, langfuseConfig);
+  }
 
   // If we have Langfuse configuration, use Langfuse-enabled code generation
   if (langfuseConfig) {
@@ -785,8 +1231,12 @@ export async function generateCodeWithAI(
 
   const dedupedConfig = mcpConfig ? dedupeConfigs(mcpConfig) : undefined;
   const langfuseConfig = extractLangfuseConfigFromNodes(nodes);
+  const memoryConfig = extractMemoryConfigFromNodes(nodes);
 
-  // Enhanced prompts for Langfuse integration
+  // Enhanced prompts for integrations
+  if (memoryConfig) {
+    console.log('Memory config detected, enhancing OpenRouter prompts with memory integration');
+  }
   if (langfuseConfig) {
     console.log('Langfuse config detected, enhancing OpenRouter prompts with analytics integration');
   }
@@ -854,6 +1304,22 @@ if (!apiKey) {
     2. Use Agent class (not LlmAgent) for non-MCP agents
     3. ALWAYS include __all__ = ["root_agent"] export`;
 
+  // Add Memory-specific instructions if detected
+  if (memoryConfig) {
+    systemPrompt += `
+
+    MEM0 MEMORY INTEGRATION REQUIRED:
+    - Import mem0: from mem0 import Memory
+    - Initialize with environment variables (MEM0_API_KEY, MEM0_HOST, MEM0_USER_ID)
+    - Create memory-enhanced instruction function that injects context
+    - Add conversation to memory after each interaction
+    - Implement memory search for relevant context retrieval
+    - Memory type: ${memoryConfig.memoryType}
+    - User ID: ${memoryConfig.userId}
+    - Host: ${memoryConfig.host}
+    - MUST export add_to_memory, get_relevant_memories, and run_with_memory functions`;
+  }
+
   // Add Langfuse-specific instructions if detected
   if (langfuseConfig) {
     systemPrompt += `
@@ -907,6 +1373,20 @@ CRITICAL:
 - Use deduplication logic to prevent duplicate toolsets
 - Ensure each toolset has unique variable name
 - Include SMITHERY_API_KEY environment variable` : 'Disabled - use google_search tool instead'}
+
+${memoryConfig ? `
+**MEM0 MEMORY CONFIGURATION:**
+- Enabled: YES
+- Memory Type: ${memoryConfig.memoryType}
+- User ID: ${memoryConfig.userId}
+- Host: ${memoryConfig.host}
+- API Key: Environment variable MEM0_API_KEY
+- Requirements:
+  * Import mem0 and initialize Memory with environment variables
+  * Create memory-enhanced instruction function with context injection
+  * Add conversations to memory for learning and context
+  * Implement memory search for relevant context retrieval
+  * Export add_to_memory, get_relevant_memories, and run_with_memory functions` : ''}
 
 ${langfuseConfig ? `
 **LANGFUSE ANALYTICS CONFIGURATION:**
