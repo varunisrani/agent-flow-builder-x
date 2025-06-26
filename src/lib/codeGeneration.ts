@@ -12,6 +12,14 @@ export interface MCPConfig {
   smitheryApiKey?: string;
   profileId?: string;
   availableFunctions?: string;
+  // Mem0 configuration
+  mem0Enabled?: boolean;
+  mem0ApiKey?: string;
+  mem0Config?: {
+    provider?: string;
+    model?: string;
+    memory_type?: string;
+  };
 }
 
 function varNameFromPackage(mcpPackage: string, idx: number): string {
@@ -103,18 +111,41 @@ ${varName} = MCPToolset(
 
   const toolsetList = toolsetNames.join(', ');
 
+  // Check if any config has Mem0 enabled
+  const hasMemory = uniqueConfigs.some(cfg => cfg.mem0Enabled);
+  
+  const memoryImports = hasMemory ? `
+from mem0 import Memory` : '';
+
+  const memorySetup = hasMemory ? `
+
+# Mem0 Memory setup
+os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "your-openai-key")
+memory = Memory()
+
+def get_memory_enhanced_instruction(user_id: str) -> str:
+    """Get agent instruction enhanced with user memory context"""
+    memories = memory.search(f"user preferences and patterns", user_id=user_id, limit=3)
+    memory_context = "\\n".join([f"- {m['memory']}" for m in memories.get('results', [])])
+    
+    base_instruction = "${agentInstruction}"
+    
+    if memory_context:
+        return f"{base_instruction}\\n\\nUser Context:\\n{memory_context}\\n\\nUse this context to provide personalized responses."
+    return base_instruction` : '';
+
   return `from google.adk.agents import LlmAgent
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
-from google.genai import types  # For Content/Part
+from google.genai import types  # For Content/Part${memoryImports}
 import asyncio
 import os
 
 # Set the Smithery API key from environment variable
 smithery_api_key = os.getenv("SMITHERY_API_KEY")
 if not smithery_api_key:
-    raise ValueError("SMITHERY_API_KEY environment variable is not set")
+    raise ValueError("SMITHERY_API_KEY environment variable is not set")${memorySetup}
 
 ${toolsets.join('\n\n')}
 
@@ -123,7 +154,7 @@ root_agent = LlmAgent(
     name="${agentName}",
     model="gemini-2.0-flash",
     description="${agentDescription}",
-    instruction="${agentInstruction}",
+    instruction=${hasMemory ? 'get_memory_enhanced_instruction("default_user")' : `"${agentInstruction}"`},
     tools=[${toolsetList}]
 )
 
@@ -132,7 +163,56 @@ root_agent = LlmAgent(
 session_service = InMemorySessionService()
 runner = Runner(agent=root_agent, session_service=session_service, app_name="${agentName}")
 
+${hasMemory ? `
+async def run_with_memory(user_message: str, user_id: str = "default_user"):
+    """Enhanced run function with memory integration"""
+    
+    # Update agent instruction with user's memory context
+    memories = memory.search(f"user preferences and patterns", user_id=user_id, limit=3)
+    memory_context = "\\n".join([f"- {m['memory']}" for m in memories.get('results', [])])
+    
+    if memory_context:
+        enhanced_instruction = f"${agentInstruction}\\n\\nUser Context:\\n{memory_context}\\n\\nUse this context to provide personalized responses."
+        root_agent.instruction = enhanced_instruction
+    
+    # Create session
+    session = session_service.create_session(state={}, app_name="${agentName}", user_id=user_id)
+    
+    # Create message
+    new_message = types.Content(
+        role="user",
+        parts=[types.Part(text=user_message)]
+    )
+    
+    response_content = ""
+    
+    # Run agent and collect response
+    async for event in runner.run_async(
+        user_id=user_id,
+        session_id=session.id,
+        new_message=new_message
+    ):
+        if hasattr(event, 'content') and event.content:
+            response_content += str(event.content)
+        print(event)
+    
+    # Store conversation in memory
+    conversation = [
+        {"role": "user", "content": user_message},
+        {"role": "assistant", "content": response_content}
+    ]
+    memory.add(conversation, user_id=user_id, metadata={"agent": "${agentName}"})
+    
+    return response_content
+` : ''}
+
 async def main():
+    ${hasMemory ? `
+    # Example usage with memory
+    await run_with_memory("Hello, I need help with my queries", "user123")
+    await run_with_memory("I prefer concise answers", "user123")  # Will remember this preference
+    await run_with_memory("What can you help me with?", "user123")  # Will use remembered preferences
+    ` : `
     # Create a session
     user_id = "user"
     session = session_service.create_session(state={}, app_name="${agentName}", user_id=user_id)
@@ -151,6 +231,7 @@ async def main():
         new_message=new_message
     ):
         print(event)
+    `}
 
 if __name__ == "__main__":
         asyncio.run(main())
@@ -158,33 +239,67 @@ if __name__ == "__main__":
 __all__ = ["root_agent"]`;
 }
 
-// Generate default search agent code
-export function generateDefaultSearchAgentCode(): string {
-  return `"""Default Search Agent"""
-import os
-import logging
-from dotenv import load_dotenv
-from google.adk.agents import Agent
-from google.adk.tools import google_search
+// Generate default search agent code with optional Mem0
+export function generateDefaultSearchAgentCode(withMem0: boolean = false, mem0Config?: MCPConfig): string {
+  const memoryImports = withMem0 ? `
+from mem0 import Memory` : '';
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("search_agent")
+  const memorySetup = withMem0 ? `
 
-# Load environment variables
-load_dotenv()
+# Mem0 Memory setup
+os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "your-openai-key")
+memory = Memory()
 
-# Create the agent - FIXED: Use correct parameter order and names
-root_agent = Agent(
-    name="search_agent",
-    model="gemini-2.0-flash",
-    description="Agent that performs web searches and provides accurate information",
-    instruction="Use Google Search to find accurate and up-to-date information. Always cite your sources.",
-    tools=[google_search]
-)
+def get_memory_enhanced_instruction(user_id: str) -> str:
+    """Get agent instruction enhanced with user memory context"""
+    memories = memory.search(f"user preferences and patterns", user_id=user_id, limit=3)
+    memory_context = "\\n".join([f"- {m['memory']}" for m in memories.get('results', [])])
+    
+    base_instruction = "Use Google Search to find accurate and up-to-date information. Always cite your sources."
+    
+    if memory_context:
+        return f"{base_instruction}\\n\\nUser Context:\\n{memory_context}\\n\\nUse this context to provide personalized responses."
+    return base_instruction
 
-__all__ = ["root_agent"]
+def run_with_memory(user_message: str, user_id: str = "default_user"):
+    """Enhanced run function with memory integration"""
+    
+    # Update agent instruction with user's memory context
+    memories = memory.search(f"user preferences and patterns", user_id=user_id, limit=3)
+    memory_context = "\\n".join([f"- {m['memory']}" for m in memories.get('results', [])])
+    
+    if memory_context:
+        enhanced_instruction = f"Use Google Search to find accurate and up-to-date information. Always cite your sources.\\n\\nUser Context:\\n{memory_context}\\n\\nUse this context to provide personalized responses."
+        root_agent.instruction = enhanced_instruction
+    
+    response = root_agent.chat(user_message)
+    
+    # Store conversation in memory
+    conversation = [
+        {"role": "user", "content": user_message},
+        {"role": "assistant", "content": str(response)}
+    ]
+    memory.add(conversation, user_id=user_id, metadata={"agent": "search_agent"})
+    
+    return response` : '';
 
+  const baseInstruction = withMem0 ? 'get_memory_enhanced_instruction("default_user")' : '"Use Google Search to find accurate and up-to-date information. Always cite your sources."';
+
+  const mainFunction = withMem0 ? `
+if __name__ == "__main__":
+    try:
+        # Example usage with memory
+        response1 = run_with_memory("What are the latest developments in AI?", "user123")
+        print("Agent Response 1:", response1)
+        
+        response2 = run_with_memory("I prefer concise answers", "user123")  # Will remember this preference
+        print("Agent Response 2:", response2)
+        
+        response3 = run_with_memory("Tell me about machine learning", "user123")  # Will use remembered preferences
+        print("Agent Response 3:", response3)
+    except Exception as e:
+        logger.error(f"Error running agent: {e}")
+        raise` : `
 if __name__ == "__main__":
     try:
         response = root_agent.chat("What are the latest developments in AI?")
@@ -192,6 +307,32 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"Error running agent: {e}")
         raise`;
+
+  return `"""Default Search Agent${withMem0 ? ' with Mem0 Memory' : ''}"""
+import os
+import logging
+from dotenv import load_dotenv
+from google.adk.agents import Agent
+from google.adk.tools import google_search${memoryImports}
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("search_agent")
+
+# Load environment variables
+load_dotenv()${memorySetup}
+
+# Create the agent - FIXED: Use correct parameter order and names
+root_agent = Agent(
+    name="search_agent",
+    model="gemini-2.0-flash",
+    description="Agent that performs web searches and provides accurate information${withMem0 ? ' with persistent memory' : ''}",
+    instruction=${baseInstruction},
+    tools=[google_search]
+)
+
+__all__ = ["root_agent"]
+${mainFunction}`;
 }
 
 // Helper function to detect MCP code
@@ -231,7 +372,15 @@ export function generateADKCode(nodes: Node<BaseNodeData>[], _edges: Edge[], mcp
     node.data.type === 'mcp-tool'
   );
 
+  // Check if Mem0 is enabled in any config
+  const hasMemory = mcpConfigs?.some(cfg => cfg.mem0Enabled) || false;
+  const memoryOnlyConfig = mcpConfigs?.find(cfg => cfg.type === 'memory_only');
+
 if (mcpConfigs && mcpConfigs.length > 0) {
+  // If it's memory-only config (no MCP but Mem0 enabled)
+  if (memoryOnlyConfig && memoryOnlyConfig.mem0Enabled) {
+    return generateDefaultSearchAgentCode(true, memoryOnlyConfig);
+  }
   return generateMCPCode(nodes, dedupeConfigs(mcpConfigs));
 }
 
@@ -254,7 +403,7 @@ if (mcpConfigs && mcpConfigs.length > 0) {
     return generateMCPCode(nodes, [defaultConfig]);
   }
 
-  return generateDefaultSearchAgentCode();
+  return generateDefaultSearchAgentCode(hasMemory);
 }
 
 // Generate code with verification layer

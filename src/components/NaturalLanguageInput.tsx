@@ -158,6 +158,11 @@ export function NaturalLanguageInput({ expanded, onToggle, onGenerate }: Natural
   const [mcpArgs, setMcpArgs] = useState<string[]>(MCP_TYPES[0].defaultArgs);
   const [mcpEnvVars, setMcpEnvVars] = useState<{ [key: string]: string }>(MCP_TYPES[0].defaultEnvVars);
   
+  // Mem0 configuration state
+  const [mem0Enabled, setMem0Enabled] = useState(false);
+  const [mem0ApiKey, setMem0ApiKey] = useState('');
+  const [mem0Provider, setMem0Provider] = useState('openai');
+  
   // Smithery-specific state
   const [smitheryMcps, setSmitheryMcps] = useState<string[]>([]);
   const [smitheryApiKey, setSmitheryApiKey] = useState('');
@@ -637,9 +642,31 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
     smitheryMcp: pkg,
     smitheryApiKey: smitheryApiKey,
     profileId: selectedProfile,
-    availableFunctions: getMcpToolDescription('smithery')
+    availableFunctions: getMcpToolDescription('smithery'),
+    // Include Mem0 configuration
+    mem0Enabled: mem0Enabled,
+    mem0ApiKey: mem0ApiKey,
+    mem0Config: {
+      provider: mem0Provider,
+      model: mem0Provider === 'openai' ? 'gpt-4o-mini' : 'claude-3-sonnet',
+      memory_type: 'user_preferences'
+    }
   };
-}) : undefined;
+}) : mem0Enabled ? [{
+  // If only Mem0 is enabled without MCP
+  enabled: false,
+  type: 'memory_only',
+  command: '',
+  args: [],
+  envVars: {},
+  mem0Enabled: true,
+  mem0ApiKey: mem0ApiKey,
+  mem0Config: {
+    provider: mem0Provider,
+    model: mem0Provider === 'openai' ? 'gpt-4o-mini' : 'claude-3-sonnet',
+    memory_type: 'user_preferences'
+  }
+}] : undefined;
 
       
       // Call the parent callback with the generated flow
@@ -785,6 +812,58 @@ const mcpConfigs = mcpEnabled ? uniquePkgs.map(pkg => {
                   <p className="text-sm text-blue-300 text-blue-300 mb-3">
                     ⚡ Advanced mode enables your agent to use external tools and APIs
                   </p>
+                </div>
+              )}
+            </div>
+
+            {/* Mem0 Memory Toggle */}
+            <div className="border-t border-gray-200 border-gray-700 pt-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <Switch
+                    id="mem0-mode"
+                    checked={mem0Enabled}
+                    onCheckedChange={setMem0Enabled}
+                  />
+                  <Label htmlFor="mem0-mode" className="text-sm font-medium text-gray-300 text-gray-300">
+                    🧠 Enable Mem0 Memory (Persistent Learning)
+                  </Label>
+                </div>
+              </div>
+              {mem0Enabled && (
+                <div className="mt-4 p-4 bg-purple-50/50 bg-purple-950/20 rounded-lg border border-purple-200/50 border-purple-800/50">
+                  <p className="text-sm text-purple-300 text-purple-300 mb-3">
+                    🧠 Mem0 enables your agent to remember user preferences, learn from interactions, and provide personalized responses
+                  </p>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-sm font-medium text-gray-300">OpenAI API Key (for Mem0)</Label>
+                      <Input
+                        type="password"
+                        value={mem0ApiKey}
+                        onChange={(e) => setMem0ApiKey(e.target.value)}
+                        placeholder="sk-..."
+                        className="bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent from-zinc-300/5 via-gray-400/5 backdrop-blur-sm border-[2px] border-white/10 focus:border-purple-500/50 focus:border-purple-400/50"
+                      />
+                      <div className="text-xs text-gray-400 mt-1">
+                        Mem0 uses OpenAI for memory processing. Get your key from <a href="https://platform.openai.com/api-keys" target="_blank" className="text-purple-400 hover:underline">OpenAI</a>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <Label className="text-sm font-medium text-gray-300">Memory Provider</Label>
+                      <select
+                        value={mem0Provider}
+                        onChange={(e) => setMem0Provider(e.target.value)}
+                        className="w-full px-2 py-1 text-sm bg-background border border-border rounded-md"
+                      >
+                        <option value="openai">OpenAI (Default)</option>
+                        <option value="anthropic">Anthropic Claude</option>
+                        <option value="local">Local Model</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

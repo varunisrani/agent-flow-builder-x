@@ -168,23 +168,66 @@ function cleanGeneratedCode(code: string, forceMcp: boolean = false): string {
   // Only fallback to search agent if MCP is not forced and no ADK imports found
   if (!forceMcp && !code.includes('from google.adk.agents')) {
     console.log('No ADK imports found and MCP not forced, generating search agent');
-    return generateDefaultSearchAgentCode();
+    return generateDefaultSearchAgentCode(false);
   }
 
   return code;
 }
 
 // Helper function to generate default search agent code
-const generateDefaultSearchAgentCode = (): string => {
-  return `from google.adk.agents import Agent
-from google.adk.tools import google_search
+const generateDefaultSearchAgentCode = (withMem0: boolean = false): string => {
+  const memoryImports = withMem0 ? `
+from mem0 import Memory` : '';
+
+  const memorySetup = withMem0 ? `
+
+# Mem0 Memory setup
+os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "your-openai-key")
+memory = Memory()
+
+def get_memory_enhanced_instruction(user_id: str) -> str:
+    """Get agent instruction enhanced with user memory context"""
+    memories = memory.search(f"user preferences and patterns", user_id=user_id, limit=3)
+    memory_context = "\\n".join([f"- {m['memory']}" for m in memories.get('results', [])])
+    
+    base_instruction = "Use Google Search to find accurate and up-to-date information. Always cite your sources and provide context from search results."
+    
+    if memory_context:
+        return f"{base_instruction}\\n\\nUser Context:\\n{memory_context}\\n\\nUse this context to provide personalized responses."
+    return base_instruction
+
+def run_with_memory(user_message: str, user_id: str = "default_user"):
+    """Enhanced run function with memory integration"""
+    memories = memory.search(f"user preferences and patterns", user_id=user_id, limit=3)
+    memory_context = "\\n".join([f"- {m['memory']}" for m in memories.get('results', [])])
+    
+    if memory_context:
+        enhanced_instruction = f"Use Google Search to find accurate and up-to-date information. Always cite your sources and provide context from search results.\\n\\nUser Context:\\n{memory_context}\\n\\nUse this context to provide personalized responses."
+        root_agent.instruction = enhanced_instruction
+    
+    response = root_agent.chat(user_message)
+    
+    # Store conversation in memory
+    conversation = [
+        {"role": "user", "content": user_message},
+        {"role": "assistant", "content": str(response)}
+    ]
+    memory.add(conversation, user_id=user_id, metadata={"agent": "search_agent"})
+    
+    return response` : '';
+
+  const baseInstruction = withMem0 ? 'get_memory_enhanced_instruction("default_user")' : '"Use Google Search to find accurate and up-to-date information. Always cite your sources and provide context from search results."';
+
+  return `import os
+from google.adk.agents import Agent
+from google.adk.tools import google_search${memoryImports}${memorySetup}
 
 # FIXED: Use correct parameter order for Agent constructor
 root_agent = Agent(
     name="search_agent",
     model="gemini-2.0-flash",
-    description="An agent that uses Google Search to find and provide information.",
-    instruction="Use Google Search to find accurate and up-to-date information. Always cite your sources and provide context from search results.",
+    description="An agent that uses Google Search to find and provide information${withMem0 ? ' with persistent memory' : ''}.",
+    instruction=${baseInstruction},
     tools=[google_search]
 )
 
@@ -633,6 +676,10 @@ function fallbackToLocalGeneration(
 ): string {
   console.log('Falling back to local generation, MCP enabled:', mcpEnabled);
 
+  // Check if Mem0 is enabled
+  const hasMemory = mcpConfig?.some(cfg => cfg.mem0Enabled) || false;
+  const memoryOnlyConfig = mcpConfig?.find(cfg => cfg.type === 'memory_only');
+
   if (mcpEnabled) {
     // Extract actual MCP config from nodes if not provided
     const validConfig = mcpConfig || extractMcpConfigFromNodes(nodes);
@@ -641,8 +688,14 @@ function fallbackToLocalGeneration(
     return generateMCPCode(nodes, deduped);
   }
 
-  console.log('Generating default search agent code');
-  return generateDefaultSearchAgentCode();
+  // If it's memory-only config (no MCP but Mem0 enabled)
+  if (memoryOnlyConfig && memoryOnlyConfig.mem0Enabled) {
+    console.log('Generating memory-only search agent code');
+    return generateDefaultSearchAgentCode(true);
+  }
+
+  console.log('Generating default search agent code with memory:', hasMemory);
+  return generateDefaultSearchAgentCode(hasMemory);
 }
 
 // Create a default MCP config
@@ -734,7 +787,8 @@ generatedCode = await generateVerifiedCode(
   mcpConfig ? dedupeConfigs(mcpConfig) : undefined
 );
 } else {
-  generatedCode = generateDefaultSearchAgentCode();
+  const hasMemory = mcpConfig?.some(cfg => cfg.mem0Enabled) || false;
+  generatedCode = generateDefaultSearchAgentCode(hasMemory);
 }
 
       const formattedCode = formatCodeForDisplay(generatedCode);
@@ -747,7 +801,8 @@ generatedCode = await generateVerifiedCode(
       setError(error instanceof Error ? error.message : 'An error occurred generating code');
       
       // Fallback to default generation
-      const defaultCode = generateDefaultSearchAgentCode();
+      const hasMemory = mcpConfig?.some(cfg => cfg.mem0Enabled) || false;
+      const defaultCode = generateDefaultSearchAgentCode(hasMemory);
       const cleanedCode = cleanGeneratedCode(defaultCode, mcpEnabled);
       setGeneratedCode(cleanedCode);
       storeCode(flowKey, activeTab, cleanedCode);
@@ -797,7 +852,8 @@ generatedCode = await generateVerifiedCode(
   mcpConfig ? dedupeConfigs(mcpConfig) : undefined
 );
 } else {
-  generatedCode = generateDefaultSearchAgentCode();
+  const hasMemory = mcpConfig?.some(cfg => cfg.mem0Enabled) || false;
+  generatedCode = generateDefaultSearchAgentCode(hasMemory);
 }
 
       const formattedCode = formatCodeForDisplay(generatedCode);
@@ -813,7 +869,8 @@ generatedCode = await generateVerifiedCode(
       setError(error instanceof Error ? error.message : 'Failed to regenerate code');
       
       // Fallback to default generation
-      const defaultCode = generateDefaultSearchAgentCode();
+      const hasMemory = mcpConfig?.some(cfg => cfg.mem0Enabled) || false;
+      const defaultCode = generateDefaultSearchAgentCode(hasMemory);
       const cleanedCode = cleanGeneratedCode(defaultCode, mcpEnabled);
       setGeneratedCode(cleanedCode);
       storeCode(flowKey, activeTab, cleanedCode);
