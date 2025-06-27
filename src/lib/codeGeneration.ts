@@ -175,9 +175,7 @@ from google.genai import types
 from google.adk.agents import LlmAgent
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
-${hasMcpTools ? `from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
-import mcp
-from mcp.client.streamable_http import streamablehttp_client` : 'from google.adk.tools import google_search'}
+${hasMcpTools ? `from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters` : 'from google.adk.tools import google_search'}
 from langfuse import Langfuse
 
 # Configure logging
@@ -227,10 +225,10 @@ ${hasMcpTools ? `    # MCP Configuration${dedupedConfigs.map((config, idx) => {
         raise ValueError("${envKey} environment variable is not set")`;
   }).join('')}` : ''}
 
-    # Create ${hasMcpTools ? 'MCP-enabled' : 'standard'} agent
+    # Create ${hasMcpTools ? 'MCP-enabled' : 'standard'} agent with FIXED parameter order
     return LlmAgent(
-        model='gemini-2.0-flash',
         name='${agentName}',
+        model='gemini-2.0-flash',
         description="${agentDescription}",
         instruction="""${agentInstruction}${hasMcpTools ? `
 
@@ -303,18 +301,18 @@ def track_conversation(conversation_id, user_id, message):
 
 async def main():
     """Run the agent."""
+    session_service = InMemorySessionService()
     runner = Runner(
-        app_name='${langfuseConfig.projectName || 'agent_flow_project'}',
         agent=root_agent,
-        session_service=InMemorySessionService(),
-        inputs={
-            'client': genai.Client(api_key=os.getenv('GOOGLE_API_KEY'))  # Create a new client instance
-        }
+        session_service=session_service,
+        app_name='${langfuseConfig.projectName || 'agent_flow_project'}'
     )
     
     try:
-        session = runner.session_service.create_session(
-            state={}, app_name='${langfuseConfig.projectName || 'agent_flow_project'}', user_id='${langfuseConfig.projectName || 'agent'}_user'
+        # FIXED: Use async session creation with correct parameters
+        session = await session_service.create_session(
+            app_name='${langfuseConfig.projectName || 'agent_flow_project'}',
+            user_id='${langfuseConfig.projectName || 'agent'}_user'
         )
         async for event in runner.run_async(
             session_id=session.id,
@@ -376,9 +374,7 @@ from google.genai import types
 from google.adk.agents import LlmAgent
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
-${hasMcpTools ? `from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
-import mcp
-from mcp.client.streamable_http import streamablehttp_client` : 'from google.adk.tools import google_search'}
+${hasMcpTools ? `from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters` : 'from google.adk.tools import google_search'}
 ${hasLangfuse ? 'from langfuse import Langfuse' : ''}
 ${hasMemory ? 'from mem0 import Memory' : ''}
 
@@ -535,10 +531,10 @@ ${hasMcpTools ? `    # MCP Configuration${dedupedConfigs.map((config, idx) => {
         raise ValueError("${envKey} environment variable is not set")`;
   }).join('')}` : ''}
 
-    # Create event handling enhanced agent
+    # Create event handling enhanced agent with FIXED parameter order
     return LlmAgent(
-        model='gemini-2.0-flash',
         name='${agentName}',
+        model='gemini-2.0-flash',
         description="${agentDescription}",
         instruction="""${agentInstruction}${hasMcpTools ? `
 
@@ -664,7 +660,8 @@ async def process_agent_events():
     session_service = InMemorySessionService()
     runner = Runner(agent=root_agent, session_service=session_service, app_name="${agentName}")
     
-    session = session_service.create_session(state={}, app_name="${agentName}", user_id=user_id)
+    # FIXED: Use async session creation with correct parameters
+    session = await session_service.create_session(app_name="${agentName}", user_id=user_id)
     session_id = session.id
     
     # Emit session start event
@@ -831,9 +828,7 @@ from google.genai import types
 from google.adk.agents import LlmAgent
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
-${hasMcpTools ? `from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
-import mcp
-from mcp.client.streamable_http import streamablehttp_client` : 'from google.adk.tools import google_search'}
+${hasMcpTools ? `from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters` : 'from google.adk.tools import google_search'}
 ${hasLangfuse ? 'from langfuse import Langfuse' : ''}
 from mem0 import Memory
 
@@ -932,8 +927,8 @@ IMPORTANT RULES:
         return base_instruction
 
     return LlmAgent(
-        model='gemini-2.0-flash',
         name='${agentName}',
+        model='gemini-2.0-flash',
         description="${agentDescription}",
         instruction=get_memory_enhanced_instruction(),
         tools=[
@@ -1007,19 +1002,19 @@ def get_relevant_memories(query: str, user_id: str = "${memoryConfig.userId}", l
 async def run_with_memory(user_message: str, user_id: str = "${memoryConfig.userId}"):
     """Enhanced run function with memory integration."""
     
-    # Create session
+    # Create session with FIXED Runner constructor
+    session_service = InMemorySessionService()
     runner = Runner(
-        app_name='${agentName}_app',
         agent=root_agent,
-        session_service=InMemorySessionService(),
-        inputs={
-            'client': genai.Client(api_key=os.getenv('GOOGLE_API_KEY'))
-        }
+        session_service=session_service,
+        app_name='${agentName}_app'
     )
     
     try:
-        session = runner.session_service.create_session(
-            state={}, app_name='${agentName}_app', user_id=user_id
+        # FIXED: Use async session creation with correct parameters
+        session = await session_service.create_session(
+            app_name='${agentName}_app',
+            user_id=user_id
         )
         
         # Create message
@@ -1458,8 +1453,6 @@ from google.adk.agents import LlmAgent
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
-import mcp
-from mcp.client.streamable_http import streamablehttp_client
 
 # Configure logging
 logging.basicConfig(
@@ -1488,10 +1481,10 @@ def create_root_agent():
     if not smithery_api_key:
         raise ValueError("SMITHERY_API_KEY environment variable is not set")
 
-    # Create MCP-enabled agent
+    # Create MCP-enabled agent with FIXED parameter order
     return LlmAgent(
-        model='gemini-2.0-flash',
         name='${agentName}',
+        model='gemini-2.0-flash',
         description="${agentDescription}",
         instruction="""${agentInstruction}
 
@@ -1534,23 +1527,23 @@ ${fixedArgs.map(arg => `                        "${arg}"`).join(',\n')}
 root_agent = create_root_agent()
 
 async def main():
-    """Run the agent."""
+    """Run the agent with FIXED async patterns."""
+    session_service = InMemorySessionService()
     runner = Runner(
-        app_name='${agentName}_app',
         agent=root_agent,
-        session_service=InMemorySessionService(),
-        inputs={
-            'client': genai.Client(api_key=os.getenv('GOOGLE_API_KEY'))  # Create a new client instance
-        }
+        session_service=session_service,
+        app_name='${agentName}_app'
     )
     
     try:
-        session = runner.session_service.create_session(
-            state={}, app_name='${agentName}_app', user_id='${agentName}_user'
+        # FIXED: Use async session creation with correct parameters
+        session = await session_service.create_session(
+            app_name='${agentName}_app',
+            user_id='${agentName}_user'
         )
         async for event in runner.run_async(
-            session_id=session.id,
             user_id=session.user_id,
+            session_id=session.id,
             new_message=types.Content(
                 role='user',
                 parts=[types.Part(text="Hello! How can you help me today?")]
@@ -2223,7 +2216,30 @@ Return ONLY the complete Python code, no explanations or markdown.`;
       throw new Error('Generated code too short');
     }
 
-    return cleanedCode;
+    // CRITICAL: Always verify and fix AI-generated code using our verification system
+    console.log('Verifying AI-generated code for Google ADK compliance...');
+    try {
+      const verificationResult = await verifyAndFixCode(
+        cleanedCode, 
+        undefined, // no progress callback for now
+        {
+          mcpPackage: dedupedConfig?.[0]?.smitheryMcp,
+          agentName: agentNodes[0]?.data.label || 'ai_agent',
+          agentDescription: agentNodes[0]?.data.description || 'AI-generated agent',
+          agentInstruction: agentNodes[0]?.data.instruction || agentNodes[0]?.data.prompt || 'You are a helpful assistant'
+        }
+      );
+      
+      if (verificationResult.errors.length > 0) {
+        console.log(`Fixed ${verificationResult.errors.length} errors in AI-generated code:`, verificationResult.errors.map(e => e.type));
+      }
+      
+      return verificationResult.fixedCode;
+    } catch (verificationError) {
+      console.error('Code verification failed, falling back to template generation:', verificationError);
+      // If verification fails, fall back to template generation
+      return generateADKCode(nodes, _edges, dedupedConfig);
+    }
  } catch (error) {
   console.error('Error calling OpenRouter API:', error);
   // Fall back to local generation

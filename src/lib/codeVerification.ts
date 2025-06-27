@@ -26,13 +26,14 @@ export interface VerificationProgress {
 const ERROR_PATTERNS = {
   // Completely wrong imports - using non-existent imports
   WRONG_IMPORTS: {
-    pattern: /from mcp_toolset import|from llm_agent import|import.*mcp_toolset|import.*llm_agent|from google_adk import|import.*google_adk|class.*Agent\)|class.*LlmAgent\)/,
+    pattern: /from mcp_toolset import|from llm_agent import|import.*mcp_toolset|import.*llm_agent|from google_adk import|import.*google_adk|from google\.adk\.mcp import|class.*Agent\)|class.*LlmAgent\)/,
     message: "Using wrong imports - should use google.adk",
     fix: (code: string) => {
       // If code has completely wrong structure, replace with proper template
       if (code.includes('from mcp_toolset import') ||
           code.includes('from llm_agent import') ||
           code.includes('from google_adk import') ||
+          code.includes('from google.adk.mcp import') ||
           code.includes('class') && (code.includes('Agent') || code.includes('LlmAgent'))) {
         return generateProperMCPTemplate(
           nodeData?.mcpPackage,
@@ -486,6 +487,153 @@ if __name__ == "__main__":
       }
 
       return fixedCode;
+    }
+  },
+
+  // CRITICAL: LlmAgent parameter order - model first causes validation errors
+  LLMAGENT_WRONG_PARAMETER_ORDER: {
+    pattern: /LlmAgent\s*\(\s*model\s*=/,
+    message: "LlmAgent constructor has wrong parameter order - name must be first, not model",
+    fix: (code: string) => {
+      // Extract parameters and reorder them correctly
+      return code.replace(
+        /LlmAgent\s*\(\s*([\s\S]*?)\)/,
+        (match, params) => {
+          const lines = params.split(',').map(line => line.trim());
+          const paramMap: { [key: string]: string } = {};
+          
+          // Extract all parameters
+          lines.forEach(line => {
+            if (line.includes('name=')) paramMap.name = line;
+            else if (line.includes('model=')) paramMap.model = line;
+            else if (line.includes('description=')) paramMap.description = line;
+            else if (line.includes('instruction=')) paramMap.instruction = line;
+            else if (line.includes('tools=')) paramMap.tools = line;
+          });
+          
+          // Reorder correctly: name, model, description, instruction, tools
+          const orderedParams = [
+            paramMap.name || 'name="agent"',
+            paramMap.model || 'model="gemini-2.0-flash"',
+            paramMap.description || 'description="AI agent"',
+            paramMap.instruction || 'instruction="You are a helpful assistant"',
+            paramMap.tools || 'tools=[]'
+          ].map(p => p.replace(/,$/, '')); // Remove trailing commas
+          
+          return `LlmAgent(
+        ${orderedParams.join(',\n        ')}
+    )`;
+        }
+      );
+    }
+  },
+
+  // CRITICAL: Synchronous session creation causes errors
+  SYNCHRONOUS_SESSION_CREATION: {
+    pattern: /session_service\.create_session\s*\([^)]*state\s*=/,
+    message: "Using synchronous session creation - must use async with correct parameters",
+    fix: (code: string) => {
+      return code.replace(
+        /session_service\.create_session\s*\(\s*state\s*=\s*[^,]*,\s*app_name\s*=\s*([^,]*),\s*user_id\s*=\s*([^)]*)\)/,
+        'await session_service.create_session(app_name=$1, user_id=$2)'
+      );
+    }
+  },
+
+  // CRITICAL: Wrong Runner parameter order
+  RUNNER_WRONG_PARAMETER_ORDER: {
+    pattern: /Runner\s*\(\s*app_name\s*=/,
+    message: "Runner constructor has wrong parameter order - agent must be first, not app_name",
+    fix: (code: string) => {
+      return code.replace(
+        /Runner\s*\(\s*app_name\s*=\s*([^,]*),\s*agent\s*=\s*([^,]*),\s*session_service\s*=\s*([^)]*)\)/,
+        'Runner(agent=$2, session_service=$3, app_name=$1)'
+      );
+    }
+  },
+
+  // CRITICAL: run_forever method doesn't exist
+  RUN_FOREVER_USAGE: {
+    pattern: /\.run_forever\s*\(\)/,
+    message: "run_forever method doesn't exist - must use run_async with proper async pattern",
+    fix: (code: string) => {
+      return code.replace(
+        /asyncio\.run\(runner\.run_forever\(\)\)/,
+        `# FIXED: Use proper async pattern with run_async
+async def main():
+    session = await session_service.create_session(app_name="agent", user_id="user")
+    async for event in runner.run_async(
+        user_id=session.user_id,
+        session_id=session.id,
+        new_message=types.Content(role='user', parts=[types.Part(text="Hello")])
+    ):
+        print(event)
+
+if __name__ == '__main__':
+    asyncio.run(main())`
+      );
+    }
+  },
+
+  // CRITICAL: Missing dotenv import and load_dotenv() call
+  MISSING_DOTENV: {
+    pattern: /os\.getenv\(['"](?:GOOGLE_API_KEY|SMITHERY_API_KEY)/,
+    message: "Using environment variables without loading .env file",
+    fix: (code: string) => {
+      if (!code.includes('from dotenv import load_dotenv')) {
+        code = code.replace(
+          /import os/,
+          'import os\nfrom dotenv import load_dotenv'
+        );
+      }
+      if (!code.includes('load_dotenv()')) {
+        code = code.replace(
+          /(import.*\n.*)/,
+          '$1\n\n# Load environment variables\nload_dotenv()'
+        );
+      }
+      return code;
+    }
+  },
+
+  // Wrong Langfuse imports - non-existent analytics module
+  WRONG_LANGFUSE_IMPORTS: {
+    pattern: /from langfuse\.analytics import|import.*AnalyticsAgent/,
+    message: "Using non-existent Langfuse analytics imports",
+    fix: (code: string) => {
+      return code
+        .replace(/from langfuse\.analytics import AnalyticsAgent\n?/g, '')
+        .replace(/import.*AnalyticsAgent.*\n?/g, '')
+        .replace(/analytics_agent = AnalyticsAgent\([^)]+\)\n?/g, '')
+        .replace(/__all__ = \['analytics_agent'[^\]]*\]\n?/g, '');
+    }
+  },
+
+  // Wrong MCPToolset constructor pattern - tools and parameters
+  WRONG_MCPTOOLSET_CONSTRUCTOR: {
+    pattern: /MCPToolset\s*\(\s*tools\s*=\s*\[.*?\]\s*,\s*parameters\s*=/s,
+    message: "MCPToolset constructor using wrong parameters - should use connection_params",
+    fix: (code: string) => {
+      return generateProperMCPTemplate(
+        nodeData?.mcpPackage,
+        nodeData?.agentName,
+        nodeData?.agentDescription,
+        nodeData?.agentInstruction
+      );
+    }
+  },
+
+  // Wrong agent method calls - root_agent.run_async or root_agent.Runner
+  WRONG_AGENT_METHODS: {
+    pattern: /root_agent\.(run_async|Runner)\s*\(/,
+    message: "Using non-existent methods on agent - should use separate Runner class",
+    fix: (code: string) => {
+      return generateProperMCPTemplate(
+        nodeData?.mcpPackage,
+        nodeData?.agentName,
+        nodeData?.agentDescription,
+        nodeData?.agentInstruction
+      );
     }
   }
 };

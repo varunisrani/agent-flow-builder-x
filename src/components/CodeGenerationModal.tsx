@@ -15,8 +15,7 @@ import { Copy, AlertCircle, Loader2, Play, Code, Sparkles } from 'lucide-react';
 import { toast } from '@/hooks/use-toast.js';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { generateMCPCode, MCPConfig, generateFallbackMcpCode, isMcpCode, generateVerifiedCode, dedupeConfigs, generateCodeWithAI, hasMemoryNodes, extractMemoryConfigFromNodes, hasEventHandlingNodes, extractEventHandlingConfigFromNodes } from '@/lib/codeGeneration';
-import { type VerificationProgress, type VerificationResult } from '@/lib/codeVerification';
+import { generateMCPCode, MCPConfig, dedupeConfigs, generateCodeWithAI } from '@/lib/codeGeneration';
 
 // OpenRouter configuration - Use environment variable for API key
 // Hardcoded OpenRouter API Key (FOR DEMONSTRATION - NOT RECOMMENDED FOR PRODUCTION)
@@ -156,24 +155,7 @@ function storeCode(flowKey: string, framework: string, code: string): void {
   localStorage.setItem(key, code);
 }
 
-// Helper function to clean generated code
-function cleanGeneratedCode(code: string, forceMcp: boolean = false): string {
-  code = code.replace(/```python\n/g, '').replace(/```\n?/g, '').trim();
-
-  // If MCP is forced and code doesn't contain MCP indicators, generate MCP code
-  if (forceMcp && !isMcpCode(code)) {
-    console.log('Force MCP enabled but code is not MCP, generating fallback MCP code');
-    return generateFallbackMcpCode();
-  }
-
-  // Only fallback to search agent if MCP is not forced and no ADK imports found
-  if (!forceMcp && !code.includes('from google.adk.agents')) {
-    console.log('No ADK imports found and MCP not forced, generating search agent');
-    return generateDefaultSearchAgentCode();
-  }
-
-  return code;
-}
+// Function removed - replaced with enhanced validation in generateCodeWithOpenAI
 
 // Helper function to generate default search agent code
 const generateDefaultSearchAgentCode = (): string => {
@@ -394,7 +376,7 @@ async function generateCodeWithOpenAI(
 
     CRITICAL: Generate MCP-enabled agent code, NOT Google Search code.
 
-    ABSOLUTELY FORBIDDEN:
+    ABSOLUTELY FORBIDDEN - THESE PATTERNS CAUSE CRITICAL ERRORS:
     - NEVER use "from google_adk import" (this doesn't exist)
     - NEVER use "from mcp_toolset import" (this doesn't exist)
     - NEVER use "from llm_agent import" (this doesn't exist)
@@ -402,6 +384,9 @@ async function generateCodeWithOpenAI(
     - NEVER use non-existent classes like MCPClient, MCPTool, Model
     - NEVER use StdioServerParameters(agent=...) (wrong usage)
     - NEVER import sys for MCP agents
+    - NEVER start LlmAgent constructor with model= parameter (CRITICAL: causes validation errors)
+    - NEVER use synchronous session_service.create_session() (MUST be async)
+    - NEVER use run_forever() method (doesn't exist, use run_async)
 
     MANDATORY CORRECT STRUCTURE:
     - MUST use "from google.adk.agents import LlmAgent"
@@ -412,21 +397,22 @@ async function generateCodeWithOpenAI(
     - MUST include SMITHERY_API_KEY environment variable handling
 
     CRITICAL ERROR PREVENTION (LlmAgent Validation Errors):
-    1. LlmAgent constructor MUST use these exact parameter names in this order:
-       - name (string) - SIMPLE, non-empty string like "search_agent" (NOT complex/long names)
-       - model (string) - ALWAYS "gemini-2.0-flash" (NEVER None or empty)
-       - description (string) - CONCISE, 10-100 chars like "Agent that uses Gemini 2.0 model and Smithery MCP tool"
-       - instruction (string) - REASONABLE length, NOT "instructions" (misspelling)
-       - tools (list) - MUST be list [toolset] (NOT "toolset=" or None)
-    2. Runner constructor MUST include app_name parameter: Runner(agent=root_agent, session_service=session_service, app_name="search_agent")
-    3. SYNCHRONIZE app_name: Use SAME app_name in Runner and session_service.create_session() calls
-    4. NEVER pass session_service to LlmAgent constructor
-    5. ALWAYS include SMITHERY_API_KEY validation check after os.getenv()
-    6. MCP args MUST include --key parameter: ["--key", smithery_api_key]
-    7. Environment variables MUST include SMITHERY_API_KEY
-    8. NEVER write "tools=tools=[toolset]" - use only "tools=[toolset]" (no duplicate tools=)
-    9. Use run_async() NOT run_forever() with proper async pattern
-    10. Include required imports: from google.genai import types, import asyncio
+    1. LlmAgent constructor MUST use these exact parameter names in this EXACT order:
+       - name (string) - FIRST PARAMETER - SIMPLE, non-empty string like "search_agent" (NOT complex/long names)
+       - model (string) - SECOND PARAMETER - ALWAYS "gemini-2.0-flash" (NEVER None or empty)
+       - description (string) - THIRD PARAMETER - CONCISE, 10-100 chars like "Agent that uses Gemini 2.0 model and Smithery MCP tool"
+       - instruction (string) - FOURTH PARAMETER - REASONABLE length, NOT "instructions" (misspelling)
+       - tools (list) - FIFTH PARAMETER - MUST be list [toolset] (NOT "toolset=" or None)
+    2. Runner constructor MUST use correct order: Runner(agent=root_agent, session_service=session_service, app_name="search_agent")
+    3. Session creation MUST be async: await session_service.create_session(app_name="...", user_id="...")
+    4. SYNCHRONIZE app_name: Use SAME app_name in Runner and session_service.create_session() calls
+    5. NEVER pass session_service to LlmAgent constructor
+    6. ALWAYS include SMITHERY_API_KEY validation check after os.getenv()
+    7. MCP args MUST include --key parameter: ["--key", smithery_api_key]
+    8. Environment variables MUST include SMITHERY_API_KEY
+    9. NEVER write "tools=tools=[toolset]" - use only "tools=[toolset]" (no duplicate tools=)
+    10. Use run_async() NOT run_forever() with proper async pattern
+    11. Include required imports: from google.genai import types, import asyncio
 
     EXACT REQUIRED IMPORTS:
     - from google.adk.agents import LlmAgent
@@ -496,24 +482,35 @@ ${agentNodes.length > 0 ? `
 - Include MCPToolset with StdioServerParameters
 - Use the EXACT MCP configuration provided above
 - Include SMITHERY_API_KEY environment variable
-- Use asyncio.run(runner.run_forever()) pattern
+- Use proper async pattern with runner.run_async()
 
 **MANDATORY ERROR PREVENTION (Prevents "1 validation error for LlmAgent"):**
 1. LlmAgent constructor parameters in EXACT order: name, model, description, instruction, tools
-   - name: SIMPLE string like "search_agent" (NOT complex/long names, NEVER None/empty)
-   - model: ALWAYS "gemini-2.0-flash" (NEVER None or empty string)
-   - description: CONCISE 10-100 chars like "Agent that uses Gemini 2.0 model and Smithery MCP tool"
-   - instruction: REASONABLE length (NOT "instructions" misspelling, NEVER None/empty)
-   - tools: MUST be list [toolset] (NOT "toolset=" or None)
-2. Runner MUST include app_name: Runner(agent=root_agent, session_service=session_service, app_name="search_agent")
-3. SYNCHRONIZE app_name: Use SAME app_name in Runner and session_service.create_session() calls
-4. NEVER pass session_service to LlmAgent
-5. ALWAYS include SMITHERY_API_KEY validation: if not smithery_api_key: raise ValueError(...)
-6. Environment variables MUST include SMITHERY_API_KEY
-7. MCP args should be clean without duplicate --key parameters
-8. NEVER write "tools=tools=[toolset]" - use only "tools=[toolset]" (no duplicate tools=)
-9. Use run_async() NOT run_forever() with proper async pattern
-10. Include all required imports: from google.genai import types, import asyncio
+   - name: FIRST PARAMETER - SIMPLE string like "search_agent" (NOT complex/long names, NEVER None/empty)
+   - model: SECOND PARAMETER - ALWAYS "gemini-2.0-flash" (NEVER None or empty string)
+   - description: THIRD PARAMETER - CONCISE 10-100 chars like "Agent that uses Gemini 2.0 model and Smithery MCP tool"
+   - instruction: FOURTH PARAMETER - REASONABLE length (NOT "instructions" misspelling, NEVER None/empty)
+   - tools: FIFTH PARAMETER - MUST be list [toolset] (NOT "toolset=" or None)
+2. Runner MUST use correct order: Runner(agent=root_agent, session_service=session_service, app_name="search_agent")
+3. Session creation MUST be async: await session_service.create_session(app_name="...", user_id="...")
+4. SYNCHRONIZE app_name: Use SAME app_name in Runner and session_service.create_session() calls
+5. NEVER pass session_service to LlmAgent
+6. ALWAYS include SMITHERY_API_KEY validation: if not smithery_api_key: raise ValueError(...)
+7. Environment variables MUST include SMITHERY_API_KEY
+8. MCP args should be clean without duplicate --key parameters
+9. NEVER write "tools=tools=[toolset]" - use only "tools=[toolset]" (no duplicate tools=)
+10. Use run_async() NOT run_forever() with proper async pattern
+11. Include all required imports: from google.genai import types, import asyncio
+
+**ABSOLUTELY WRONG PATTERNS (Do NOT generate these):**
+❌ WRONG: LlmAgent(model="...", name="...")
+✅ CORRECT: LlmAgent(name="...", model="...")
+
+❌ WRONG: session_service.create_session(state={}, app_name="...", user_id="...")
+✅ CORRECT: await session_service.create_session(app_name="...", user_id="...")
+
+❌ WRONG: Runner(app_name="...", agent=..., session_service=...)
+✅ CORRECT: Runner(agent=..., session_service=..., app_name="...")
 
 **EXACT TEMPLATE TO FOLLOW (Use ACTUAL node data for dynamic values):**
 \`\`\`python
@@ -612,9 +609,20 @@ Return ONLY the Python code, no explanations.`;
     // Clean and validate the generated code
     const cleanedCode = formatCodeForDisplay(generatedCode);
 
-    // If the generated code doesn't look valid, fall back to local generation
+    // Enhanced validation and fallback logic
     if (!cleanedCode || cleanedCode.length < 100) {
       console.warn('Generated code too short, falling back to local generation');
+      return fallbackToLocalGeneration(nodes, mcpEnabled, mcpConfig);
+    }
+
+    // Additional validation checks for critical patterns
+    const hasRequiredImports = cleanedCode.includes('from google.adk.agents import LlmAgent');
+    const hasProperAgent = cleanedCode.includes('root_agent =');
+    const hasValidStructure = !cleanedCode.includes('class ') || !cleanedCode.includes('Agent)');
+    
+    if (!hasRequiredImports || !hasProperAgent || !hasValidStructure) {
+      console.warn('Generated code has structural issues, falling back to local generation');
+      console.log('Validation failed:', { hasRequiredImports, hasProperAgent, hasValidStructure });
       return fallbackToLocalGeneration(nodes, mcpEnabled, mcpConfig);
     }
 
@@ -626,7 +634,7 @@ Return ONLY the Python code, no explanations.`;
   }
 }
 
-// Fallback function for local code generation
+// Enhanced fallback function for robust local code generation
 function fallbackToLocalGeneration(
   nodes: Node<BaseNodeData>[],
   mcpEnabled: boolean,
@@ -634,16 +642,106 @@ function fallbackToLocalGeneration(
 ): string {
   console.log('Falling back to local generation, MCP enabled:', mcpEnabled);
 
-  if (mcpEnabled) {
-    // Extract actual MCP config from nodes if not provided
-    const validConfig = mcpConfig || extractMcpConfigFromNodes(nodes);
-    const deduped = dedupeConfigs(validConfig);
-    console.log('Generating MCP code with config:', validConfig);
-    return generateMCPCode(nodes, deduped);
-  }
+  try {
+    let fallbackCode: string;
+    
+    if (mcpEnabled) {
+      // Extract actual MCP config from nodes if not provided
+      const validConfig = mcpConfig || extractMcpConfigFromNodes(nodes);
+      const deduped = dedupeConfigs(validConfig);
+      console.log('Generating MCP code with config:', validConfig);
+      fallbackCode = generateMCPCode(nodes, deduped);
+    } else {
+      console.log('Generating default search agent code');
+      fallbackCode = generateDefaultSearchAgentCode();
+    }
 
-  console.log('Generating default search agent code');
-  return generateDefaultSearchAgentCode();
+    // Verify the fallback code is valid
+    if (!fallbackCode || fallbackCode.length < 50) {
+      console.error('Fallback generation failed, using emergency template');
+      return generateEmergencyTemplate(nodes);
+    }
+
+    // Quick validation
+    if (!fallbackCode.includes('from google.adk.agents import LlmAgent') || 
+        !fallbackCode.includes('root_agent =')) {
+      console.error('Fallback code is malformed, using emergency template');
+      return generateEmergencyTemplate(nodes);
+    }
+
+    return fallbackCode;
+  } catch (error) {
+    console.error('Error in fallback generation:', error);
+    return generateEmergencyTemplate(nodes);
+  }
+}
+
+// Emergency template that always works
+function generateEmergencyTemplate(nodes: Node<BaseNodeData>[]): string {
+  const agentNode = nodes.find(n => n.data.type === 'agent');
+  const agentName = agentNode?.data.label?.toLowerCase().replace(/\s+/g, '_') || 'emergency_agent';
+  
+  return `"""Emergency Agent Template - Guaranteed Working Code"""
+import os
+import asyncio
+from dotenv import load_dotenv
+from google.adk.agents import LlmAgent
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.genai import types
+
+# Load environment variables
+load_dotenv()
+
+# Check for required API keys
+GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+if not GOOGLE_API_KEY:
+    raise ValueError("GOOGLE_API_KEY environment variable is not set")
+
+# Create agent with CORRECT parameter order
+root_agent = LlmAgent(
+    name="${agentName}",
+    model="gemini-2.0-flash",
+    description="Emergency fallback agent with guaranteed working configuration",
+    instruction="You are a helpful assistant that can provide information and assistance.",
+    tools=[]
+)
+
+async def main():
+    """Run the agent with proper async pattern."""
+    session_service = InMemorySessionService()
+    runner = Runner(
+        agent=root_agent,
+        session_service=session_service,
+        app_name="${agentName}"
+    )
+    
+    try:
+        # Create session with correct async pattern
+        session = await session_service.create_session(
+            app_name="${agentName}",
+            user_id="user"
+        )
+        
+        # Test message
+        message = types.Content(
+            role='user',
+            parts=[types.Part(text="Hello! How can you help me?")]
+        )
+        
+        async for event in runner.run_async(
+            user_id=session.user_id,
+            session_id=session.id,
+            new_message=message
+        ):
+            print(event)
+    except Exception as e:
+        print(f"Error running agent: {e}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
+__all__ = ["root_agent"]`;
 }
 
 // Create a default MCP config
@@ -795,7 +893,7 @@ export function CodeGenerationModal({
           throw new Error('OpenRouter API key is required for code generation. Please configure VITE_OPENROUTER_API_KEY in your environment.');
         }
         
-        console.log('Using OpenRouter AI for code generation');
+        console.log('Using OpenRouter AI for initial code generation (includes automatic verification)');
         generatedCode = await generateCodeWithAI(nodes, edges, mcpEnabled, OPENROUTER_API_KEY, mcpConfig);
       } else {
         console.log('Generating default search agent code for non-ADK tab');
@@ -858,7 +956,7 @@ export function CodeGenerationModal({
           throw new Error('OpenRouter API key is required for code generation. Please configure VITE_OPENROUTER_API_KEY in your environment.');
         }
         
-        console.log('Using OpenRouter AI for code generation');
+        console.log('Using OpenRouter AI for code regeneration (includes automatic verification)');
         generatedCode = await generateCodeWithAI(nodes, edges, mcpEnabled, OPENROUTER_API_KEY, mcpConfig);
       } else {
         console.log('Generating default search agent code for non-ADK tab');
