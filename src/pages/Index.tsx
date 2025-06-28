@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { ReactFlowProvider, Node, Edge } from '@xyflow/react';
-import { Bot, MessageSquare, PanelLeft, ArrowLeft } from 'lucide-react';
+import { Bot, MessageSquare, PanelLeft, ArrowLeft, Sparkles, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast.js';
 import { useNavigate } from 'react-router-dom';
 
@@ -12,6 +12,10 @@ import { NaturalLanguageInput } from '@/components/NaturalLanguageInput.js';
 import { TestPanel } from '@/components/TestPanel.js';
 import { WelcomeModal } from '@/components/WelcomeModal.js';
 import { OnboardingOverlay } from '@/components/OnboardingOverlay.js';
+import { InteractiveOnboarding } from '@/components/InteractiveOnboarding.js';
+import { TemplateLibrary } from '@/components/TemplateLibrary.js';
+import { QuickStartWizard } from '@/components/QuickStartWizard.js';
+import { InlineAnalytics } from '@/components/InlineAnalytics.js';
 import { Button } from '@/components/ui/button.js';
 import { BaseNodeData } from '@/components/nodes/BaseNode.js';
 import { getCurrentProject, saveProjectNodesAndEdges, Project } from '@/services/projectService.js';
@@ -34,6 +38,9 @@ const Index = () => {
   const [mcpConfig, setMcpConfig] = useState<MCPConfig[] | undefined>(undefined);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showInteractiveOnboarding, setShowInteractiveOnboarding] = useState(false);
+  const [showTemplateLibrary, setShowTemplateLibrary] = useState(false);
+  const [showQuickStartWizard, setShowQuickStartWizard] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
   
@@ -58,10 +65,10 @@ const Index = () => {
       setEdges(project.edges);
     }
 
-    // Check if this is a new user and show onboarding
+    // Check if this is a new user and show interactive onboarding
     const hasSeenOnboarding = localStorage.getItem('cogentx-onboarding-complete');
     if (!hasSeenOnboarding && project.nodes.length === 0) {
-      setShowOnboarding(true);
+      setShowInteractiveOnboarding(true);
     }
   }, [navigate]);
   
@@ -123,6 +130,78 @@ const Index = () => {
     navigate('/projects');
   };
 
+  const handleTemplateSelect = (
+    templateNodes: Node<BaseNodeData>[],
+    templateEdges: Edge[],
+    templateMcpConfig?: MCPConfig[]
+  ) => {
+    setNodes(templateNodes);
+    setEdges(templateEdges);
+    setMcpConfig(templateMcpConfig);
+    
+    // Save to the current project
+    if (currentProject?.id) {
+      saveProjectNodesAndEdges(currentProject.id, transformNodes(templateNodes), templateEdges);
+    }
+    
+    toast({
+      title: "Template Applied Successfully",
+      description: "Your agent flow has been created from the template",
+      duration: 3000,
+    });
+  };
+
+  const handleQuickStartComplete = (
+    wizardNodes: Node<BaseNodeData>[],
+    wizardEdges: Edge[],
+    wizardMcpConfig?: MCPConfig[]
+  ) => {
+    setNodes(wizardNodes);
+    setEdges(wizardEdges);
+    setMcpConfig(wizardMcpConfig);
+    
+    // Save to the current project
+    if (currentProject?.id) {
+      saveProjectNodesAndEdges(currentProject.id, transformNodes(wizardNodes), wizardEdges);
+    }
+    
+    toast({
+      title: "Agent Created Successfully",
+      description: "Your AI agent is ready to use!",
+      duration: 3000,
+    });
+  };
+
+  const handleInteractiveOnboardingNodeCreate = (type: string, position: { x: number; y: number }) => {
+    // Create a new node for the interactive tutorial
+    const newNode: Node<BaseNodeData> = {
+      id: `${type}-${Date.now()}`,
+      type: 'baseNode',
+      position,
+      data: {
+        id: `${type}-${Date.now()}`,
+        type: type as any,
+        label: type === 'agent' ? 'My First Agent' : type === 'input' ? 'User Input' : type.charAt(0).toUpperCase() + type.slice(1),
+        description: type === 'agent' ? 'A helpful AI assistant' : type === 'input' ? 'Input from user' : `${type} component`
+      }
+    };
+
+    setNodes(prevNodes => [...prevNodes, newNode]);
+    
+    // Save to the current project
+    if (currentProject?.id) {
+      const updatedNodes = [...nodes, newNode];
+      saveProjectNodesAndEdges(currentProject.id, transformNodes(updatedNodes), edges);
+    }
+  };
+
+  const handleInteractiveOnboardingNodeSelect = (nodeId: string) => {
+    const node = nodes.find(n => n.id === nodeId);
+    if (node) {
+      setSelectedNode(node);
+    }
+  };
+
   if (!currentProject) {
     return null; // Will redirect in the useEffect
   }
@@ -150,25 +229,69 @@ const Index = () => {
             />
           </ReactFlowProvider>
           
-          {/* Empty state message for new users */}
-          {nodes.length === 0 && !showOnboarding && (
+          {/* Enhanced empty state with multiple options */}
+          {nodes.length === 0 && !showOnboarding && !showInteractiveOnboarding && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="text-center p-8 bg-gradient-to-br from-zinc-300/5 via-purple-400/10 to-transparent backdrop-blur-xl rounded-2xl border-[2px] border-white/10 shadow-2xl max-w-md pointer-events-auto">
-                <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-tr from-purple-400/20 via-orange-200/20 to-transparent border border-purple-400/30 rounded-2xl flex items-center justify-center">
-                  <Bot className="w-8 h-8 text-purple-400" />
+              <div className="text-center p-8 bg-gradient-to-br from-zinc-300/5 via-purple-400/10 to-transparent backdrop-blur-xl rounded-2xl border-[2px] border-white/10 shadow-2xl max-w-2xl pointer-events-auto">
+                <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-tr from-purple-400/20 via-orange-200/20 to-transparent border border-purple-400/30 rounded-2xl flex items-center justify-center">
+                  <Bot className="w-10 h-10 text-purple-400" />
                 </div>
-                <h3 className="text-xl font-semibold text-transparent bg-clip-text bg-gradient-to-r from-purple-300 to-orange-200 mb-2">
+                <h3 className="text-2xl font-semibold text-transparent bg-clip-text bg-gradient-to-r from-purple-300 to-orange-200 mb-3">
                   Ready to build your first AI agent?
                 </h3>
-                <p className="text-gray-300 mb-6 leading-relaxed">
-                  Start by describing what you want your agent to do using the natural language input below, or drag components from the sidebar.
+                <p className="text-gray-300 mb-8 leading-relaxed text-lg">
+                  Choose how you'd like to get started with your agent creation journey
                 </p>
-                <Button 
-                  onClick={() => setNlInputExpanded(true)}
-                  className="bg-gradient-to-tr from-zinc-300/5 via-purple-400/20 to-transparent border-0 hover:scale-105 transition-transform"
-                >
-                  Start Building
-                </Button>
+                
+                {/* Action Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  {/* Quick Start Wizard */}
+                  <div 
+                    onClick={() => setShowQuickStartWizard(true)}
+                    className="p-4 bg-gradient-to-br from-purple-500/10 via-pink-500/10 to-transparent border border-purple-400/20 rounded-xl cursor-pointer hover:border-purple-400/40 hover:scale-105 transition-all duration-300 group"
+                  >
+                    <div className="w-12 h-12 mx-auto mb-3 bg-gradient-to-tr from-purple-500/20 via-pink-500/20 to-transparent border border-purple-400/30 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <Zap className="w-6 h-6 text-purple-400" />
+                    </div>
+                    <h4 className="font-semibold text-white mb-2">Quick Start</h4>
+                    <p className="text-gray-300 text-sm leading-relaxed">
+                      5-step wizard to create your first agent
+                    </p>
+                  </div>
+
+                  {/* Template Library */}
+                  <div 
+                    onClick={() => setShowTemplateLibrary(true)}
+                    className="p-4 bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-transparent border border-blue-400/20 rounded-xl cursor-pointer hover:border-blue-400/40 hover:scale-105 transition-all duration-300 group"
+                  >
+                    <div className="w-12 h-12 mx-auto mb-3 bg-gradient-to-tr from-blue-500/20 via-purple-500/20 to-transparent border border-blue-400/30 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <Sparkles className="w-6 h-6 text-blue-400" />
+                    </div>
+                    <h4 className="font-semibold text-white mb-2">Templates</h4>
+                    <p className="text-gray-300 text-sm leading-relaxed">
+                      Pre-built agents for common use cases
+                    </p>
+                  </div>
+
+                  {/* Natural Language */}
+                  <div 
+                    onClick={() => setNlInputExpanded(true)}
+                    className="p-4 bg-gradient-to-br from-green-500/10 via-blue-500/10 to-transparent border border-green-400/20 rounded-xl cursor-pointer hover:border-green-400/40 hover:scale-105 transition-all duration-300 group"
+                  >
+                    <div className="w-12 h-12 mx-auto mb-3 bg-gradient-to-tr from-green-500/20 via-blue-500/20 to-transparent border border-green-400/30 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <MessageSquare className="w-6 h-6 text-green-400" />
+                    </div>
+                    <h4 className="font-semibold text-white mb-2">Describe</h4>
+                    <p className="text-gray-300 text-sm leading-relaxed">
+                      Tell us what you want in plain English
+                    </p>
+                  </div>
+                </div>
+
+                {/* Secondary action */}
+                <p className="text-gray-400 text-sm">
+                  Or drag components from the sidebar to start building manually
+                </p>
               </div>
             </div>
           )}
@@ -196,6 +319,9 @@ const Index = () => {
           visible={testPanelVisible}
           onClose={() => setTestPanelVisible(false)}
         />
+
+        {/* Inline Analytics Widget */}
+        <InlineAnalytics position="top-right" compact={nodes.length === 0} />
       </div>
       
       <NaturalLanguageInput
@@ -206,6 +332,28 @@ const Index = () => {
       
       {showOnboarding && (
         <OnboardingOverlay onComplete={() => setShowOnboarding(false)} />
+      )}
+      
+      {showInteractiveOnboarding && (
+        <InteractiveOnboarding 
+          onComplete={() => setShowInteractiveOnboarding(false)}
+          onNodeCreate={handleInteractiveOnboardingNodeCreate}
+          onNodeSelect={handleInteractiveOnboardingNodeSelect}
+        />
+      )}
+      
+      {showTemplateLibrary && (
+        <TemplateLibrary 
+          onSelectTemplate={handleTemplateSelect}
+          onClose={() => setShowTemplateLibrary(false)} 
+        />
+      )}
+      
+      {showQuickStartWizard && (
+        <QuickStartWizard 
+          onComplete={handleQuickStartComplete}
+          onClose={() => setShowQuickStartWizard(false)} 
+        />
       )}
     </div>
   );

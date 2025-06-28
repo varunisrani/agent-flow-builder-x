@@ -19,7 +19,12 @@ import {
   Filter,
   Grid3X3,
   List,
-  BarChart3
+  BarChart3,
+  SortAsc,
+  SortDesc,
+  X,
+  Hash,
+  Users
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button.js';
@@ -36,6 +41,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select.js";
+import { Badge } from "@/components/ui/badge.js";
 import { Input } from '@/components/ui/input.js';
 import { useToast } from '@/hooks/use-toast.js';
 import { useAuth } from '@/hooks/useAuth.js';
@@ -87,6 +100,9 @@ const Projects = () => {
   const [newProject, setNewProject] = useState({ name: '', description: '' });
   const [filterValue, setFilterValue] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [sortBy, setSortBy] = useState<'recent' | 'name' | 'nodes' | 'created'>('recent');
+  const [filterBy, setFilterBy] = useState<'all' | 'starred' | 'empty' | 'complex'>('all');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -182,10 +198,50 @@ const Projects = () => {
     saveProjects(updatedProjects);
   };
 
-  const filteredProjects = projects.filter(project => 
-    project.name.toLowerCase().includes(filterValue.toLowerCase()) ||
-    project.description.toLowerCase().includes(filterValue.toLowerCase())
-  );
+  const filteredProjects = projects.filter(project => {
+    // Search filter - enhanced to include more fields
+    const matchesSearch = filterValue === '' || (
+      project.name.toLowerCase().includes(filterValue.toLowerCase()) ||
+      project.description.toLowerCase().includes(filterValue.toLowerCase()) ||
+      // Search within node data if available
+      (project.nodes && project.nodes.some(node => 
+        node.data.label?.toLowerCase().includes(filterValue.toLowerCase()) ||
+        node.data.description?.toLowerCase().includes(filterValue.toLowerCase()) ||
+        node.data.instruction?.toLowerCase().includes(filterValue.toLowerCase())
+      ))
+    );
+
+    // Category filter
+    const matchesFilter = (() => {
+      switch (filterBy) {
+        case 'starred':
+          return project.starred;
+        case 'empty':
+          return !project.nodes || project.nodes.length === 0;
+        case 'complex':
+          return project.nodes && project.nodes.length >= 5;
+        default:
+          return true;
+      }
+    })();
+
+    return matchesSearch && matchesFilter;
+  });
+
+  // Sort projects
+  const sortedProjects = [...filteredProjects].sort((a, b) => {
+    switch (sortBy) {
+      case 'name':
+        return a.name.localeCompare(b.name);
+      case 'nodes':
+        return (b.nodes?.length || 0) - (a.nodes?.length || 0);
+      case 'created':
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      case 'recent':
+      default:
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    }
+  });
 
   const handleBackHome = () => {
     navigate('/');
@@ -195,8 +251,8 @@ const Projects = () => {
     navigate('/analytics');
   };
 
-  const starredProjects = filteredProjects.filter(p => p.starred);
-  const regularProjects = filteredProjects.filter(p => !p.starred);
+  const starredProjects = sortedProjects.filter(p => p.starred);
+  const regularProjects = sortedProjects.filter(p => !p.starred);
 
   return (
     <div className="min-h-screen bg-[#0a0b1e] text-white relative overflow-hidden">
@@ -243,23 +299,56 @@ const Projects = () => {
           animate={{ opacity: 1, x: 0 }}
           className="flex items-center gap-4"
         >
+          {/* Enhanced Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-purple-400" />
             <Input 
-              placeholder="Search projects..." 
-              className="pl-10 w-72 bg-gradient-to-tr from-zinc-300/5 via-purple-400/10 to-transparent border border-white/10 focus:border-purple-400/50 transition-all backdrop-blur-sm"
+              placeholder="Search projects, descriptions, nodes..." 
+              className="pl-10 w-80 bg-gradient-to-tr from-zinc-300/5 via-purple-400/10 to-transparent border border-white/10 focus:border-purple-400/50 transition-all backdrop-blur-sm"
               value={filterValue}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFilterValue(e.target.value)}
             />
+            {filterValue && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-white/10"
+                onClick={() => setFilterValue('')}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            )}
           </div>
+
+          {/* Advanced Filters Toggle */}
+          <Button
+            variant="outline"
+            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+            className={`bg-gradient-to-tr from-zinc-300/5 via-purple-400/10 to-transparent border transition-all backdrop-blur-sm ${
+              showAdvancedFilters || filterBy !== 'all' || sortBy !== 'recent'
+                ? 'border-purple-400/50 text-purple-300'
+                : 'border-white/10 text-gray-300 hover:border-purple-400/30'
+            }`}
+          >
+            <Filter className="h-4 w-4 mr-2" />
+            Filters
+            {(filterBy !== 'all' || sortBy !== 'recent') && (
+              <Badge variant="secondary" className="ml-2 bg-purple-500/20 text-purple-400 border-purple-500/30 text-xs">
+                Active
+              </Badge>
+            )}
+          </Button>
+
           <Button
             variant="outline"
             onClick={handleViewAnalytics}
             className="bg-gradient-to-tr from-zinc-300/5 via-purple-400/10 to-transparent border border-purple-400/20 hover:border-purple-400/40 text-purple-300 hover:text-purple-200 backdrop-blur-sm"
           >
             <BarChart3 className="h-4 w-4 mr-2" />
-            See Analysis
+            Analytics
           </Button>
+
+          {/* View Mode Toggle */}
           <div className="flex items-center gap-2 p-1 bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 to-transparent border border-white/5 rounded-xl backdrop-blur-sm">
             <Button
               variant={viewMode === 'grid' ? 'default' : 'ghost'}
@@ -281,6 +370,79 @@ const Projects = () => {
           <UserMenu />
         </motion.div>
       </header>
+
+      {/* Advanced Filters Panel */}
+      {showAdvancedFilters && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          exit={{ opacity: 0, height: 0 }}
+          className="relative z-10 border-b border-white/5 bg-gradient-to-r from-purple-500/5 via-pink-500/5 to-transparent backdrop-blur-sm"
+        >
+          <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-4">
+            <div className="flex items-center gap-6 flex-wrap">
+              {/* Sort By */}
+              <div className="flex items-center gap-3">
+                <SortAsc className="w-4 h-4 text-gray-400" />
+                <span className="text-sm font-medium text-gray-300">Sort by:</span>
+                <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
+                  <SelectTrigger className="w-40 bg-gradient-to-tr from-zinc-300/5 via-purple-400/10 to-transparent border border-white/10 focus:border-purple-400/50">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="recent">Most Recent</SelectItem>
+                    <SelectItem value="name">Name A-Z</SelectItem>
+                    <SelectItem value="nodes">Most Complex</SelectItem>
+                    <SelectItem value="created">Oldest First</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Filter By */}
+              <div className="flex items-center gap-3">
+                <Filter className="w-4 h-4 text-gray-400" />
+                <span className="text-sm font-medium text-gray-300">Show:</span>
+                <Select value={filterBy} onValueChange={(value: any) => setFilterBy(value)}>
+                  <SelectTrigger className="w-40 bg-gradient-to-tr from-zinc-300/5 via-purple-400/10 to-transparent border border-white/10 focus:border-purple-400/50">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Projects</SelectItem>
+                    <SelectItem value="starred">Starred Only</SelectItem>
+                    <SelectItem value="empty">Empty Projects</SelectItem>
+                    <SelectItem value="complex">Complex (5+ nodes)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Results Count */}
+              <div className="flex items-center gap-2 ml-auto">
+                <Hash className="w-4 h-4 text-gray-400" />
+                <span className="text-sm text-gray-400">
+                  {sortedProjects.length} of {projects.length} projects
+                </span>
+              </div>
+
+              {/* Clear Filters */}
+              {(filterBy !== 'all' || sortBy !== 'recent' || filterValue) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setFilterBy('all');
+                    setSortBy('recent');
+                    setFilterValue('');
+                  }}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <X className="w-4 h-4 mr-1" />
+                  Clear All
+                </Button>
+              )}
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       {/* Main content */}
       <main className="relative z-10 max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-12">
@@ -486,7 +648,7 @@ const Projects = () => {
         )}
         
         {/* No results */}
-        {filteredProjects.length === 0 && projects.length > 0 && (
+        {sortedProjects.length === 0 && projects.length > 0 && (
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -501,15 +663,35 @@ const Projects = () => {
               No projects found
             </h3>
             <p className="text-gray-300 mb-6">
-              Try adjusting your search or create a new project
+              {filterValue 
+                ? `No projects match "${filterValue}". Try adjusting your search or filters.`
+                : filterBy !== 'all' 
+                  ? `No projects match the current filter. Try changing the filter or create a new project.`
+                  : 'Try adjusting your search or create a new project'
+              }
             </p>
-            <Button 
-              variant="outline" 
-              onClick={() => setFilterValue('')}
-              className="border border-gray-600 hover:bg-gray-700"
-            >
-              Clear Search
-            </Button>
+            <div className="flex gap-3 justify-center">
+              {(filterValue || filterBy !== 'all' || sortBy !== 'recent') && (
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setFilterValue('');
+                    setFilterBy('all');
+                    setSortBy('recent');
+                  }}
+                  className="border border-gray-600 hover:bg-gray-700"
+                >
+                  Clear Filters
+                </Button>
+              )}
+              <Button
+                onClick={() => setIsCreating(true)}
+                className="bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-700 hover:to-pink-600 text-white"
+              >
+                <PlusCircle className="h-4 w-4 mr-2" />
+                Create Project
+              </Button>
+            </div>
           </motion.div>
         )}
       </main>
