@@ -24,6 +24,8 @@ import { PlusCircle, Zap, Code, Save, ArrowLeft, Sparkles } from 'lucide-react';
 import { Button } from './ui/button.js';
 import { toast } from '../hooks/use-toast.js';
 import { useNavigate } from 'react-router-dom';
+import { useFlowHistory } from '@/hooks/useFlowHistory';
+import { FloatingUndoRedoControls } from './UndoRedoControls';
 
 import BaseNode, { BaseNodeData } from './nodes/BaseNode.js';
 import { CodeGenerationModal } from './CodeGenerationModal.js';
@@ -43,6 +45,14 @@ interface FlowEditorProps {
   onEdgesChange?: (edges: Edge[]) => void;
   projectId?: string;
   mcpConfig?: MCPConfig[];
+  // Expose history controls to parent
+  onHistoryChange?: (historyControls: {
+    canUndo: boolean;
+    canRedo: boolean;
+    undo: () => void;
+    redo: () => void;
+    historyLength: number;
+  }) => void;
 }
 
 // Add this helper function
@@ -77,63 +87,78 @@ export function FlowEditor({
   onNodesChange: externalOnNodesChange,
   onEdgesChange: externalOnEdgesChange,
   projectId,
-  mcpConfig
+  mcpConfig,
+  onHistoryChange
 }: FlowEditorProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  const [nodes, setNodes] = useState<Node<BaseNodeData>[]>(initialNodes);
-  const [edges, setEdges] = useState<Edge[]>(initialEdges);
   const [codeModalOpen, setCodeModalOpen] = useState(false);
   const [codeOutput, setCodeOutput] = useState<string>('');
   const reactFlowInstance = useReactFlow();
   const navigate = useNavigate();
 
-  // Update internal state when external props change
-  useEffect(() => {
-    if (initialNodes?.length) {
-      setNodes(initialNodes);
-    }
-  }, [initialNodes]);
+  // Use flow history for undo/redo functionality
+  const {
+    nodes,
+    edges,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    updateNodes,
+    updateEdges,
+    updateFlow,
+    saveState
+  } = useFlowHistory({
+    initialNodes,
+    initialEdges,
+    onNodesChange: externalOnNodesChange,
+    onEdgesChange: externalOnEdgesChange,
+    debounceMs: 300
+  });
 
+  // Expose history controls to parent component
   useEffect(() => {
-    if (initialEdges?.length) {
-      setEdges(initialEdges);
+    if (onHistoryChange) {
+      onHistoryChange({
+        canUndo,
+        canRedo,
+        undo,
+        redo,
+        historyLength: nodes.length + edges.length // Simple approximation
+      });
     }
-  }, [initialEdges]);
+  }, [canUndo, canRedo, undo, redo, nodes.length, edges.length, onHistoryChange]);
 
   // Handle node changes
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
       // Need to cast the result of applyNodeChanges to fix type issues
       const updatedNodes = applyNodeChanges(changes, nodes) as unknown as Node<BaseNodeData>[];
-      setNodes(updatedNodes);
-      if (externalOnNodesChange) {
-        externalOnNodesChange(updatedNodes);
-      }
+      updateNodes(updatedNodes, `Node changes: ${changes.map(c => c.type).join(', ')}`);
     },
-    [nodes, externalOnNodesChange]
+    [nodes, updateNodes]
   );
 
   // Handle edge changes
   const handleEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
       const updatedEdges = applyEdgeChanges(changes, edges);
-      setEdges(updatedEdges);
-      if (externalOnEdgesChange) {
-        externalOnEdgesChange(updatedEdges);
-      }
+      updateEdges(updatedEdges, `Edge changes: ${changes.map(c => c.type).join(', ')}`);
     },
-    [edges, externalOnEdgesChange]
+    [edges, updateEdges]
   );
   
   const onConnect = useCallback<OnConnect>(
     (connection) => {
       const newEdges = addEdge(connection, edges);
-      setEdges(newEdges);
-      if (externalOnEdgesChange) {
-        externalOnEdgesChange(newEdges);
+      updateEdges(newEdges, 'Connected nodes');
+      
+      // Save to project if projectId is provided
+      if (projectId) {
+        saveProjectNodesAndEdges(projectId, transformNodesForSave(nodes), newEdges);
       }
     },
-    [edges, externalOnEdgesChange]
+    [edges, nodes, updateEdges, projectId]
   );
   
   const onDragOver = useCallback((event: React.DragEvent) => {
@@ -174,18 +199,14 @@ export function FlowEditor({
       };
 
       const updatedNodes = [...nodes, newNode];
-      setNodes(updatedNodes);
-      
-      if (externalOnNodesChange) {
-        externalOnNodesChange(updatedNodes);
-      }
+      updateNodes(updatedNodes, `Added ${type} node`);
       
       // Save to project if projectId is provided
       if (projectId) {
         saveProjectNodesAndEdges(projectId, transformNodesForSave(updatedNodes), edges);
       }
     },
-    [reactFlowInstance, nodes, edges, externalOnNodesChange, projectId]
+    [reactFlowInstance, nodes, edges, updateNodes, projectId]
   );
   
   const handleNodeClick = (event: React.MouseEvent, node: Node<BaseNodeData>) => {
@@ -275,6 +296,17 @@ export function FlowEditor({
               <span>Back to Projects</span>
             </Button>
           </div>
+        </Panel>
+
+        {/* Undo/Redo Controls */}
+        <Panel position="top-left" className="m-4" style={{ top: 80, left: 16 }}>
+          <FloatingUndoRedoControls
+            canUndo={canUndo}
+            canRedo={canRedo}
+            onUndo={undo}
+            onRedo={redo}
+            historyLength={0}
+          />
         </Panel>
         
         {/* Save Workflow Panel */}

@@ -16,9 +16,12 @@ import { InteractiveOnboarding } from '@/components/InteractiveOnboarding.js';
 import { TemplateLibrary } from '@/components/TemplateLibrary.js';
 import { QuickStartWizard } from '@/components/QuickStartWizard.js';
 import { InlineAnalytics } from '@/components/InlineAnalytics.js';
+import { ComponentErrorBoundary } from '@/components/ErrorBoundary.js';
+import { RecoveryDialog, useRecoveryCheck } from '@/components/RecoveryDialog.js';
 import { Button } from '@/components/ui/button.js';
 import { BaseNodeData } from '@/components/nodes/BaseNode.js';
 import { getCurrentProject, saveProjectNodesAndEdges, Project } from '@/services/projectService.js';
+import { useAutoSave } from '@/hooks/useAutoSave.js';
 import { MCPConfig } from '@/lib/codeGeneration';
 
 const transformNodes = (nodes: Node<BaseNodeData>[]) => {
@@ -41,8 +44,43 @@ const Index = () => {
   const [showInteractiveOnboarding, setShowInteractiveOnboarding] = useState(false);
   const [showTemplateLibrary, setShowTemplateLibrary] = useState(false);
   const [showQuickStartWizard, setShowQuickStartWizard] = useState(false);
+  const [historyControls, setHistoryControls] = useState<{
+    canUndo: boolean;
+    canRedo: boolean;
+    undo: () => void;
+    redo: () => void;
+    historyLength: number;
+  } | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
+  
+  // Recovery functionality
+  const { hasRecovery, showDialog: showRecoveryDialog, setShowDialog: setShowRecoveryDialog } = useRecoveryCheck(currentProject?.id || '');
+  
+  // Auto-save functionality
+  const autoSave = useAutoSave(
+    currentProject?.id || '',
+    nodes,
+    edges,
+    mcpConfig,
+    async (projectId, nodes, edges) => {
+      await saveProjectNodesAndEdges(projectId, transformNodes(nodes), edges);
+    },
+    {
+      debounceMs: 2000,
+      enableRecovery: true,
+      onSaveSuccess: () => {
+        // Optional: show subtle save indicator
+      },
+      onSaveError: (error) => {
+        toast({
+          title: "Auto-save failed",
+          description: "Your changes may not be saved. Please save manually.",
+          variant: "destructive",
+        });
+      }
+    }
+  );
   
   // Load the current project on mount
   useEffect(() => {
@@ -202,13 +240,43 @@ const Index = () => {
     }
   };
 
+  const handleRecoveryRestore = (recoveredNodes: Node<BaseNodeData>[], recoveredEdges: Edge[], recoveredMcpConfig?: MCPConfig[]) => {
+    setNodes(recoveredNodes);
+    setEdges(recoveredEdges);
+    if (recoveredMcpConfig) {
+      setMcpConfig(recoveredMcpConfig);
+    }
+    
+    toast({
+      title: "Work Recovered Successfully",
+      description: "Your previous work has been restored.",
+      duration: 3000,
+    });
+  };
+
+  const handleRecoveryDiscard = () => {
+    toast({
+      title: "Recovery Data Discarded",
+      description: "Previous work data has been cleared.",
+      duration: 3000,
+    });
+  };
+
   if (!currentProject) {
     return null; // Will redirect in the useEffect
   }
 
   return (
     <div className="h-screen flex flex-col bg-[#0a0b1e] text-white overflow-hidden">
-      <Navbar projectName={currentProject.name} onSwitchProject={handleSwitchProject} />
+      <Navbar 
+        projectName={currentProject.name} 
+        onSwitchProject={handleSwitchProject}
+        canUndo={historyControls?.canUndo || false}
+        canRedo={historyControls?.canRedo || false}
+        onUndo={historyControls?.undo}
+        onRedo={historyControls?.redo}
+        historyLength={historyControls?.historyLength || 0}
+      />
       
       <div className="flex-1 flex">
         <Sidebar 
@@ -217,17 +285,36 @@ const Index = () => {
         />
         
         <div className="flex-1 relative">
-          <ReactFlowProvider>
-            <FlowEditor
-              onNodeSelect={setSelectedNode}
-              initialNodes={nodes}
-              initialEdges={edges}
-              onNodesChange={setNodes}
-              onEdgesChange={setEdges}
-              projectId={currentProject.id}
-              mcpConfig={mcpConfig}
-            />
-          </ReactFlowProvider>
+          <ComponentErrorBoundary 
+            componentName="FlowEditor"
+            fallback={
+              <div className="h-full flex items-center justify-center bg-gradient-to-br from-red-500/5 via-orange-500/5 to-transparent">
+                <div className="text-center p-8">
+                  <div className="text-red-400 mb-4">⚠️ Flow Editor Error</div>
+                  <p className="text-gray-300 mb-4">The flow editor encountered an issue.</p>
+                  <button 
+                    onClick={() => window.location.reload()} 
+                    className="px-4 py-2 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 hover:bg-red-500/30 transition-colors"
+                  >
+                    Reload Editor
+                  </button>
+                </div>
+              </div>
+            }
+          >
+            <ReactFlowProvider>
+              <FlowEditor
+                onNodeSelect={setSelectedNode}
+                initialNodes={nodes}
+                initialEdges={edges}
+                onNodesChange={setNodes}
+                onEdgesChange={setEdges}
+                projectId={currentProject.id}
+                mcpConfig={mcpConfig}
+                onHistoryChange={setHistoryControls}
+              />
+            </ReactFlowProvider>
+          </ComponentErrorBoundary>
           
           {/* Enhanced empty state with multiple options */}
           {nodes.length === 0 && !showOnboarding && !showInteractiveOnboarding && (
@@ -309,11 +396,29 @@ const Index = () => {
           </div>
         </div>
         
-        <PropertiesPanel 
-          selectedNode={selectedNode} 
-          onClose={() => setSelectedNode(null)}
-          onUpdateNode={handleUpdateNode}
-        />
+        <ComponentErrorBoundary 
+          componentName="PropertiesPanel"
+          fallback={
+            <div className="fixed top-0 right-0 h-screen w-80 bg-gradient-to-br from-red-500/10 via-orange-500/10 to-transparent backdrop-blur-xl border-l-[2px] border-red-500/20 flex items-center justify-center">
+              <div className="text-center p-4">
+                <div className="text-red-400 mb-2">⚠️ Properties Error</div>
+                <p className="text-gray-300 text-sm mb-4">Properties panel failed to load.</p>
+                <button 
+                  onClick={() => setSelectedNode(null)}
+                  className="px-3 py-1 bg-red-500/20 border border-red-500/30 rounded text-red-300 text-sm hover:bg-red-500/30 transition-colors"
+                >
+                  Close Panel
+                </button>
+              </div>
+            </div>
+          }
+        >
+          <PropertiesPanel 
+            selectedNode={selectedNode} 
+            onClose={() => setSelectedNode(null)}
+            onUpdateNode={handleUpdateNode}
+          />
+        </ComponentErrorBoundary>
         
         <TestPanel 
           visible={testPanelVisible}
@@ -353,6 +458,17 @@ const Index = () => {
         <QuickStartWizard 
           onComplete={handleQuickStartComplete}
           onClose={() => setShowQuickStartWizard(false)} 
+        />
+      )}
+
+      {/* Recovery Dialog */}
+      {currentProject && (
+        <RecoveryDialog
+          projectId={currentProject.id}
+          isOpen={showRecoveryDialog}
+          onRecover={handleRecoveryRestore}
+          onClose={() => setShowRecoveryDialog(false)}
+          onDiscard={handleRecoveryDiscard}
         />
       )}
     </div>

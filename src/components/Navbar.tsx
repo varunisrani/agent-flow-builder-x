@@ -4,15 +4,30 @@ import { Button } from './ui/button.js';
 import { useNavigate } from 'react-router-dom';
 import { UserMenu } from './UserMenu.js';
 import { ThemeToggle } from './ThemeToggle.js';
+import { InlineUndoRedoControls } from './UndoRedoControls.js';
 import { useState } from 'react';
 import { toast } from '@/hooks/use-toast.js';
 
 interface NavbarProps {
   projectName?: string;
   onSwitchProject?: () => void;
+  // Undo/Redo functionality
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  historyLength?: number;
 }
 
-export function Navbar({ projectName, onSwitchProject }: NavbarProps) {
+export function Navbar({ 
+  projectName, 
+  onSwitchProject,
+  canUndo = false,
+  canRedo = false,
+  onUndo,
+  onRedo,
+  historyLength = 0
+}: NavbarProps) {
   const navigate = useNavigate();
   const [isRunning, setIsRunning] = useState(false);
 
@@ -92,6 +107,19 @@ export function Navbar({ projectName, onSwitchProject }: NavbarProps) {
         )}
         <span className="px-3 py-1.5 rounded-full bg-gradient-to-tr from-blue-500/20 via-purple-500/20 to-transparent from-blue-400/20 via-purple-400/20 border border-blue-500/30 border-blue-400/30 text-xs font-medium text-blue-700 text-blue-300 backdrop-blur-sm">Beta</span>
       </div>
+
+      {/* Undo/Redo Controls */}
+      {onUndo && onRedo && (
+        <div className="flex items-center">
+          <InlineUndoRedoControls
+            canUndo={canUndo}
+            canRedo={canRedo}
+            onUndo={onUndo}
+            onRedo={onRedo}
+            historyLength={historyLength}
+          />
+        </div>
+      )}
       
       <div className="flex items-center space-x-3">
         {onSwitchProject && (
