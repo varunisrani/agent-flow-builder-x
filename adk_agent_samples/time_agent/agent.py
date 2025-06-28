@@ -1,29 +1,46 @@
+"""time_agent - Langfuse Analytics Agent"""
 import os
 import asyncio
 from dotenv import load_dotenv
 from google.adk.agents import LlmAgent
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
-from google.genai.types import Content, Part
-# Removed MCP imports for now
+from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
+from google.genai import types
 from langfuse import Langfuse
 
-# Load environment variables from .env file
+# Load environment variables
 load_dotenv()
 
-# Set default SMITHERY_API_KEY if not provided
-if 'SMITHERY_API_KEY' not in os.environ:
-    os.environ['SMITHERY_API_KEY'] = 'demo-key'
-
-# Check for Google AI API key
+# Check for required API keys
 if 'GOOGLE_API_KEY' not in os.environ:
     print("Warning: GOOGLE_API_KEY not set. Please set it to use the Gemini model.")
-    print("Example: export GOOGLE_API_KEY=your_api_key_here")
     exit(1)
 
-print("✓ Environment variables loaded from .env file")
+# Set the Smithery API key from environment variable
+smithery_api_key = os.getenv("SMITHERY_API_KEY")
+if not smithery_api_key:
+    raise ValueError("SMITHERY_API_KEY environment variable is not set")
 
-# Initialize Langfuse with environment variables (optional)
+# MCP toolset configuration for @yokingma/time-mcp
+time_mcp_toolset = MCPToolset(
+    connection_params=StdioServerParameters(
+        command="npx",
+        args=["-y","@smithery/cli@latest","run","--key",smithery_api_key],
+        env={"NODE_OPTIONS":"--no-warnings --experimental-fetch","SMITHERY_API_KEY":smithery_api_key}
+    )
+)
+
+# MCP toolset configuration for @yokingma/time-mcp
+time_mcp_toolset = MCPToolset(
+    connection_params=StdioServerParameters(
+        command="npx",
+        args=["-y","@smithery/cli@latest","run","--key",smithery_api_key],
+        env={"NODE_OPTIONS":"--no-warnings --experimental-fetch","SMITHERY_API_KEY":smithery_api_key}
+    )
+)
+
+# Initialize Langfuse with environment variables
 langfuse = None
 if os.environ.get('LANGFUSE_PUBLIC_KEY') and os.environ.get('LANGFUSE_SECRET_KEY'):
     langfuse = Langfuse(
@@ -31,59 +48,91 @@ if os.environ.get('LANGFUSE_PUBLIC_KEY') and os.environ.get('LANGFUSE_SECRET_KEY
         secret_key=os.environ.get('LANGFUSE_SECRET_KEY'),
         host=os.environ.get('LANGFUSE_HOST', 'https://cloud.langfuse.com')
     )
+    print("✓ Langfuse analytics initialized")
+else:
+    print("Warning: LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY not set. Analytics will be disabled.")
 
 # Function to track conversations
 def track_conversation(conversation_id, user_id, metadata):
     if langfuse:
-        langfuse.track(conversation_id, user_id, metadata)
+        langfuse.track_event(
+            event_name="conversation_interaction",
+            properties={
+                "conversation_id": conversation_id,
+                "user_id": user_id,
+                "project": "langfuse",
+                "agent_name": "time_agent",
+                **metadata
+            }
+        )
 
-# Simple time tool function
-def get_current_time():
-    """Get the current time"""
-    import datetime
-    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-# Create the LlmAgent with the required parameters
+# Create the LlmAgent with analytics tracking
 root_agent = LlmAgent(
     name="time_agent",
     model="gemini-2.0-flash",
     description="An LlmAgent that handles time-related queries using Google ADK's LlmAgent class.",
-    instruction="You are a helpful assistant that can provide the current time when asked. Use the get_current_time tool to provide accurate time information.",
-    tools=[get_current_time]
+    instruction="""You are an agent that can use Smithery MCP to perform operations. Use the Smithery MCP tool to interact with external systems and APIs.
+
+Available functions through MCP:
+- @yokingma/time-mcp tools for MCP client for @yokingma/time-mcp operations
+- @yokingma/time-mcp tools for MCP tool for @yokingma/time-mcp operations
+
+ANALYTICS FEATURES:
+- All interactions are automatically tracked with Langfuse
+- Conversation analytics for performance monitoring
+- Error tracking and debugging support
+
+IMPORTANT RULES:
+1. All interactions are automatically tracked through analytics
+2. Use available MCP tools to perform requested operations
+3. Always provide clear explanations for actions taken
+4. Handle errors gracefully with automatic error tracking""",
+    tools=[time_mcp_toolset, time_mcp_toolset]
 )
 
-# Create session service and runner
+# Session service and runner setup
 session_service = InMemorySessionService()
 runner = Runner(agent=root_agent, session_service=session_service, app_name="time_agent")
 
-# Entry point for execution
-if __name__ == "__main__":
-    async def test_agent():
-        # Create a session first
-        session = await session_service.create_session(
-            app_name="time_agent",
-            user_id="test_user",
-            session_id="test_session"
-        )
-        
-        # Test a simple message
-        message = Content(role='user', parts=[Part(text='What time is it?')])
-        results = []
-        async for event in runner.run_async(
-            user_id="test_user",
-            session_id="test_session", 
-            new_message=message
-        ):
-            results.append(event)
-            
-        print(f"Agent successfully ran! Number of events: {len(results)}")
-        for i, result in enumerate(results):
-            print(f"Event {i}: {result}")
-    
-    try:
-        asyncio.run(test_agent())
-    except Exception as e:
-        print(f"Error running the agent: {e}")
+async def main():
+    # Create a session
+    user_id = "user"
+    session = await session_service.create_session(app_name="time_agent", user_id=user_id)
+    session_id = session.id
 
-# Exporting the analytics agent and tracking function
-__all__ = ['root_agent', 'track_conversation']
+    # Track session start
+    track_conversation(session_id, user_id, {
+        "event_type": "session_start",
+        "agent_description": "An LlmAgent that handles time-related queries using Google ADK's LlmAgent class."
+    })
+
+    # Create an initial message
+    new_message = types.Content(
+        role="user",
+        parts=[types.Part(text="Hello, agent!")]
+    )
+
+    # Track user message
+    track_conversation(session_id, user_id, {
+        "event_type": "user_message",
+        "message": "Hello, agent!"
+    })
+
+    # Run the agent
+    async for event in runner.run_async(
+        user_id=user_id,
+        session_id=session_id,
+        new_message=new_message
+    ):
+        print(event)
+        
+        # Track agent response
+        track_conversation(session_id, user_id, {
+            "event_type": "agent_response",
+            "response": str(event)
+        })
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
+__all__ = ["root_agent", "track_conversation"]

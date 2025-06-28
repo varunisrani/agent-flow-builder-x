@@ -16,6 +16,9 @@ import { toast } from '@/hooks/use-toast.js';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { generateMCPCode, MCPConfig, dedupeConfigs, generateCodeWithAI } from '@/lib/codeGeneration';
+import { VerificationProgress as VerificationProgressType, VerificationResult } from '@/lib/codeVerification';
+import { extractNodeData } from '@/lib/nodeDataExtraction';
+import { generateTemplateFromNodeData } from '@/lib/templateGeneration';
 
 // OpenRouter configuration - Use environment variable for API key
 // Hardcoded OpenRouter API Key (FOR DEMONSTRATION - NOT RECOMMENDED FOR PRODUCTION)
@@ -63,7 +66,7 @@ const extractUrls = (text: string): string[] => {
 };
 
 // Component for verification progress display
-const VerificationProgress: React.FC<{ progress: VerificationProgress | null }> = ({ progress }) => {
+const VerificationProgressComponent: React.FC<{ progress: VerificationProgressType | null }> = ({ progress }) => {
   if (!progress) return null;
 
   return (
@@ -329,310 +332,311 @@ function extractMcpConfigFromNodes(nodes: Node<BaseNodeData>[]): MCPConfig[] {
 }
 
 // Function to generate code with OpenAI/OpenRouter based on node data
-async function generateCodeWithOpenAI(
-  nodes: Node<BaseNodeData>[],
-  mcpEnabled: boolean,
-  mcpConfig?: MCPConfig[]
-): Promise<string> {
-  // Extract actual MCP configuration from nodes if MCP is enabled
-  const actualMcpConfigs = mcpEnabled ?
-    (mcpConfig && mcpConfig.length > 0 ? mcpConfig : extractMcpConfigFromNodes(nodes)) :
-    [createDefaultMcpConfig()];
+// COMMENTED OUT: This function was causing "declared but never read" error
+// async function generateCodeWithOpenAI(
+//   nodes: Node<BaseNodeData>[],
+//   mcpEnabled: boolean,
+//   mcpConfig?: MCPConfig[]
+// ): Promise<string> {
+//   // Extract actual MCP configuration from nodes if MCP is enabled
+//   const actualMcpConfigs = mcpEnabled ?
+//     (mcpConfig && mcpConfig.length > 0 ? mcpConfig : extractMcpConfigFromNodes(nodes)) :
+//     [createDefaultMcpConfig()];
 
-  const firstConfig = actualMcpConfigs[0];
-  console.log('Using MCP config for generation:', actualMcpConfigs);
+//   const firstConfig = actualMcpConfigs[0];
+//   console.log('Using MCP config for generation:', actualMcpConfigs);
 
-  // Prepare node data for the AI prompt including MCP-specific data
-  const nodeData = nodes.map(node => ({
-    id: node.id,
-    type: node.data.type,
-    label: node.data.label,
-    description: node.data.description || '',
-    instruction: node.data.instruction || '',
-    prompt: node.data.prompt || '',
-    modelType: node.data.modelType || '',
-    mcpCommand: node.data.mcpCommand || '',
-    mcpArgs: node.data.mcpArgs || '',
-    mcpEnvVars: node.data.mcpEnvVars || '',
-    mcpToolId: node.data.mcpToolId || '',
-    smitheryMcp: node.data.smitheryMcp || '',
-    smitheryApiKey: node.data.smitheryApiKey ? '***HIDDEN***' : '',
-    mcpType: node.data.mcpType || '',
-    position: node.position
-  }));
+//   // Prepare node data for the AI prompt including MCP-specific data
+//   const nodeData = nodes.map(node => ({
+//     id: node.id,
+//     type: node.data.type,
+//     label: node.data.label,
+//     description: node.data.description || '',
+//     instruction: node.data.instruction || '',
+//     prompt: node.data.prompt || '',
+//     modelType: node.data.modelType || '',
+//     mcpCommand: node.data.mcpCommand || '',
+//     mcpArgs: node.data.mcpArgs || '',
+//     mcpEnvVars: node.data.mcpEnvVars || '',
+//     mcpToolId: node.data.mcpToolId || '',
+//     smitheryMcp: node.data.smitheryMcp || '',
+//     smitheryApiKey: node.data.smitheryApiKey ? '***HIDDEN***' : '',
+//     mcpType: node.data.mcpType || '',
+//     position: node.position
+//   }));
 
-  // Find agent nodes to get main configuration
-  const agentNodes = nodes.filter(n => n.data.type === 'agent');
-  const mcpNodes = nodes.filter(n =>
-    n.data.type === 'mcp-client' ||
-    n.data.type === 'mcp-server' ||
-    n.data.type === 'mcp-tool'
-  );
-  console.log('MCP nodes found:', mcpNodes.length);
+//   // Find agent nodes to get main configuration
+//   const agentNodes = nodes.filter(n => n.data.type === 'agent');
+//   const mcpNodes = nodes.filter(n =>
+//     n.data.type === 'mcp-client' ||
+//     n.data.type === 'mcp-server' ||
+//     n.data.type === 'mcp-tool'
+//   );
+//   console.log('MCP nodes found:', mcpNodes.length);
 
-  // Create system prompt based on whether MCP is enabled
-  const systemPrompt = mcpEnabled ?
-    `You are an expert Python developer specializing in Google ADK (Agent Development Kit) with MCP (Model Context Protocol) integration using Smithery.
+//   // Create system prompt based on whether MCP is enabled
+//   const systemPrompt = mcpEnabled ?
+//     `You are an expert Python developer specializing in Google ADK (Agent Development Kit) with MCP (Model Context Protocol) integration using Smithery.
 
-    CRITICAL: Generate MCP-enabled agent code, NOT Google Search code.
+//     CRITICAL: Generate MCP-enabled agent code, NOT Google Search code.
 
-    ABSOLUTELY FORBIDDEN - THESE PATTERNS CAUSE CRITICAL ERRORS:
-    - NEVER use "from google_adk import" (this doesn't exist)
-    - NEVER use "from mcp_toolset import" (this doesn't exist)
-    - NEVER use "from llm_agent import" (this doesn't exist)
-    - NEVER create custom classes like "class DocQueryAgent(Agent)" or "class TimeManagerAgent(LlmAgent)"
-    - NEVER use non-existent classes like MCPClient, MCPTool, Model
-    - NEVER use StdioServerParameters(agent=...) (wrong usage)
-    - NEVER import sys for MCP agents
-    - NEVER start LlmAgent constructor with model= parameter (CRITICAL: causes validation errors)
-    - NEVER use synchronous session_service.create_session() (MUST be async)
-    - NEVER use run_forever() method (doesn't exist, use run_async)
+//     ABSOLUTELY FORBIDDEN - THESE PATTERNS CAUSE CRITICAL ERRORS:
+//     - NEVER use "from google_adk import" (this doesn't exist)
+//     - NEVER use "from mcp_toolset import" (this doesn't exist)
+//     - NEVER use "from llm_agent import" (this doesn't exist)
+//     - NEVER create custom classes like "class DocQueryAgent(Agent)" or "class TimeManagerAgent(LlmAgent)"
+//     - NEVER use non-existent classes like MCPClient, MCPTool, Model
+//     - NEVER use StdioServerParameters(agent=...) (wrong usage)
+//     - NEVER import sys for MCP agents
+//     - NEVER start LlmAgent constructor with model= parameter (CRITICAL: causes validation errors)
+//     - NEVER use synchronous session_service.create_session() (MUST be async)
+//     - NEVER use run_forever() method (doesn't exist, use run_async)
 
-    MANDATORY CORRECT STRUCTURE:
-    - MUST use "from google.adk.agents import LlmAgent"
-    - MUST create root_agent = LlmAgent(...) directly (no custom classes)
-    - MUST use MCPToolset with StdioServerParameters for Smithery MCP integration
-    - MUST include Runner and InMemorySessionService
-    - MUST use proper async pattern with run_async (NOT run_forever)
-    - MUST include SMITHERY_API_KEY environment variable handling
+//     MANDATORY CORRECT STRUCTURE:
+//     - MUST use "from google.adk.agents import LlmAgent"
+//     - MUST create root_agent = LlmAgent(...) directly (no custom classes)
+//     - MUST use MCPToolset with StdioServerParameters for Smithery MCP integration
+//     - MUST include Runner and InMemorySessionService
+//     - MUST use proper async pattern with run_async (NOT run_forever)
+//     - MUST include SMITHERY_API_KEY environment variable handling
 
-    CRITICAL ERROR PREVENTION (LlmAgent Validation Errors):
-    1. LlmAgent constructor MUST use these exact parameter names in this EXACT order:
-       - name (string) - FIRST PARAMETER - SIMPLE, non-empty string like "search_agent" (NOT complex/long names)
-       - model (string) - SECOND PARAMETER - ALWAYS "gemini-2.0-flash" (NEVER None or empty)
-       - description (string) - THIRD PARAMETER - CONCISE, 10-100 chars like "Agent that uses Gemini 2.0 model and Smithery MCP tool"
-       - instruction (string) - FOURTH PARAMETER - REASONABLE length, NOT "instructions" (misspelling)
-       - tools (list) - FIFTH PARAMETER - MUST be list [toolset] (NOT "toolset=" or None)
-    2. Runner constructor MUST use correct order: Runner(agent=root_agent, session_service=session_service, app_name="search_agent")
-    3. Session creation MUST be async: await session_service.create_session(app_name="...", user_id="...")
-    4. SYNCHRONIZE app_name: Use SAME app_name in Runner and session_service.create_session() calls
-    5. NEVER pass session_service to LlmAgent constructor
-    6. ALWAYS include SMITHERY_API_KEY validation check after os.getenv()
-    7. MCP args MUST include --key parameter: ["--key", smithery_api_key]
-    8. Environment variables MUST include SMITHERY_API_KEY
-    9. NEVER write "tools=tools=[toolset]" - use only "tools=[toolset]" (no duplicate tools=)
-    10. Use run_async() NOT run_forever() with proper async pattern
-    11. Include required imports: from google.genai import types, import asyncio
+//     CRITICAL ERROR PREVENTION (LlmAgent Validation Errors):
+//     1. LlmAgent constructor MUST use these exact parameter names in this EXACT order:
+//        - name (string) - FIRST PARAMETER - SIMPLE, non-empty string like "search_agent" (NOT complex/long names)
+//        - model (string) - SECOND PARAMETER - ALWAYS "gemini-2.0-flash" (NEVER None or empty)
+//        - description (string) - THIRD PARAMETER - CONCISE, 10-100 chars like "Agent that uses Gemini 2.0 model and Smithery MCP tool"
+//        - instruction (string) - FOURTH PARAMETER - REASONABLE length, NOT "instructions" (misspelling)
+//        - tools (list) - FIFTH PARAMETER - MUST be list [toolset] (NOT "toolset=" or None)
+//     2. Runner constructor MUST use correct order: Runner(agent=root_agent, session_service=session_service, app_name="search_agent")
+//     3. Session creation MUST be async: await session_service.create_session(app_name="...", user_id="...")
+//     4. SYNCHRONIZE app_name: Use SAME app_name in Runner and session_service.create_session() calls
+//     5. NEVER pass session_service to LlmAgent constructor
+//     6. ALWAYS include SMITHERY_API_KEY validation check after os.getenv()
+//     7. MCP args MUST include --key parameter: ["--key", smithery_api_key]
+//     8. Environment variables MUST include SMITHERY_API_KEY
+//     9. NEVER write "tools=tools=[toolset]" - use only "tools=[toolset]" (no duplicate tools=)
+//     10. Use run_async() NOT run_forever() with proper async pattern
+//     11. Include required imports: from google.genai import types, import asyncio
 
-    EXACT REQUIRED IMPORTS:
-    - from google.adk.agents import LlmAgent
-    - from google.adk.runners import Runner
-    - from google.adk.sessions import InMemorySessionService
-    - from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
-    - from google.genai import types
-    - import asyncio
-    - import os
+//     EXACT REQUIRED IMPORTS:
+//     - from google.adk.agents import LlmAgent
+//     - from google.adk.runners import Runner
+//     - from google.adk.sessions import InMemorySessionService
+//     - from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
+//     - from google.genai import types
+//     - import asyncio
+//     - import os
 
-    EXACT REQUIRED PATTERN:
-    1. Import statements (as above)
-    2. Environment variable setup (smithery_api_key = os.getenv("SMITHERY_API_KEY"))
-    3. MCPToolset configuration with StdioServerParameters
-    4. root_agent = LlmAgent(...) with correct parameters
-    5. session_service = InMemorySessionService()
-    6. runner = Runner(...) with app_name
-    7. async def main() function with proper run_async pattern
-    8. __all__ = ["root_agent"]` :
+//     EXACT REQUIRED PATTERN:
+//     1. Import statements (as above)
+//     2. Environment variable setup (smithery_api_key = os.getenv("SMITHERY_API_KEY"))
+//     3. MCPToolset configuration with StdioServerParameters
+//     4. root_agent = LlmAgent(...) with correct parameters
+//     5. session_service = InMemorySessionService()
+//     6. runner = Runner(...) with app_name
+//     7. async def main() function with proper run_async pattern
+//     8. __all__ = ["root_agent"]` :
 
-    `You are an expert Python developer specializing in Google ADK (Agent Development Kit).
-    Generate clean, production-ready Python code for an agent based on the provided node configuration.
+//     `You are an expert Python developer specializing in Google ADK (Agent Development Kit).
+//     Generate clean, production-ready Python code for an agent based on the provided node configuration.
 
-    CRITICAL ERROR PREVENTION:
-    1. Agent constructor MUST use these exact parameter names in this order:
-       - name (string)
-       - model (string)
-       - description (string)
-       - instruction (string)
-       - tools (list)
-    2. ALWAYS include model parameter in Agent (use "gemini-2.0-flash")
-    3. Use Agent class (not LlmAgent) for non-MCP agents
-    4. ALWAYS include __all__ = ["root_agent"] export
+//     CRITICAL ERROR PREVENTION:
+//     1. Agent constructor MUST use these exact parameter names in this order:
+//        - name (string)
+//        - model (string)
+//        - description (string)
+//        - instruction (string)
+//        - tools (list)
+//     2. ALWAYS include model parameter in Agent (use "gemini-2.0-flash")
+//     3. Use Agent class (not LlmAgent) for non-MCP agents
+//     4. ALWAYS include __all__ = ["root_agent"] export
 
-    Generate code that:
-    1. Imports all necessary modules
-    2. Sets up proper logging
-    3. Loads environment variables
-    4. Uses google_search tool for search capabilities
-    5. Defines the agent with proper configuration
-    6. Includes example usage
-    7. Exports the agent properly`;
+//     Generate code that:
+//     1. Imports all necessary modules
+//     2. Sets up proper logging
+//     3. Loads environment variables
+//     4. Uses google_search tool for search capabilities
+//     5. Defines the agent with proper configuration
+//     6. Includes example usage
+//     7. Exports the agent properly`;
 
-  // Create user prompt with node data
-  const userPrompt = mcpEnabled ?
-    `Generate a Google ADK agent with MCP Smithery integration based on this flow:
+//   // Create user prompt with node data
+//   const userPrompt = mcpEnabled ?
+//     `Generate a Google ADK agent with MCP Smithery integration based on this flow:
 
-**Nodes:**
-${JSON.stringify(nodeData, null, 2)}
+// **Nodes:**
+// ${JSON.stringify(nodeData, null, 2)}
 
-**Agent Configuration:**
-${agentNodes.length > 0 ? `
-- Agent Name: ${agentNodes[0].data.label || 'mcp_agent'}
-- Description: ${agentNodes[0].data.description || 'MCP-enabled agent'}
-- Instructions: ${agentNodes[0].data.instruction || agentNodes[0].data.prompt || 'Use MCP tools to assist users'}
-` : 'Create default MCP agent'}
+// **Agent Configuration:**
+// ${agentNodes.length > 0 ? `
+// - Agent Name: ${agentNodes[0].data.label || 'mcp_agent'}
+// - Description: ${agentNodes[0].data.description || 'MCP-enabled agent'}
+// - Instructions: ${agentNodes[0].data.instruction || agentNodes[0].data.prompt || 'Use MCP tools to assist users'}
+// ` : 'Create default MCP agent'}
 
-**ACTUAL MCP CONFIGURATION FROM NODES (first MCP):**
-- Command: ${firstConfig.command}
-- Args: ${JSON.stringify(firstConfig.args)}
-- Environment Variables: ${JSON.stringify(firstConfig.envVars)}
-- MCP Package: ${firstConfig.args.find(arg => arg.startsWith('@')) || '@smithery/mcp-example'}
+// **ACTUAL MCP CONFIGURATION FROM NODES (first MCP):**
+// - Command: ${firstConfig.command}
+// - Args: ${JSON.stringify(firstConfig.args)}
+// - Environment Variables: ${JSON.stringify(firstConfig.envVars)}
+// - MCP Package: ${firstConfig.args.find(arg => arg.startsWith('@')) || '@smithery/mcp-example'}
 
-**CRITICAL MCP REQUIREMENTS:**
-- Generate MCP Smithery agent code (NOT Google Search code)
-- Use LlmAgent, Runner, InMemorySessionService
-- Include MCPToolset with StdioServerParameters
-- Use the EXACT MCP configuration provided above
-- Include SMITHERY_API_KEY environment variable
-- Use proper async pattern with runner.run_async()
+// **CRITICAL MCP REQUIREMENTS:**
+// - Generate MCP Smithery agent code (NOT Google Search code)
+// - Use LlmAgent, Runner, InMemorySessionService
+// - Include MCPToolset with StdioServerParameters
+// - Use the EXACT MCP configuration provided above
+// - Include SMITHERY_API_KEY environment variable
+// - Use proper async pattern with runner.run_async()
 
-**MANDATORY ERROR PREVENTION (Prevents "1 validation error for LlmAgent"):**
-1. LlmAgent constructor parameters in EXACT order: name, model, description, instruction, tools
-   - name: FIRST PARAMETER - SIMPLE string like "search_agent" (NOT complex/long names, NEVER None/empty)
-   - model: SECOND PARAMETER - ALWAYS "gemini-2.0-flash" (NEVER None or empty string)
-   - description: THIRD PARAMETER - CONCISE 10-100 chars like "Agent that uses Gemini 2.0 model and Smithery MCP tool"
-   - instruction: FOURTH PARAMETER - REASONABLE length (NOT "instructions" misspelling, NEVER None/empty)
-   - tools: FIFTH PARAMETER - MUST be list [toolset] (NOT "toolset=" or None)
-2. Runner MUST use correct order: Runner(agent=root_agent, session_service=session_service, app_name="search_agent")
-3. Session creation MUST be async: await session_service.create_session(app_name="...", user_id="...")
-4. SYNCHRONIZE app_name: Use SAME app_name in Runner and session_service.create_session() calls
-5. NEVER pass session_service to LlmAgent
-6. ALWAYS include SMITHERY_API_KEY validation: if not smithery_api_key: raise ValueError(...)
-7. Environment variables MUST include SMITHERY_API_KEY
-8. MCP args should be clean without duplicate --key parameters
-9. NEVER write "tools=tools=[toolset]" - use only "tools=[toolset]" (no duplicate tools=)
-10. Use run_async() NOT run_forever() with proper async pattern
-11. Include all required imports: from google.genai import types, import asyncio
+// **MANDATORY ERROR PREVENTION (Prevents "1 validation error for LlmAgent"):**
+// 1. LlmAgent constructor parameters in EXACT order: name, model, description, instruction, tools
+//    - name: FIRST PARAMETER - SIMPLE string like "search_agent" (NOT complex/long names, NEVER None/empty)
+//    - model: SECOND PARAMETER - ALWAYS "gemini-2.0-flash" (NEVER None or empty string)
+//    - description: THIRD PARAMETER - CONCISE 10-100 chars like "Agent that uses Gemini 2.0 model and Smithery MCP tool"
+//    - instruction: FOURTH PARAMETER - REASONABLE length (NOT "instructions" misspelling, NEVER None/empty)
+//    - tools: FIFTH PARAMETER - MUST be list [toolset] (NOT "toolset=" or None)
+// 2. Runner MUST use correct order: Runner(agent=root_agent, session_service=session_service, app_name="search_agent")
+// 3. Session creation MUST be async: await session_service.create_session(app_name="...", user_id="...")
+// 4. SYNCHRONIZE app_name: Use SAME app_name in Runner and session_service.create_session() calls
+// 5. NEVER pass session_service to LlmAgent
+// 6. ALWAYS include SMITHERY_API_KEY validation: if not smithery_api_key: raise ValueError(...)
+// 7. Environment variables MUST include SMITHERY_API_KEY
+// 8. MCP args should be clean without duplicate --key parameters
+// 9. NEVER write "tools=tools=[toolset]" - use only "tools=[toolset]" (no duplicate tools=)
+// 10. Use run_async() NOT run_forever() with proper async pattern
+// 11. Include all required imports: from google.genai import types, import asyncio
 
-**ABSOLUTELY WRONG PATTERNS (Do NOT generate these):**
-❌ WRONG: LlmAgent(model="...", name="...")
-✅ CORRECT: LlmAgent(name="...", model="...")
+// **ABSOLUTELY WRONG PATTERNS (Do NOT generate these):**
+// ❌ WRONG: LlmAgent(model="...", name="...")
+// ✅ CORRECT: LlmAgent(name="...", model="...")
 
-❌ WRONG: session_service.create_session(state={}, app_name="...", user_id="...")
-✅ CORRECT: await session_service.create_session(app_name="...", user_id="...")
+// ❌ WRONG: session_service.create_session(state={}, app_name="...", user_id="...")
+// ✅ CORRECT: await session_service.create_session(app_name="...", user_id="...")
 
-❌ WRONG: Runner(app_name="...", agent=..., session_service=...)
-✅ CORRECT: Runner(agent=..., session_service=..., app_name="...")
+// ❌ WRONG: Runner(app_name="...", agent=..., session_service=...)
+// ✅ CORRECT: Runner(agent=..., session_service=..., app_name="...")
 
-**EXACT TEMPLATE TO FOLLOW (Use ACTUAL node data for dynamic values):**
-\`\`\`python
-from google.adk.agents import LlmAgent
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
-from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
-from google.genai import types  # For Content/Part
-import asyncio
-import os
+// **EXACT TEMPLATE TO FOLLOW (Use ACTUAL node data for dynamic values):**
+// \`\`\`python
+// from google.adk.agents import LlmAgent
+// from google.adk.runners import Runner
+// from google.adk.sessions import InMemorySessionService
+// from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
+// from google.genai import types  # For Content/Part
+// import asyncio
+// import os
 
-# Set the Smithery API key from environment variable
-smithery_api_key = os.getenv("SMITHERY_API_KEY")
-if not smithery_api_key:
-    raise ValueError("SMITHERY_API_KEY environment variable is not set")
+// # Set the Smithery API key from environment variable
+// smithery_api_key = os.getenv("SMITHERY_API_KEY")
+// if not smithery_api_key:
+//     raise ValueError("SMITHERY_API_KEY environment variable is not set")
 
-# MCP toolset configuration - USE ACTUAL NODE DATA
-toolset = MCPToolset(
-    connection_params=StdioServerParameters(
-        command="${firstConfig.command}",
-        args=${JSON.stringify(firstConfig.args)},
-        env=${JSON.stringify(firstConfig.envVars)}
-    )
-)
+// # MCP toolset configuration - USE ACTUAL NODE DATA
+// toolset = MCPToolset(
+//     connection_params=StdioServerParameters(
+//         command="${firstConfig.command}",
+//         args=${JSON.stringify(firstConfig.args)},
+//         env=${JSON.stringify(firstConfig.envVars)}
+//     )
+// )
 
-# LlmAgent with MCP tools - USE ACTUAL AGENT NODE DATA
-root_agent = LlmAgent(
-    name="${agentNodes.length > 0 ? agentNodes[0].data.label || 'mcp_agent' : 'mcp_agent'}",
-    model="gemini-2.0-flash",
-    description="${agentNodes.length > 0 ? agentNodes[0].data.description || 'MCP-enabled agent' : 'MCP-enabled agent'}",
-    instruction="${agentNodes.length > 0 ? agentNodes[0].data.instruction || agentNodes[0].data.prompt || 'Use MCP tools to assist users' : 'Use MCP tools to assist users'}",
-    tools=[toolset]
-)
+// # LlmAgent with MCP tools - USE ACTUAL AGENT NODE DATA
+// root_agent = LlmAgent(
+//     name="${agentNodes.length > 0 ? agentNodes[0].data.label || 'mcp_agent' : 'mcp_agent'}",
+//     model="gemini-2.0-flash",
+//     description="${agentNodes.length > 0 ? agentNodes[0].data.description || 'MCP-enabled agent' : 'MCP-enabled agent'}",
+//     instruction="${agentNodes.length > 0 ? agentNodes[0].data.instruction || agentNodes[0].data.prompt || 'Use MCP tools to assist users' : 'Use MCP tools to assist users'}",
+//     tools=[toolset]
+// )
 
-# Session service and runner setup - USE ACTUAL AGENT NAME
-session_service = InMemorySessionService()
-runner = Runner(agent=root_agent, session_service=session_service, app_name="${agentNodes.length > 0 ? agentNodes[0].data.label || 'mcp_agent' : 'mcp_agent'}")
+// # Session service and runner setup - USE ACTUAL AGENT NAME
+// session_service = InMemorySessionService()
+// runner = Runner(agent=root_agent, session_service=session_service, app_name="${agentNodes.length > 0 ? agentNodes[0].data.label || 'mcp_agent' : 'mcp_agent'}")
 
-async def main():
-    # Create a session
-    user_id = "user"
-    session = session_service.create_session(state={}, app_name="${agentNodes.length > 0 ? agentNodes[0].data.label || 'mcp_agent' : 'mcp_agent'}", user_id=user_id)
-    session_id = session.id
+// async def main():
+//     # Create a session
+//     user_id = "user"
+//     session = session_service.create_session(state={}, app_name="${agentNodes.length > 0 ? agentNodes[0].data.label || 'mcp_agent' : 'mcp_agent'}", user_id=user_id)
+//     session_id = session.id
 
-    # Create an initial message (Content object)
-    new_message = types.Content(
-        role="user",
-        parts=[types.Part(text="Hello, agent!")]
-    )
+//     # Create an initial message (Content object)
+//     new_message = types.Content(
+//         role="user",
+//         parts=[types.Part(text="Hello, agent!")]
+//     )
 
-    # Run the agent
-    async for event in runner.run_async(
-        user_id=user_id,
-        session_id=session_id,
-        new_message=new_message
-    ):
-        print(event)
+//     # Run the agent
+//     async for event in runner.run_async(
+//         user_id=user_id,
+//         session_id=session_id,
+//         new_message=new_message
+//     ):
+//         print(event)
 
-if __name__ == "__main__":
-    asyncio.run(main())
+// if __name__ == "__main__":
+//     asyncio.run(main())
 
-__all__ = ["root_agent"]
-\`\`\`
+// __all__ = ["root_agent"]
+// \`\`\`
 
-CRITICAL: Follow this EXACT structure. Do NOT create custom classes. Do NOT use wrong imports.
-Return ONLY the complete Python code following this template, no explanations.` :
+// CRITICAL: Follow this EXACT structure. Do NOT create custom classes. Do NOT use wrong imports.
+// Return ONLY the complete Python code following this template, no explanations.` :
 
-    `Generate a Google ADK agent based on this flow configuration:
+//     `Generate a Google ADK agent based on this flow configuration:
 
-**Nodes:**
-${JSON.stringify(nodeData, null, 2)}
+// **Nodes:**
+// ${JSON.stringify(nodeData, null, 2)}
 
-**Agent Configuration:**
-${agentNodes.length > 0 ? `
-- Agent Name: ${agentNodes[0].data.label || 'search_agent'}
-- Description: ${agentNodes[0].data.description || 'AI agent for task automation'}
-- Instructions: ${agentNodes[0].data.instruction || agentNodes[0].data.prompt || 'Use available tools to help users'}
-` : 'No agent nodes found - create a default search agent'}
+// **Agent Configuration:**
+// ${agentNodes.length > 0 ? `
+// - Agent Name: ${agentNodes[0].data.label || 'search_agent'}
+// - Description: ${agentNodes[0].data.description || 'AI agent for task automation'}
+// - Instructions: ${agentNodes[0].data.instruction || agentNodes[0].data.prompt || 'Use available tools to help users'}
+// ` : 'No agent nodes found - create a default search agent'}
 
-**Requirements:**
-- Use Agent class with google_search tool
-- Include complete, runnable Python code
-- Add proper error handling and logging
-- Follow Google ADK patterns and best practices
-- Include __all__ export
+// **Requirements:**
+// - Use Agent class with google_search tool
+// - Include complete, runnable Python code
+// - Add proper error handling and logging
+// - Follow Google ADK patterns and best practices
+// - Include __all__ export
 
-Return ONLY the Python code, no explanations.`;
+// Return ONLY the Python code, no explanations.`;
 
-  try {
-    // Call OpenRouter API
-    const generatedCode = await callOpenRouter([
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt }
-    ]);
+//   try {
+//     // Call OpenRouter API
+//     const generatedCode = await callOpenRouter([
+//       { role: 'system', content: systemPrompt },
+//       { role: 'user', content: userPrompt }
+//     ]);
 
-    // Clean and validate the generated code
-    const cleanedCode = formatCodeForDisplay(generatedCode);
+//     // Clean and validate the generated code
+//     const cleanedCode = formatCodeForDisplay(generatedCode);
 
-    // Enhanced validation and fallback logic
-    if (!cleanedCode || cleanedCode.length < 100) {
-      console.warn('Generated code too short, falling back to local generation');
-      return fallbackToLocalGeneration(nodes, mcpEnabled, mcpConfig);
-    }
+//     // Enhanced validation and fallback logic
+//     if (!cleanedCode || cleanedCode.length < 100) {
+//       console.warn('Generated code too short, falling back to local generation');
+//       return fallbackToLocalGeneration(nodes, mcpEnabled, mcpConfig);
+//     }
 
-    // Additional validation checks for critical patterns
-    const hasRequiredImports = cleanedCode.includes('from google.adk.agents import LlmAgent');
-    const hasProperAgent = cleanedCode.includes('root_agent =');
-    const hasValidStructure = !cleanedCode.includes('class ') || !cleanedCode.includes('Agent)');
+//     // Additional validation checks for critical patterns
+//     const hasRequiredImports = cleanedCode.includes('from google.adk.agents import LlmAgent');
+//     const hasProperAgent = cleanedCode.includes('root_agent =');
+//     const hasValidStructure = !cleanedCode.includes('class ') || !cleanedCode.includes('Agent)');
     
-    if (!hasRequiredImports || !hasProperAgent || !hasValidStructure) {
-      console.warn('Generated code has structural issues, falling back to local generation');
-      console.log('Validation failed:', { hasRequiredImports, hasProperAgent, hasValidStructure });
-      return fallbackToLocalGeneration(nodes, mcpEnabled, mcpConfig);
-    }
+//     if (!hasRequiredImports || !hasProperAgent || !hasValidStructure) {
+//       console.warn('Generated code has structural issues, falling back to local generation');
+//       console.log('Validation failed:', { hasRequiredImports, hasProperAgent, hasValidStructure });
+//       return fallbackToLocalGeneration(nodes, mcpEnabled, mcpConfig);
+//     }
 
-    return cleanedCode;
-  } catch (error) {
-    console.error('Error calling OpenRouter API:', error);
-    // Fall back to local generation on API error
-    return fallbackToLocalGeneration(nodes, mcpEnabled, mcpConfig);
-  }
-}
+//     return cleanedCode;
+//   } catch (error) {
+//     console.error('Error calling OpenRouter API:', error);
+//     // Fall back to local generation on API error
+//     return fallbackToLocalGeneration(nodes, mcpEnabled, mcpConfig);
+//   }
+// }
 
 // Enhanced fallback function for robust local code generation
 function fallbackToLocalGeneration(
@@ -770,8 +774,9 @@ export function CodeGenerationModal({
   const [isFirstGeneration, setIsFirstGeneration] = useState(true);
   const [sandboxOutput, setSandboxOutput] = useState<string>('');
   const [isExecuting, setIsExecuting] = useState(false);
-  const [verificationProgress, setVerificationProgress] = useState<VerificationProgress | null>(null);
-  const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null);
+  const [verificationProgress, setVerificationProgress] = useState<VerificationProgressType | null>(null);
+  // const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null); // Commented out - unused
+  const [generationMethod, setGenerationMethod] = useState<GenerationMethod>('template');
 
   // Check if there are MCP nodes in the diagram or if MCP is explicitly enabled
   const hasMcpNodes = nodes.some(node => 
@@ -783,45 +788,32 @@ export function CodeGenerationModal({
     node.data.description?.toLowerCase().includes('smithery')
   );
 
-  // Check if there are Langfuse nodes in the diagram
+  // Enhanced detection functions - synced with backend extraction logic
   const hasLangfuseNodes = nodes.some(node => 
-    node.data.type === 'langfuse' ||
-    node.data.langfuseEnabled ||
-    node.data.label?.toLowerCase().includes('langfuse') ||
-    node.data.label?.toLowerCase().includes('analytics') ||
-    node.data.description?.toLowerCase().includes('analytics') ||
-    node.data.description?.toLowerCase().includes('observability') ||
-    node.data.description?.toLowerCase().includes('tracking') ||
-    node.data.description?.toLowerCase().includes('monitor')
+    node.data.type === 'langfuse' && node.data.langfuseEnabled
   );
 
-  // Check if there are Memory nodes in the diagram
   const hasMemoryNodes = nodes.some(node => 
-    node.data.type === 'memory' ||
-    node.data.memoryEnabled ||
-    node.data.label?.toLowerCase().includes('memory') ||
-    node.data.label?.toLowerCase().includes('mem0') ||
-    node.data.description?.toLowerCase().includes('memory') ||
-    node.data.description?.toLowerCase().includes('mem0') ||
-    node.data.description?.toLowerCase().includes('remember') ||
-    node.data.description?.toLowerCase().includes('learn') ||
-    node.data.description?.toLowerCase().includes('context') ||
-    node.data.description?.toLowerCase().includes('persistent')
+    node.data.type === 'memory' && node.data.memoryEnabled
   );
 
-  // Check if there are Event Handling nodes in the diagram
   const hasEventHandlingNodes = nodes.some(node => 
-    node.data.type === 'event-handling' ||
-    node.data.eventHandlingEnabled ||
-    node.data.label?.toLowerCase().includes('event') ||
-    node.data.label?.toLowerCase().includes('tracking') ||
-    node.data.label?.toLowerCase().includes('monitoring') ||
-    node.data.description?.toLowerCase().includes('event') ||
-    node.data.description?.toLowerCase().includes('tracking') ||
-    node.data.description?.toLowerCase().includes('monitoring') ||
-    node.data.description?.toLowerCase().includes('logging') ||
-    node.data.description?.toLowerCase().includes('observability')
+    node.data.type === 'event-handling' && node.data.eventHandlingEnabled
   );
+
+  // Check if specialized features are detected
+  const hasSpecializedFeatures = hasLangfuseNodes || hasMemoryNodes || hasEventHandlingNodes;
+
+  // Smart generation method recommendation
+  const getRecommendedMethod = (): GenerationMethod => {
+    return hasSpecializedFeatures ? 'template' : 'ai';
+  };
+
+  // Update generation method when features are detected
+  useEffect(() => {
+    const recommended = getRecommendedMethod();
+    setGenerationMethod(recommended);
+  }, [hasSpecializedFeatures]);
 
   // Debug logging for integrations detection
   console.log('Integrations detection:', {
@@ -875,26 +867,42 @@ export function CodeGenerationModal({
   }, [open, activeTab, flowKey]);
 
   // Function to generate initial code with verification
-  const generateInitialCode = async () => {
-    console.log('Generating initial code...');
+  const generateInitialCode = async (method?: GenerationMethod) => {
+    const actualMethod = method || generationMethod;
+    console.log('Generating initial code with method:', actualMethod);
     setLoading(true);
     setError(null);
     setVerificationProgress(null);
-    setVerificationResult(null);
+    // setVerificationResult(null);
 
     try {
       let generatedCode: string;
       
       if (activeTab === 'adk') {
-        console.log('Generating initial ADK code with:', { mcpEnabled, hasMcpNodes, hasLangfuseNodes, hasMemoryNodes, hasEventHandlingNodes });
+        console.log('Generating initial ADK code with:', { 
+          method: actualMethod,
+          mcpEnabled, 
+          hasMcpNodes, 
+          hasLangfuseNodes, 
+          hasMemoryNodes, 
+          hasEventHandlingNodes 
+        });
         
-        // Use OpenRouter AI for code generation
-        if (!OPENROUTER_API_KEY) {
-          throw new Error('OpenRouter API key is required for code generation. Please configure VITE_OPENROUTER_API_KEY in your environment.');
+        if (actualMethod === 'ai') {
+          // Use OpenRouter AI for code generation
+          if (!OPENROUTER_API_KEY) {
+            throw new Error('OpenRouter API key is required for AI generation. Please configure VITE_OPENROUTER_API_KEY in your environment.');
+          }
+          
+          console.log('Using OpenRouter AI for initial code generation (includes automatic verification)');
+          generatedCode = await generateCodeWithAI(nodes, edges, mcpEnabled, OPENROUTER_API_KEY, mcpConfig);
+        } else {
+          // Use template code generation with node data
+          console.log('Using template code generation with extracted node data');
+          const extractedData = extractNodeData(nodes, edges);
+          console.log('Extracted node data:', extractedData);
+          generatedCode = generateTemplateFromNodeData(extractedData);
         }
-        
-        console.log('Using OpenRouter AI for initial code generation (includes automatic verification)');
-        generatedCode = await generateCodeWithAI(nodes, edges, mcpEnabled, OPENROUTER_API_KEY, mcpConfig);
       } else {
         console.log('Generating default search agent code for non-ADK tab');
         generatedCode = generateDefaultSearchAgentCode();
@@ -932,32 +940,48 @@ export function CodeGenerationModal({
   };
 
   // Update the regenerate button click handler with verification
-  const handleRegenerate = async () => {
-    console.log('Regenerating code...');
+  const handleRegenerate = async (method?: GenerationMethod) => {
+    const actualMethod = method || generationMethod;
+    console.log('Regenerating code with method:', actualMethod);
     setLoading(true);
     setError(null);
     setSandboxOutput('');
     setVerificationProgress(null);
-    setVerificationResult(null);
+    // setVerificationResult(null);
     
     try {
       let generatedCode: string;
       
       if (activeTab === 'adk') {
-        console.log('Regenerating ADK code with:', { mcpEnabled, hasMcpNodes, hasLangfuseNodes, hasMemoryNodes, hasEventHandlingNodes });
+        console.log('Regenerating ADK code with:', { 
+          method: actualMethod,
+          mcpEnabled, 
+          hasMcpNodes, 
+          hasLangfuseNodes, 
+          hasMemoryNodes, 
+          hasEventHandlingNodes 
+        });
         
         // If we have MCP components, enable MCP mode
         if (hasMcpNodes && !mcpEnabled) {
           setMcpEnabled(true);
         }
         
-        // Use OpenRouter AI for code generation
-        if (!OPENROUTER_API_KEY) {
-          throw new Error('OpenRouter API key is required for code generation. Please configure VITE_OPENROUTER_API_KEY in your environment.');
+        if (actualMethod === 'ai') {
+          // Use OpenRouter AI for code generation
+          if (!OPENROUTER_API_KEY) {
+            throw new Error('OpenRouter API key is required for AI generation. Please configure VITE_OPENROUTER_API_KEY in your environment.');
+          }
+          
+          console.log('Using OpenRouter AI for code regeneration (includes automatic verification)');
+          generatedCode = await generateCodeWithAI(nodes, edges, mcpEnabled, OPENROUTER_API_KEY, mcpConfig);
+        } else {
+          // Use template code generation with node data
+          console.log('Using template code generation with extracted node data');
+          const extractedData = extractNodeData(nodes, edges);
+          console.log('Extracted node data for regeneration:', extractedData);
+          generatedCode = generateTemplateFromNodeData(extractedData);
         }
-        
-        console.log('Using OpenRouter AI for code regeneration (includes automatic verification)');
-        generatedCode = await generateCodeWithAI(nodes, edges, mcpEnabled, OPENROUTER_API_KEY, mcpConfig);
       } else {
         console.log('Generating default search agent code for non-ADK tab');
         generatedCode = generateDefaultSearchAgentCode();
@@ -976,7 +1000,7 @@ export function CodeGenerationModal({
       
       toast({
         title: "Code regenerated",
-        description: `The code has been regenerated successfully${features.length > 0 ? ` with ${features.join(', ')}` : ''}.`
+        description: `The code has been regenerated successfully${features.length > 0 ? ` with ${features.join(', ')}` : ''} using ${actualMethod} method.`
       });
       
       console.log('Code regeneration completed successfully');
@@ -1188,15 +1212,39 @@ __all__ = ["root_agent"]`;
                   )}
                 </div>
                 
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={handleRegenerate}
-                  disabled={loading}
-                >
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Generate Code
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => generateInitialCode('ai')}
+                    disabled={loading || isExecuting}
+                    variant={generationMethod === 'ai' ? 'default' : 'outline'}
+                    size="sm"
+                    className={hasSpecializedFeatures ? 'opacity-60' : ''}
+                  >
+                    {loading && generationMethod === 'ai' ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="mr-2 h-4 w-4" />
+                    )}
+                    AI Generation
+                  </Button>
+                  <Button
+                    onClick={() => generateInitialCode('template')}
+                    disabled={loading || isExecuting}
+                    variant={generationMethod === 'template' ? 'default' : 'outline'}
+                    size="sm"
+                    className={hasSpecializedFeatures ? 'ring-2 ring-blue-500' : ''}
+                  >
+                    {loading && generationMethod === 'template' ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Code className="mr-2 h-4 w-4" />
+                    )}
+                    Template Code
+                    {hasSpecializedFeatures && (
+                      <span className="ml-1 text-xs bg-blue-100 text-blue-700 px-1 rounded">Recommended</span>
+                    )}
+                  </Button>
+                </div>
               </div>
             )}
             
@@ -1210,8 +1258,32 @@ __all__ = ["root_agent"]`;
 
               {/* Verification Progress Display */}
               <div className="flex-shrink-0">
-                <VerificationProgress progress={verificationProgress} />
+                <VerificationProgressComponent progress={verificationProgress} />
               </div>
+
+              {/* Detection Status Display */}
+              {hasSpecializedFeatures && (
+                <div className="mb-4 p-3 bg-blue-50/50 border border-blue-200 rounded-lg flex-shrink-0">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    <span className="text-sm font-medium text-blue-800">Specialized Features Detected</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    {hasLangfuseNodes && (
+                      <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded">Langfuse Analytics</span>
+                    )}
+                    {hasMemoryNodes && (
+                      <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded">Mem0 Memory</span>
+                    )}
+                    {hasEventHandlingNodes && (
+                      <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded">Event Handling</span>
+                    )}
+                  </div>
+                  <div className="mt-2 text-xs text-blue-600">
+                    💡 Template Code is recommended for specialized features to ensure proper implementation.
+                  </div>
+                </div>
+              )}
 
               {loading ? (
                 <div className="flex-1 flex items-center justify-center gap-3 bg-gradient-to-br from-gray-900/50 to-gray-800/50 rounded-xl text-gray-200 min-h-[200px]">
@@ -1309,6 +1381,12 @@ __all__ = ["root_agent"]`;
             <div className="text-xs text-muted-foreground">
               {isFirstGeneration ? '✨ Fresh generation' : '💾 Saved version'}
             </div>
+            {hasSpecializedFeatures && (
+              <div className="flex items-center gap-2 text-xs text-blue-400">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                <span>Specialized features detected</span>
+              </div>
+            )}
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <div className="w-2 h-2 bg-green-500 rounded-full"></div>
               <span>Ready to deploy</span>
@@ -1318,20 +1396,43 @@ __all__ = ["root_agent"]`;
             <Button variant="outline" onClick={() => onOpenChange(false)} size="sm">
               Close
             </Button>
-            <span className="relative inline-block overflow-hidden rounded-lg p-[1px]">
-              <span className="absolute inset-[-1000%] animate-[spin_2s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#E2CBFF_0%,#393BB2_50%,#E2CBFF_100%)]" />
-              <div className="inline-flex h-full w-full cursor-pointer items-center justify-center rounded-lg bg-gray-950 backdrop-blur-3xl">
-                <Button 
-                  disabled={loading} 
-                  onClick={handleRegenerate}
-                  size="sm"
-                  className="bg-gradient-to-tr from-zinc-300/20 via-purple-400/30 to-transparent from-zinc-300/5 via-purple-400/20 border-0 hover:scale-105"
-                >
-                  {loading ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Sparkles className="h-3 w-3 mr-2" />}
-                  {loading ? "Generating..." : "Regenerate Code"}
-                </Button>
-              </div>
-            </span>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => handleRegenerate('ai')}
+                disabled={loading || isExecuting}
+                variant={generationMethod === 'ai' ? 'default' : 'outline'}
+                size="sm"
+                className={hasSpecializedFeatures ? 'opacity-60' : ''}
+              >
+                {loading && generationMethod === 'ai' ? (
+                  <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                ) : (
+                  <Sparkles className="mr-2 h-3 w-3" />
+                )}
+                AI Generation
+              </Button>
+              <span className="relative inline-block overflow-hidden rounded-lg p-[1px]">
+                <span className={`absolute inset-[-1000%] animate-[spin_2s_linear_infinite] ${hasSpecializedFeatures ? 'bg-[conic-gradient(from_90deg_at_50%_50%,#3B82F6_0%,#1D4ED8_50%,#3B82F6_100%)]' : 'bg-[conic-gradient(from_90deg_at_50%_50%,#E2CBFF_0%,#393BB2_50%,#E2CBFF_100%)]'}`} />
+                <div className="inline-flex h-full w-full cursor-pointer items-center justify-center rounded-lg bg-gray-950 backdrop-blur-3xl">
+                  <Button
+                    onClick={() => handleRegenerate('template')}
+                    disabled={loading || isExecuting}
+                    size="sm"
+                    className={`${hasSpecializedFeatures ? 'bg-gradient-to-tr from-blue-400/20 via-blue-600/30 to-transparent border-0 hover:scale-105' : 'bg-gradient-to-tr from-zinc-300/20 via-purple-400/30 to-transparent from-zinc-300/5 via-purple-400/20 border-0 hover:scale-105'}`}
+                  >
+                    {loading && generationMethod === 'template' ? (
+                      <Loader2 className="h-3 w-3 animate-spin mr-2" />
+                    ) : (
+                      <Code className="h-3 w-3 mr-2" />
+                    )}
+                    Template Code
+                    {hasSpecializedFeatures && (
+                      <span className="ml-1 text-xs bg-blue-100 text-blue-700 px-1 rounded">★</span>
+                    )}
+                  </Button>
+                </div>
+              </span>
+            </div>
           </div>
         </DialogFooter>
       </DialogContent>
