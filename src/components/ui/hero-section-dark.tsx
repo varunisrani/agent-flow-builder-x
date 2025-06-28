@@ -4,30 +4,73 @@ import { ChevronRight, Sparkles, Workflow, Braces, Bot, Zap, Check, ArrowRight }
 import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button.js'
 
-// Add CSS animations for blob effect
+// Premium CSS animations for luxury blob effects
 const blobStyles = `
   @keyframes blob {
     0% {
-      transform: translate(0px, 0px) scale(1);
+      transform: translate(0px, 0px) scale(1) rotate(0deg);
+      border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
     }
-    33% {
-      transform: translate(30px, -50px) scale(1.1);
+    25% {
+      transform: translate(40px, -60px) scale(1.1) rotate(90deg);
+      border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%;
     }
-    66% {
-      transform: translate(-20px, 20px) scale(0.9);
+    50% {
+      transform: translate(-30px, 40px) scale(0.95) rotate(180deg);
+      border-radius: 50% 60% 30% 60% / 30% 60% 70% 40%;
+    }
+    75% {
+      transform: translate(20px, -30px) scale(1.05) rotate(270deg);
+      border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
     }
     100% {
-      transform: translate(0px, 0px) scale(1);
+      transform: translate(0px, 0px) scale(1) rotate(360deg);
+      border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
     }
   }
-  .animate-blob {
-    animation: blob 7s infinite;
+  
+  @keyframes blobReverse {
+    0% {
+      transform: translate(0px, 0px) scale(1) rotate(360deg);
+      border-radius: 40% 60% 70% 30% / 40% 70% 30% 60%;
+    }
+    25% {
+      transform: translate(-40px, 60px) scale(0.9) rotate(270deg);
+      border-radius: 70% 30% 40% 60% / 50% 40% 60% 30%;
+    }
+    50% {
+      transform: translate(30px, -40px) scale(1.1) rotate(180deg);
+      border-radius: 30% 70% 60% 40% / 70% 30% 40% 60%;
+    }
+    75% {
+      transform: translate(-20px, 30px) scale(0.95) rotate(90deg);
+      border-radius: 40% 60% 70% 30% / 40% 70% 30% 60%;
+    }
+    100% {
+      transform: translate(0px, 0px) scale(1) rotate(0deg);
+      border-radius: 40% 60% 70% 30% / 40% 70% 30% 60%;
+    }
   }
+  
+  .animate-blob {
+    animation: blob 12s ease-in-out infinite;
+  }
+  
+  .animate-blob-reverse {
+    animation: blobReverse 15s ease-in-out infinite;
+  }
+  
   .animation-delay-2000 {
     animation-delay: 2s;
   }
   .animation-delay-4000 {
     animation-delay: 4s;
+  }
+  .animation-delay-6000 {
+    animation-delay: 6s;
+  }
+  .animation-delay-8000 {
+    animation-delay: 8s;
   }
 `
 
@@ -116,30 +159,43 @@ const HeroSection = React.forwardRef<HTMLDivElement, HeroSectionProps>(
         {/* Add blob animation styles */}
         <style dangerouslySetInnerHTML={{ __html: blobStyles }} />
         
-        {/* Enhanced unified background with purple gradients - Fixed styling */}
-        <div className="fixed top-0 left-0 right-0 bottom-0 z-[-1] w-full h-full bg-[#0a0b1e]">
-          {/* Base gradient background */}
-          <div className="absolute inset-0 bg-gradient-to-br from-purple-900/60 via-pink-900/50 to-blue-900/40" />
+        {/* Premium Enhanced Background with Luxury Gradient System */}
+        <div className="fixed top-0 left-0 right-0 bottom-0 z-[-1] w-full h-full bg-[#050518]">
+          {/* Base premium gradient foundation */}
+          <div className="absolute inset-0 bg-gradient-to-br from-slate-900/90 via-purple-950/80 to-indigo-950/70" />
           
-          {/* Enhanced radial gradient overlays */}
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(139,92,246,0.6),transparent)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_80%_60%,rgba(236,72,153,0.4),transparent)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_40%_30%_at_20%_80%,rgba(59,130,246,0.3),transparent)]" />
+          {/* Luxury metallic accent layers */}
+          <div className="absolute inset-0 bg-gradient-to-tr from-purple-800/30 via-transparent to-cyan-700/20" />
+          <div className="absolute inset-0 bg-gradient-to-bl from-pink-800/25 via-transparent to-purple-800/30" />
           
-          {/* Additional purple shadow effects */}
-          <div className="absolute inset-0 bg-[radial-gradient(circle_600px_at_50%_300px,rgba(139,92,246,0.8),transparent)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_400px_at_80%_200px,rgba(236,72,153,0.6),transparent)]" />
+          {/* Premium radial light sources */}
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_120%_80%_at_50%_-30%,rgba(139,92,246,0.4),transparent)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_100%_60%_at_80%_50%,rgba(168,85,247,0.3),transparent)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_20%_70%,rgba(59,130,246,0.25),transparent)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_90%_80%,rgba(236,72,153,0.2),transparent)]" />
           
-          {/* Animated gradient mesh */}
-          <div className="absolute inset-0 opacity-80">
-            <div className="absolute top-0 -left-4 w-96 h-96 bg-purple-500 rounded-full mix-blend-screen filter blur-2xl opacity-60 animate-blob"></div>
-            <div className="absolute top-0 -right-4 w-96 h-96 bg-pink-500 rounded-full mix-blend-screen filter blur-2xl opacity-60 animate-blob animation-delay-2000"></div>
-            <div className="absolute -bottom-8 left-20 w-96 h-96 bg-indigo-500 rounded-full mix-blend-screen filter blur-2xl opacity-60 animate-blob animation-delay-4000"></div>
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-violet-500 rounded-full mix-blend-screen filter blur-2xl opacity-50 animate-blob animation-delay-4000"></div>
+          {/* Sophisticated depth layers */}
+          <div className="absolute inset-0 bg-[radial-gradient(circle_800px_at_50%_200px,rgba(139,92,246,0.15),transparent)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_600px_at_30%_600px,rgba(168,85,247,0.12),transparent)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_500px_at_70%_300px,rgba(236,72,153,0.1),transparent)]" />
+          
+          {/* Premium animated orbs with sophisticated movement */}
+          <div className="absolute inset-0 opacity-75">
+            <div className="absolute top-10 -left-10 w-[500px] h-[500px] bg-gradient-to-r from-purple-600/50 via-violet-500/35 to-purple-400/25 mix-blend-screen filter blur-3xl opacity-90 animate-blob"></div>
+            <div className="absolute top-20 -right-10 w-[420px] h-[420px] bg-gradient-to-r from-pink-500/45 via-rose-400/30 to-pink-300/20 mix-blend-screen filter blur-3xl opacity-80 animate-blob-reverse animation-delay-2000"></div>
+            <div className="absolute -bottom-20 left-32 w-[480px] h-[480px] bg-gradient-to-r from-indigo-600/35 via-blue-500/25 to-cyan-400/15 mix-blend-screen filter blur-3xl opacity-70 animate-blob animation-delay-4000"></div>
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[380px] h-[380px] bg-gradient-to-r from-violet-600/25 via-purple-400/20 to-indigo-300/15 mix-blend-screen filter blur-3xl opacity-60 animate-blob-reverse animation-delay-6000"></div>
+            <div className="absolute top-1/4 right-1/4 w-[320px] h-[320px] bg-gradient-to-r from-fuchsia-500/20 via-purple-400/15 to-violet-300/10 mix-blend-screen filter blur-3xl opacity-50 animate-blob animation-delay-8000"></div>
           </div>
           
-          {/* Extra purple glow effect */}
-          <div className="absolute inset-0 bg-[conic-gradient(from_0deg_at_50%_50%,transparent_0deg,rgba(139,92,246,0.1)_60deg,rgba(236,72,153,0.1)_120deg,transparent_180deg,rgba(59,130,246,0.1)_240deg,rgba(139,92,246,0.1)_300deg,transparent_360deg)] opacity-60"></div>
+          {/* Luxury conic gradient overlays */}
+          <div className="absolute inset-0 bg-[conic-gradient(from_0deg_at_50%_50%,transparent_0deg,rgba(139,92,246,0.08)_45deg,rgba(168,85,247,0.06)_90deg,transparent_135deg,rgba(236,72,153,0.04)_180deg,rgba(59,130,246,0.06)_225deg,transparent_270deg,rgba(139,92,246,0.08)_315deg,transparent_360deg)] opacity-80"></div>
+          
+          {/* Subtle metallic shimmer effect */}
+          <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/[0.02] to-transparent opacity-60"></div>
+          
+          {/* Premium edge vignetting */}
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_100%_100%_at_50%_50%,transparent_0%,transparent_50%,rgba(5,5,24,0.3)_85%,rgba(5,5,24,0.8)_100%)]"></div>
         </div>
         
         {/* Extended RetroGrid for entire page */}

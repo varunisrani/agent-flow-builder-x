@@ -99,6 +99,31 @@
     @apply backdrop-blur-xl bg-black/5 border border-black/10 shadow-[0_4px_12px_-2px_rgba(0,0,0,0.1)];
   }
   
+  .premium-glow {
+    @apply shadow-[0_0_50px_-12px_rgba(139,92,246,0.4),0_0_20px_-8px_rgba(168,85,247,0.2)];
+  }
+  
+  .premium-border {
+    @apply border border-purple-500/20 shadow-[0_0_0_1px_rgba(139,92,246,0.1)] shadow-inner;
+  }
+  
+  .animated-grid {
+    background-size: 50px 50px;
+    background-image: 
+      linear-gradient(to right, rgba(139,92,246,0.08) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(139,92,246,0.08) 1px, transparent 1px);
+    animation: grid-movement 20s linear infinite;
+  }
+  
+  @keyframes grid-movement {
+    0% { background-position: 0% 0%; }
+    100% { background-position: 50px 50px; }
+  }
+  
+  .premium-text-shadow {
+    text-shadow: 0 0 20px rgba(139,92,246,0.3), 0 0 40px rgba(168,85,247,0.2);
+  }
+  
   .neo-glass {
     @apply backdrop-blur-2xl bg-black/40 border border-white/10;
   }

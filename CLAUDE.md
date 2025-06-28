@@ -183,3 +183,5 @@ MEM0_HOST=                     # Mem0 endpoint
 - Verify node configurations in flow editor
 - Test generated code in E2B sandbox
 - Use verification system for code quality checks
+when user say adk doc use this https://google.github.io/adk-docs/
+and also to test this adk agent run python agent.py

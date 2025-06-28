@@ -35,7 +35,7 @@ const LandingPage = () => {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-[#0a0b1e] text-white">
+    <div className="h-screen flex flex-col bg-[#050518] text-white">
       {/* Navigation */}
       <header className="h-16 flex-shrink-0 flex items-center justify-between px-4 md:px-8 relative z-50 bg-gradient-to-tr from-zinc-300/5 via-purple-400/10 to-transparent backdrop-blur-sm border-b border-white/5">
         {/* Logo Section */}

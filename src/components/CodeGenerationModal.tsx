@@ -20,6 +20,9 @@ import { VerificationProgress as VerificationProgressType, VerificationResult } 
 import { extractNodeData } from '@/lib/nodeDataExtraction';
 import { generateTemplateFromNodeData } from '@/lib/templateGeneration';
 
+// Type definition for generation methods
+type GenerationMethod = 'ai' | 'template';
+
 // OpenRouter configuration - Use environment variable for API key
 // Hardcoded OpenRouter API Key (FOR DEMONSTRATION - NOT RECOMMENDED FOR PRODUCTION)
 // const OPENROUTER_API_KEY = "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";
