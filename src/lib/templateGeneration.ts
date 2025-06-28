@@ -15,8 +15,11 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from multiple possible locations
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env')) 
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
+load_dotenv()  # Also load from current working directory
 
 # Check for Google AI API key
 if 'GOOGLE_API_KEY' not in os.environ:
@@ -75,7 +78,7 @@ __all__ = ['root_agent']`;
 export function generateMCPAgentTemplate(nodeData: ExtractedNodeData): string {
   const { agentName, agentDescription, agentInstruction, agentModel, mcpConfigs } = nodeData;
   
-  // Generate MCP toolset configurations
+  // Generate MCP toolset configurations with conditional initialization
   const toolsetConfigs = mcpConfigs.map((config, idx) => {
     const packageName = config.smitheryMcp?.split('/').pop() || `mcp_${idx}`;
     const varName = `${packageName.replace(/[^a-zA-Z0-9_]/g, '_')}_toolset`;
@@ -88,19 +91,25 @@ export function generateMCPAgentTemplate(nodeData: ExtractedNodeData): string {
     return {
       varName,
       packageName: config.smitheryMcp,
-      config: `# MCP toolset configuration for ${config.smitheryMcp}
-${varName} = MCPToolset(
-    connection_params=StdioServerParameters(
-        command="${config.command}",
-        args=${JSON.stringify(fixedArgs).replace('"smithery_api_key"', 'smithery_api_key')},
-        env=${JSON.stringify({ ...config.envVars, "SMITHERY_API_KEY": "smithery_api_key" }).replace('"smithery_api_key"', 'smithery_api_key')}
+      config: `# MCP toolset configuration for ${config.smitheryMcp} (only if API key is available)
+${varName} = None
+if use_mcp:
+    print("   Initializing ${varName}...")
+    ${varName} = MCPToolset(
+        connection_params=StdioServerParameters(
+            command="${config.command}",
+            args=${JSON.stringify(fixedArgs).replace('"smithery_api_key"', 'smithery_api_key')},
+            env=${JSON.stringify({ ...config.envVars, "SMITHERY_API_KEY": "smithery_api_key" }).replace('"smithery_api_key"', 'smithery_api_key')}
+        )
     )
-)`
+else:
+    print("   Skipping ${varName} (no API key)")`
     };
   });
   
   const toolsetDefs = toolsetConfigs.map(t => t.config).join('\n\n');
-  const toolsetNames = toolsetConfigs.map(t => t.varName).join(', ');
+  const toolsetNames = toolsetConfigs.map(t => t.varName);
+  const conditionalToolsArray = `[${toolsetNames.map(name => `${name}`).join(', ')} if ${toolsetNames.map(name => `${name}`).join(' and ')} else []]`;
   const availableFunctions = mcpConfigs.map(config => 
     `- ${config.smitheryMcp} tools for ${config.availableFunctions || 'operations'}`
   ).join('\n');
@@ -115,18 +124,24 @@ from google.adk.sessions import InMemorySessionService
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
 from google.genai import types
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from multiple possible locations
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env')) 
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
+load_dotenv()  # Also load from current working directory
 
 # Check for required API keys
 if 'GOOGLE_API_KEY' not in os.environ:
     print("Warning: GOOGLE_API_KEY not set. Please set it to use the Gemini model.")
-    exit(1)
+    # Don't exit here - let the agent continue without full functionality
 
-# Set the Smithery API key from environment variable
+# Set the Smithery API key from environment variable (optional for basic testing)
 smithery_api_key = os.getenv("SMITHERY_API_KEY")
-if not smithery_api_key:
-    raise ValueError("SMITHERY_API_KEY environment variable is not set")
+use_mcp = smithery_api_key is not None
+
+print(f"🔧 MCP Configuration:")
+print(f"   SMITHERY_API_KEY set: {use_mcp}")
+print(f"   Will use MCP tools: {use_mcp}")
 
 ${toolsetDefs}
 
@@ -137,14 +152,17 @@ root_agent = LlmAgent(
     description="${agentDescription}",
     instruction="""${agentInstruction}
 
-Available functions through MCP:
+Available functions through MCP (when SMITHERY_API_KEY is set):
 ${availableFunctions}
 
+When MCP is not available, the agent operates in basic mode without external tools and gracefully degrades functionality.
+
 IMPORTANT RULES:
-1. Use the available MCP tools to perform requested operations
+1. Use available MCP tools to perform requested operations when available
 2. Always provide clear explanations for actions taken
-3. Handle errors gracefully and provide helpful feedback""",
-    tools=[${toolsetNames}]
+3. Handle errors gracefully and provide helpful feedback
+4. Gracefully handle scenarios when MCP tools are unavailable""",
+    tools=${conditionalToolsArray}
 )
 
 # Session service and runner setup
@@ -200,31 +218,43 @@ export function generateLangfuseAgentTemplate(nodeData: ExtractedNodeData): stri
       
       return {
         varName,
-        config: `# MCP toolset configuration for ${config.smitheryMcp}
-${varName} = MCPToolset(
-    connection_params=StdioServerParameters(
-        command="${config.command}",
-        args=${JSON.stringify(fixedArgs).replace('"smithery_api_key"', 'smithery_api_key')},
-        env=${JSON.stringify({ ...config.envVars, "SMITHERY_API_KEY": "smithery_api_key" }).replace('"smithery_api_key"', 'smithery_api_key')}
+        config: `# MCP toolset configuration for ${config.smitheryMcp} (only if API key is available)
+${varName} = None
+if use_mcp:
+    print("   Initializing ${varName}...")
+    ${varName} = MCPToolset(
+        connection_params=StdioServerParameters(
+            command="${config.command}",
+            args=${JSON.stringify(fixedArgs).replace('"smithery_api_key"', 'smithery_api_key')},
+            env=${JSON.stringify({ ...config.envVars, "SMITHERY_API_KEY": "smithery_api_key" }).replace('"smithery_api_key"', 'smithery_api_key')}
+        )
     )
-)`
+else:
+    print("   Skipping ${varName} (no API key)")`
       };
     });
     
     mcpSetupSection = `
-# Set the Smithery API key from environment variable
+# Set the Smithery API key from environment variable (optional for basic testing)
 smithery_api_key = os.getenv("SMITHERY_API_KEY")
-if not smithery_api_key:
-    raise ValueError("SMITHERY_API_KEY environment variable is not set")
+use_mcp = smithery_api_key is not None
+
+print(f"🔧 MCP Configuration:")
+print(f"   SMITHERY_API_KEY set: {use_mcp}")
+print(f"   Will use MCP tools: {use_mcp}")
 
 ${toolsetConfigs.map(t => t.config).join('\n\n')}`;
     
-    toolsSection = `[${toolsetConfigs.map(t => t.varName).join(', ')}]`;
+    const toolsetNames = toolsetConfigs.map(t => t.varName);
+    const conditionalToolsArray = `[${toolsetNames.map(name => `${name}`).join(', ')} if ${toolsetNames.map(name => `${name}`).join(' and ')} else []]`;
+    toolsSection = conditionalToolsArray;
     
     availableFunctionsSection = `
 
-Available functions through MCP:
-${mcpConfigs.map(config => `- ${config.smitheryMcp} tools for ${config.availableFunctions || 'operations'}`).join('\n')}`;
+Available functions through MCP (when SMITHERY_API_KEY is set):
+${mcpConfigs.map(config => `- ${config.smitheryMcp} tools for ${config.availableFunctions || 'operations'}`).join('\n')}
+
+When MCP is not available, the agent operates in basic mode without external tools and gracefully degrades functionality.`;
   }
   
   return `"""${agentName} - Langfuse Analytics Agent"""
@@ -237,13 +267,16 @@ from google.adk.sessions import InMemorySessionService${hasMCP ? '\nfrom google.
 from google.genai import types
 from langfuse import Langfuse
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from multiple possible locations
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env')) 
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
+load_dotenv()  # Also load from current working directory
 
 # Check for required API keys
 if 'GOOGLE_API_KEY' not in os.environ:
     print("Warning: GOOGLE_API_KEY not set. Please set it to use the Gemini model.")
-    exit(1)
+    # Don't exit here - let the agent continue without full functionality
 ${mcpSetupSection}
 
 # Initialize Langfuse with environment variables
@@ -285,7 +318,7 @@ ANALYTICS FEATURES:
 - Error tracking and debugging support
 
 IMPORTANT RULES:
-1. All interactions are automatically tracked through analytics${hasMCP ? '\n2. Use available MCP tools to perform requested operations\n3. Always provide clear explanations for actions taken\n4. Handle errors gracefully with automatic error tracking' : '\n2. Provide clear and helpful responses\n3. Handle errors gracefully with automatic error tracking'}""",
+1. All interactions are automatically tracked through analytics${hasMCP ? '\n2. Use available MCP tools to perform requested operations when available\n3. Always provide clear explanations for actions taken\n4. Handle errors gracefully with automatic error tracking\n5. Gracefully handle scenarios when MCP tools are unavailable' : '\n2. Provide clear and helpful responses\n3. Handle errors gracefully with automatic error tracking'}""",
     tools=${toolsSection}
 )
 
@@ -360,31 +393,43 @@ export function generateMemoryAgentTemplate(nodeData: ExtractedNodeData): string
       
       return {
         varName,
-        config: `# MCP toolset configuration for ${config.smitheryMcp}
-${varName} = MCPToolset(
-    connection_params=StdioServerParameters(
-        command="${config.command}",
-        args=${JSON.stringify(fixedArgs).replace('"smithery_api_key"', 'smithery_api_key')},
-        env=${JSON.stringify({ ...config.envVars, "SMITHERY_API_KEY": "smithery_api_key" }).replace('"smithery_api_key"', 'smithery_api_key')}
+        config: `# MCP toolset configuration for ${config.smitheryMcp} (only if API key is available)
+${varName} = None
+if use_mcp:
+    print("   Initializing ${varName}...")
+    ${varName} = MCPToolset(
+        connection_params=StdioServerParameters(
+            command="${config.command}",
+            args=${JSON.stringify(fixedArgs).replace('"smithery_api_key"', 'smithery_api_key')},
+            env=${JSON.stringify({ ...config.envVars, "SMITHERY_API_KEY": "smithery_api_key" }).replace('"smithery_api_key"', 'smithery_api_key')}
+        )
     )
-)`
+else:
+    print("   Skipping ${varName} (no API key)")`
       };
     });
     
     mcpSetupSection = `
-# Set the Smithery API key from environment variable
+# Set the Smithery API key from environment variable (optional for basic testing)
 smithery_api_key = os.getenv("SMITHERY_API_KEY")
-if not smithery_api_key:
-    raise ValueError("SMITHERY_API_KEY environment variable is not set")
+use_mcp = smithery_api_key is not None
+
+print(f"🔧 MCP Configuration:")
+print(f"   SMITHERY_API_KEY set: {use_mcp}")
+print(f"   Will use MCP tools: {use_mcp}")
 
 ${toolsetConfigs.map(t => t.config).join('\n\n')}`;
     
-    toolsSection = `[${toolsetConfigs.map(t => t.varName).join(', ')}]`;
+    const toolsetNames = toolsetConfigs.map(t => t.varName);
+    const conditionalToolsArray = `[${toolsetNames.map(name => `${name}`).join(', ')} if ${toolsetNames.map(name => `${name}`).join(' and ')} else []]`;
+    toolsSection = conditionalToolsArray;
     
     availableFunctionsSection = `
 
-Available functions through MCP:
-${mcpConfigs.map(config => `- ${config.smitheryMcp} tools for ${config.availableFunctions || 'operations'}`).join('\n')}`;
+Available functions through MCP (when SMITHERY_API_KEY is set):
+${mcpConfigs.map(config => `- ${config.smitheryMcp} tools for ${config.availableFunctions || 'operations'}`).join('\n')}
+
+When MCP is not available, the agent operates in basic mode without external tools and gracefully degrades functionality.`;
   }
   
   return `"""${agentName} - Memory-Enabled Agent"""
@@ -398,13 +443,16 @@ from google.adk.sessions import InMemorySessionService${hasMCP ? '\nfrom google.
 from google.genai import types
 from mem0 import Memory
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from multiple possible locations
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env')) 
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
+load_dotenv()  # Also load from current working directory
 
 # Check for required API keys
 if 'GOOGLE_API_KEY' not in os.environ:
     print("Warning: GOOGLE_API_KEY not set. Please set it to use the Gemini model.")
-    exit(1)
+    # Don't exit here - let the agent continue without full functionality
 ${mcpSetupSection}
 
 # Initialize Mem0 Memory
@@ -482,8 +530,8 @@ MEMORY FEATURES:
 
 IMPORTANT RULES:
 1. Use memory context to provide personalized responses
-2. Remember user preferences and conversation history${hasMCP ? '\n3. Use available MCP tools to perform requested operations\n4. Always provide clear explanations for actions taken' : '\n3. Provide clear and helpful responses'}
-5. Handle memory operations gracefully if memory is unavailable""",
+2. Remember user preferences and conversation history${hasMCP ? '\n3. Use available MCP tools to perform requested operations when available\n4. Always provide clear explanations for actions taken\n5. Gracefully handle scenarios when MCP tools are unavailable' : '\n3. Provide clear and helpful responses'}
+6. Handle memory operations gracefully if memory is unavailable""",
     tools=${toolsSection}
 )
 
@@ -553,31 +601,43 @@ export function generateEventHandlingAgentTemplate(nodeData: ExtractedNodeData):
       
       return {
         varName,
-        config: `# MCP toolset configuration for ${config.smitheryMcp}
-${varName} = MCPToolset(
-    connection_params=StdioServerParameters(
-        command="${config.command}",
-        args=${JSON.stringify(fixedArgs).replace('"smithery_api_key"', 'smithery_api_key')},
-        env=${JSON.stringify({ ...config.envVars, "SMITHERY_API_KEY": "smithery_api_key" }).replace('"smithery_api_key"', 'smithery_api_key')}
+        config: `# MCP toolset configuration for ${config.smitheryMcp} (only if API key is available)
+${varName} = None
+if use_mcp:
+    print("   Initializing ${varName}...")
+    ${varName} = MCPToolset(
+        connection_params=StdioServerParameters(
+            command="${config.command}",
+            args=${JSON.stringify(fixedArgs).replace('"smithery_api_key"', 'smithery_api_key')},
+            env=${JSON.stringify({ ...config.envVars, "SMITHERY_API_KEY": "smithery_api_key" }).replace('"smithery_api_key"', 'smithery_api_key')}
+        )
     )
-)`
+else:
+    print("   Skipping ${varName} (no API key)")`
       };
     });
     
     mcpSetupSection = `
-# Set the Smithery API key from environment variable
+# Set the Smithery API key from environment variable (optional for basic testing)
 smithery_api_key = os.getenv("SMITHERY_API_KEY")
-if not smithery_api_key:
-    raise ValueError("SMITHERY_API_KEY environment variable is not set")
+use_mcp = smithery_api_key is not None
+
+print(f"🔧 MCP Configuration:")
+print(f"   SMITHERY_API_KEY set: {use_mcp}")
+print(f"   Will use MCP tools: {use_mcp}")
 
 ${toolsetConfigs.map(t => t.config).join('\n\n')}`;
     
-    toolsSection = `[${toolsetConfigs.map(t => t.varName).join(', ')}]`;
+    const toolsetNames = toolsetConfigs.map(t => t.varName);
+    const conditionalToolsArray = `[${toolsetNames.map(name => `${name}`).join(', ')} if ${toolsetNames.map(name => `${name}`).join(' and ')} else []]`;
+    toolsSection = conditionalToolsArray;
     
     availableFunctionsSection = `
 
-Available functions through MCP:
-${mcpConfigs.map(config => `- ${config.smitheryMcp} tools for ${config.availableFunctions || 'operations'}`).join('\n')}`;
+Available functions through MCP (when SMITHERY_API_KEY is set):
+${mcpConfigs.map(config => `- ${config.smitheryMcp} tools for ${config.availableFunctions || 'operations'}`).join('\n')}
+
+When MCP is not available, the agent operates in basic mode without external tools and gracefully degrades functionality.`;
   }
   
   return `"""${agentName} - Event Handling Agent"""
@@ -593,13 +653,16 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService${hasMCP ? '\nfrom google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters' : ''}
 from google.genai import types
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from multiple possible locations
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env')) 
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
+load_dotenv()  # Also load from current working directory
 
 # Check for required API keys
 if 'GOOGLE_API_KEY' not in os.environ:
     print("Warning: GOOGLE_API_KEY not set. Please set it to use the Gemini model.")
-    exit(1)
+    # Don't exit here - let the agent continue without full functionality
 ${mcpSetupSection}
 
 # Event Handling Setup
@@ -621,13 +684,13 @@ class EventHandler:
     def __init__(self):
         self.event_history: List[Dict[str, Any]] = []
         self.listeners = {
-            'user_message': ${JSON.stringify(eventHandlingConfig?.listeners?.user_message ?? true)},
-            'agent_response': ${JSON.stringify(eventHandlingConfig?.listeners?.agent_response ?? true)},
-            'tool_call': ${JSON.stringify(eventHandlingConfig?.listeners?.tool_call ?? true)},
-            'error': ${JSON.stringify(eventHandlingConfig?.listeners?.error ?? true)}
+            'user_message': ${(eventHandlingConfig?.listeners?.user_message ?? true) ? 'True' : 'False'},
+            'agent_response': ${(eventHandlingConfig?.listeners?.agent_response ?? true) ? 'True' : 'False'},
+            'tool_call': ${(eventHandlingConfig?.listeners?.tool_call ?? true) ? 'True' : 'False'},
+            'error': ${(eventHandlingConfig?.listeners?.error ?? true) ? 'True' : 'False'}
         }
-        self.analytics_enabled = ${JSON.stringify(eventHandlingConfig?.analyticsEnabled ?? false)}
-        self.history_enabled = ${JSON.stringify(eventHandlingConfig?.historyEnabled ?? true)}
+        self.analytics_enabled = ${(eventHandlingConfig?.analyticsEnabled ?? false) ? 'True' : 'False'}
+        self.history_enabled = ${(eventHandlingConfig?.historyEnabled ?? true) ? 'True' : 'False'}
     
     def log_event(self, event_type: str, data: Dict[str, Any], user_id: str = "default"):
         """Log an event with comprehensive tracking."""
@@ -733,9 +796,9 @@ EVENT HANDLING FEATURES:
 - Configurable event listeners for different event types
 
 IMPORTANT RULES:
-1. All interactions are automatically tracked through the event handling system${hasMCP ? '\n2. Use available MCP tools to perform requested operations\n3. Always provide clear explanations for actions taken' : '\n2. Provide clear and helpful responses'}
-4. Events are logged with timestamps and user context
-5. Error handling includes automatic error event logging""",
+1. All interactions are automatically tracked through the event handling system${hasMCP ? '\n2. Use available MCP tools to perform requested operations when available\n3. Always provide clear explanations for actions taken\n4. Gracefully handle scenarios when MCP tools are unavailable' : '\n2. Provide clear and helpful responses'}
+5. Events are logged with timestamps and user context
+6. Error handling includes automatic error event logging""",
     tools=${toolsSection}
 )
 
@@ -863,24 +926,35 @@ from google.genai import types`;
       
       return {
         varName,
-        config: `${varName} = MCPToolset(
-    connection_params=StdioServerParameters(
-        command="${config.command}",
-        args=${JSON.stringify(fixedArgs).replace('"smithery_api_key"', 'smithery_api_key')},
-        env=${JSON.stringify({ ...config.envVars, "SMITHERY_API_KEY": "smithery_api_key" }).replace('"smithery_api_key"', 'smithery_api_key')}
+        config: `# MCP toolset configuration for ${config.smitheryMcp} (only if API key is available)
+${varName} = None
+if use_mcp:
+    print("   Initializing ${varName}...")
+    ${varName} = MCPToolset(
+        connection_params=StdioServerParameters(
+            command="${config.command}",
+            args=${JSON.stringify(fixedArgs).replace('"smithery_api_key"', 'smithery_api_key')},
+            env=${JSON.stringify({ ...config.envVars, "SMITHERY_API_KEY": "smithery_api_key" }).replace('"smithery_api_key"', 'smithery_api_key')}
+        )
     )
-)`
+else:
+    print("   Skipping ${varName} (no API key)")`
       };
     });
     
     setupSections.push(`# MCP Configuration
 smithery_api_key = os.getenv("SMITHERY_API_KEY")
-if not smithery_api_key:
-    raise ValueError("SMITHERY_API_KEY environment variable is not set")
+use_mcp = smithery_api_key is not None
+
+print(f"🔧 MCP Configuration:")
+print(f"   SMITHERY_API_KEY set: {use_mcp}")
+print(f"   Will use MCP tools: {use_mcp}")
 
 ${toolsetConfigs.map(t => t.config).join('\n\n')}`);
     
-    toolsSection = `[${toolsetConfigs.map(t => t.varName).join(', ')}]`;
+    const toolsetNames = toolsetConfigs.map(t => t.varName);
+    const conditionalToolsArray = `[${toolsetNames.map(name => `${name}`).join(', ')} if ${toolsetNames.map(name => `${name}`).join(' and ')} else []]`;
+    toolsSection = conditionalToolsArray;
   }
   
   // Langfuse Setup
@@ -987,13 +1061,13 @@ class EventHandler:
     def __init__(self):
         self.event_history: List[Dict[str, Any]] = []
         self.listeners = {
-            'user_message': ${JSON.stringify(eventHandlingConfig?.listeners?.user_message ?? true)},
-            'agent_response': ${JSON.stringify(eventHandlingConfig?.listeners?.agent_response ?? true)},
-            'tool_call': ${JSON.stringify(eventHandlingConfig?.listeners?.tool_call ?? true)},
-            'error': ${JSON.stringify(eventHandlingConfig?.listeners?.error ?? true)}
+            'user_message': ${(eventHandlingConfig?.listeners?.user_message ?? true) ? 'True' : 'False'},
+            'agent_response': ${(eventHandlingConfig?.listeners?.agent_response ?? true) ? 'True' : 'False'},
+            'tool_call': ${(eventHandlingConfig?.listeners?.tool_call ?? true) ? 'True' : 'False'},
+            'error': ${(eventHandlingConfig?.listeners?.error ?? true) ? 'True' : 'False'}
         }
-        self.analytics_enabled = ${JSON.stringify(eventHandlingConfig?.analyticsEnabled ?? false)}
-        self.history_enabled = ${JSON.stringify(eventHandlingConfig?.historyEnabled ?? true)}
+        self.analytics_enabled = ${(eventHandlingConfig?.analyticsEnabled ?? false) ? 'True' : 'False'}
+        self.history_enabled = ${(eventHandlingConfig?.historyEnabled ?? true) ? 'True' : 'False'}
     
     def log_event(self, event_type: str, data: Dict[str, Any], user_id: str = "default"):
         """Log an event with comprehensive tracking."""
@@ -1088,7 +1162,7 @@ event_handler = EventHandler()`);
   let fullInstruction = agentInstruction;
   
   if (hasMCP) {
-    fullInstruction += `\n\nAvailable functions through MCP:\n${mcpConfigs.map(config => `- ${config.smitheryMcp} tools for ${config.availableFunctions || 'operations'}`).join('\n')}`;
+    fullInstruction += `\n\nAvailable functions through MCP (when SMITHERY_API_KEY is set):\n${mcpConfigs.map(config => `- ${config.smitheryMcp} tools for ${config.availableFunctions || 'operations'}`).join('\n')}\n\nWhen MCP is not available, the agent operates in basic mode without external tools and gracefully degrades functionality.`;
   }
   
   if (hasLangfuse) {
@@ -1105,20 +1179,23 @@ event_handler = EventHandler()`);
   
   fullInstruction += '\n\nIMPORTANT RULES:\n1. Use all available features to provide the best user experience';
   
-  if (hasMCP) fullInstruction += '\n2. Use available MCP tools to perform requested operations';
-  if (hasLangfuse) fullInstruction += '\n3. All interactions are automatically tracked through analytics';
-  if (hasMemory) fullInstruction += '\n4. Use memory context to provide personalized responses';
+  if (hasMCP) fullInstruction += '\n2. Use available MCP tools to perform requested operations when available\n3. Gracefully handle scenarios when MCP tools are unavailable';
+  if (hasLangfuse) fullInstruction += '\n4. All interactions are automatically tracked through analytics';
+  if (hasMemory) fullInstruction += '\n5. Use memory context to provide personalized responses';
   
   return `"""${agentName} - Multi-Feature Agent"""
 ${imports}
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from multiple possible locations
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env')) 
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
+load_dotenv()  # Also load from current working directory
 
 # Check for required API keys
 if 'GOOGLE_API_KEY' not in os.environ:
     print("Warning: GOOGLE_API_KEY not set. Please set it to use the Gemini model.")
-    exit(1)
+    # Don't exit here - let the agent continue without full functionality
 
 ${setupSections.join('\n\n')}
 

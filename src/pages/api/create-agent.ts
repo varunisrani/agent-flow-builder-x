@@ -67,6 +67,61 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await writeFile(initFilePath, initPyContent || 'from .agent import root_agent');
     console.log(`Created init file: ${initFilePath}`);
     
+    // Create .env file with necessary API keys
+    const envFilePath = path.join(finalDirPath, '.env');
+    
+    // Generate .env content based on agent code features
+    let envContent = `# Agent Environment Variables
+# Copy this file to .env and replace placeholder values with your actual API keys
+
+# Required: Google API Key for Gemini models
+GOOGLE_API_KEY=your_google_api_key_here
+
+`;
+
+    // Check if code contains specific features and add relevant env vars
+    const agentCodeContent = agentPyContent || code;
+    
+    if (agentCodeContent.includes('SMITHERY_API_KEY') || agentCodeContent.includes('MCPToolset')) {
+      envContent += `# MCP (Model Context Protocol) via Smithery
+SMITHERY_API_KEY=your_smithery_api_key_here
+
+`;
+    }
+    
+    if (agentCodeContent.includes('langfuse') || agentCodeContent.includes('Langfuse')) {
+      envContent += `# Langfuse Analytics (optional)
+LANGFUSE_PUBLIC_KEY=your_langfuse_public_key_here
+LANGFUSE_SECRET_KEY=your_langfuse_secret_key_here
+LANGFUSE_HOST=https://cloud.langfuse.com
+
+`;
+    }
+    
+    if (agentCodeContent.includes('MEM0_API_KEY') || agentCodeContent.includes('mem0')) {
+      envContent += `# Mem0 Memory Service (optional)
+MEM0_API_KEY=your_mem0_api_key_here
+MEM0_HOST=https://api.mem0.ai
+
+`;
+    }
+    
+    if (agentCodeContent.includes('GITHUB_PERSONAL_ACCESS_TOKEN')) {
+      envContent += `# GitHub Integration (optional)
+GITHUB_PERSONAL_ACCESS_TOKEN=your_github_token_here
+
+`;
+    }
+    
+    envContent += `# Additional Notes:
+# - Replace 'your_*_key_here' with your actual API keys
+# - Keep this file secure and never commit it to version control
+# - Add .env to your .gitignore file
+`;
+    
+    await writeFile(envFilePath, envContent);
+    console.log(`Created .env file: ${envFilePath}`);
+    
     // Check if virtual environment exists
     const venvDir = path.join(finalDirPath, 'venv');
     const venvExists = await exists(venvDir);
@@ -127,6 +182,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       paths: {
         agentFile: agentFilePath,
         initFile: initFilePath,
+        envFile: path.join(finalDirPath, '.env'),
         venv: venvExists ? venvDir : null
       }
     });

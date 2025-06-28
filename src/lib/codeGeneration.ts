@@ -1164,7 +1164,11 @@ ${middleware.includes('analytics_middleware') ? `async def analytics_middleware(
     return event_data` : ''}
 
 # Load environment variables
-load_dotenv()
+# Load environment variables from multiple possible locations
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env')) 
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
+load_dotenv()  # Also load from current working directory
 
 # Create the event handling agent
 root_agent = Agent(
@@ -1273,7 +1277,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("memory_agent")
 
 # Load environment variables
-load_dotenv()
+# Load environment variables from multiple possible locations
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env')) 
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
+load_dotenv()  # Also load from current working directory
 
 # Initialize Mem0 Memory
 mem0_api_key = os.getenv("MEM0_API_KEY")
@@ -1575,7 +1583,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("search_agent")
 
 # Load environment variables
-load_dotenv()
+# Load environment variables from multiple possible locations
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env')) 
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
+load_dotenv()  # Also load from current working directory
 
 # Initialize Langfuse for analytics
 langfuse_public_key = os.getenv("LANGFUSE_PUBLIC_KEY")
@@ -1670,7 +1682,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("search_agent")
 
 # Load environment variables
-load_dotenv()
+# Load environment variables from multiple possible locations
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env')) 
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
+load_dotenv()  # Also load from current working directory
 
 # Create the agent - FIXED: Use correct parameter order and names
 root_agent = Agent(
@@ -2044,12 +2060,16 @@ if (!apiKey) {
     ${hasEventHandling ? 'from typing import Dict, List, Callable, Any\nfrom enum import Enum\nfrom datetime import datetime' : ''}
 
     # Load environment variables
-    load_dotenv()
+    # Load environment variables from multiple possible locations
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env')) 
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
+load_dotenv()  # Also load from current working directory
 
     # Check for required API keys
     if 'GOOGLE_API_KEY' not in os.environ:
         print("Warning: GOOGLE_API_KEY not set. Please set it to use the Gemini model.")
-        exit(1)
+        # Don't exit here - let the agent continue without full functionality
 
     INTEGRATION REQUIREMENTS:
     1. Initialize ALL detected features with proper environment variable checks
@@ -2171,12 +2191,16 @@ if (!apiKey) {
     from google.genai import types
 
     # Load environment variables
-    load_dotenv()
+    # Load environment variables from multiple possible locations
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env')) 
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
+load_dotenv()  # Also load from current working directory
 
     # Check for required API keys
     if 'GOOGLE_API_KEY' not in os.environ:
         print("Warning: GOOGLE_API_KEY not set. Please set it to use the Gemini model.")
-        exit(1)
+        # Don't exit here - let the agent continue without full functionality
 
     # Set the Smithery API key from environment variable
     smithery_api_key = os.getenv("SMITHERY_API_KEY")
@@ -2225,12 +2249,16 @@ if (!apiKey) {
     from google.genai import types
 
     # Load environment variables
-    load_dotenv()
+    # Load environment variables from multiple possible locations
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env')) 
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
+load_dotenv()  # Also load from current working directory
 
     # Check for Google AI API key
     if 'GOOGLE_API_KEY' not in os.environ:
         print("Warning: GOOGLE_API_KEY not set. Please set it to use the Gemini model.")
-        exit(1)
+        # Don't exit here - let the agent continue without full functionality
 
     # Create the LlmAgent with the required parameters
     root_agent = LlmAgent(
