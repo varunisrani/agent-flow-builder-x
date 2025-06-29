@@ -22,6 +22,7 @@ import { generateTemplateFromNodeData } from '@/lib/templateGeneration';
 import { CodeVersionService, CodeVersion } from '@/services/codeVersionService';
 import { SupabaseProjectService } from '@/services/supabaseProjectService';
 import { getCurrentProject } from '@/services/projectService';
+import type { VerificationResult as AdvancedVerificationResult, VerificationError } from '@/lib/verification/types';
 
 // Type definition for generation methods
 type GenerationMethod = 'ai' | 'template';
@@ -89,6 +90,204 @@ const VerificationProgressComponent: React.FC<{ progress: VerificationProgressTy
       {progress.errors && progress.errors.length > 0 && (
         <div className="mt-2 text-xs text-blue-700">
           Found and fixed {progress.errors.length} error(s)
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Component for advanced verification results display
+const AdvancedVerificationDisplay: React.FC<{ 
+  result: AdvancedVerificationResult | null; 
+  show: boolean; 
+  onToggle: () => void 
+}> = ({ result, show, onToggle }) => {
+  if (!result) return null;
+
+  const errorsByCategory = result.errors.reduce((acc, error) => {
+    if (!acc[error.category]) acc[error.category] = [];
+    acc[error.category].push(error);
+    return acc;
+  }, {} as Record<string, VerificationError[]>);
+
+  const langfuseErrors = errorsByCategory.langfuse || [];
+  const mcpErrors = errorsByCategory.mcp || [];
+  const otherErrors = Object.entries(errorsByCategory).filter(([cat]) => !['langfuse', 'mcp'].includes(cat));
+
+  const getErrorIcon = (severity: string) => {
+    switch (severity) {
+      case 'error': return '🔴';
+      case 'warning': return '🟡';
+      case 'info': return '🔵';
+      default: return '⚪';
+    }
+  };
+
+  const getConfidenceColor = (confidence: number) => {
+    if (confidence >= 90) return 'text-green-600';
+    if (confidence >= 70) return 'text-yellow-600';
+    return 'text-red-600';
+  };
+
+  return (
+    <div className="mb-4 border border-gray-200 rounded-lg overflow-hidden">
+      <div className="flex items-center justify-between p-3 bg-gradient-to-r from-green-50 to-blue-50 border-b">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <div className={`w-3 h-3 rounded-full ${result.isValid ? 'bg-green-500' : 'bg-red-500'}`}></div>
+            <span className="text-sm font-medium">
+              Advanced Verification {result.isValid ? 'Passed' : 'Found Issues'}
+            </span>
+          </div>
+          <div className="flex items-center gap-4 text-xs text-gray-600">
+            <span>🛠️ {result.metadata.fixesApplied} fixes applied</span>
+            <span>⏱️ {result.metadata.verificationTime.toFixed(0)}ms</span>
+            <span className={getConfidenceColor(result.metadata.confidence)}>
+              📊 {result.metadata.confidence}% confidence
+            </span>
+          </div>
+        </div>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={onToggle}
+          className="text-xs"
+        >
+          {show ? <EyeOff className="h-3 w-3 mr-1" /> : <Eye className="h-3 w-3 mr-1" />}
+          {show ? 'Hide Details' : 'Show Details'}
+        </Button>
+      </div>
+
+      {show && (
+        <div className="p-4 space-y-4">
+          {/* Summary Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-3 bg-gray-50 rounded-lg">
+            <div className="text-center">
+              <div className="text-lg font-bold text-gray-800">{result.errors.length}</div>
+              <div className="text-xs text-gray-600">Total Issues</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-green-600">{result.errors.filter(e => e.fixed).length}</div>
+              <div className="text-xs text-gray-600">Fixed</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-red-600">{langfuseErrors.length}</div>
+              <div className="text-xs text-gray-600">Langfuse Issues</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-blue-600">{result.metadata.verificationMethod}</div>
+              <div className="text-xs text-gray-600">Method</div>
+            </div>
+          </div>
+
+          {/* Langfuse Errors Section */}
+          {langfuseErrors.length > 0 && (
+            <div className="border border-purple-200 rounded-lg p-3 bg-purple-50">
+              <h4 className="text-sm font-medium text-purple-800 mb-2 flex items-center gap-2">
+                🔮 Langfuse Compatibility Issues ({langfuseErrors.length})
+              </h4>
+              <div className="space-y-2">
+                {langfuseErrors.map((error, index) => (
+                  <div key={index} className="bg-white p-2 rounded border border-purple-200">
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs mt-0.5">{getErrorIcon(error.severity)}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium text-purple-800">{error.type.replace(/-/g, ' ')}</div>
+                        <div className="text-xs text-purple-600 mt-1">{error.message}</div>
+                        {error.fixed && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <span className="text-xs text-green-600">✅ Fixed</span>
+                            {error.confidenceScore && (
+                              <span className="text-xs text-gray-500">({error.confidenceScore}% confidence)</span>
+                            )}
+                          </div>
+                        )}
+                        {error.fixDescription && (
+                          <div className="text-xs text-gray-600 mt-1 italic">{error.fixDescription}</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* MCP Errors Section */}
+          {mcpErrors.length > 0 && (
+            <div className="border border-blue-200 rounded-lg p-3 bg-blue-50">
+              <h4 className="text-sm font-medium text-blue-800 mb-2 flex items-center gap-2">
+                🔗 MCP Integration Issues ({mcpErrors.length})
+              </h4>
+              <div className="space-y-2">
+                {mcpErrors.map((error, index) => (
+                  <div key={index} className="bg-white p-2 rounded border border-blue-200">
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs mt-0.5">{getErrorIcon(error.severity)}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium text-blue-800">{error.type.replace(/-/g, ' ')}</div>
+                        <div className="text-xs text-blue-600 mt-1">{error.message}</div>
+                        {error.fixed && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <span className="text-xs text-green-600">✅ Fixed</span>
+                            {error.confidenceScore && (
+                              <span className="text-xs text-gray-500">({error.confidenceScore}% confidence)</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Other Errors Section */}
+          {otherErrors.length > 0 && (
+            <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+              <h4 className="text-sm font-medium text-gray-800 mb-2 flex items-center gap-2">
+                🔧 Other Issues
+              </h4>
+              <div className="space-y-2">
+                {otherErrors.map(([category, errors]) => (
+                  <div key={category} className="bg-white p-2 rounded border border-gray-200">
+                    <div className="text-xs font-medium text-gray-700 capitalize mb-1">{category} ({errors.length})</div>
+                    <div className="space-y-1">
+                      {errors.map((error, index) => (
+                        <div key={index} className="flex items-start gap-2">
+                          <span className="text-xs mt-0.5">{getErrorIcon(error.severity)}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs text-gray-600">{error.message}</div>
+                            {error.fixed && (
+                              <span className="text-xs text-green-600">✅ Fixed</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Suggestions Section */}
+          {result.suggestions && result.suggestions.length > 0 && (
+            <div className="border border-yellow-200 rounded-lg p-3 bg-yellow-50">
+              <h4 className="text-sm font-medium text-yellow-800 mb-2 flex items-center gap-2">
+                💡 Recommendations
+              </h4>
+              <ul className="space-y-1">
+                {result.suggestions.map((suggestion, index) => (
+                  <li key={index} className="text-xs text-yellow-700 flex items-start gap-2">
+                    <span className="mt-0.5">•</span>
+                    <span>{suggestion}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -471,7 +670,15 @@ export function CodeGenerationModal({
   const [sandboxOutput, setSandboxOutput] = useState<string>('');
   const [isExecuting, setIsExecuting] = useState(false);
   const [verificationProgress, setVerificationProgress] = useState<VerificationProgressType | null>(null);
+  const [advancedVerificationResult, setAdvancedVerificationResult] = useState<AdvancedVerificationResult | null>(null);
+  const [showVerificationDetails, setShowVerificationDetails] = useState(false);
   const [generationMethod, setGenerationMethod] = useState<GenerationMethod>('template');
+  
+  // Error checking state
+  const [isCheckingErrors, setIsCheckingErrors] = useState(false);
+  const [errorCheckResult, setErrorCheckResult] = useState<AdvancedVerificationResult | null>(null);
+  const [showErrorDialog, setShowErrorDialog] = useState(false);
+  const [pendingErrorFixes, setPendingErrorFixes] = useState<{ errorId: string; shouldFix: boolean }[]>([]);
   
   // Version management state
   const [codeVersions, setCodeVersions] = useState<CodeVersion[]>([]);
@@ -790,6 +997,8 @@ export function CodeGenerationModal({
     setLoading(true);
     setError(null);
     setVerificationProgress(null);
+    setAdvancedVerificationResult(null);
+    setShowVerificationDetails(false);
 
     try {
       let generatedCode: string;
@@ -825,13 +1034,81 @@ export function CodeGenerationModal({
       }
 
       const formattedCode = formatCodeForDisplay(generatedCode);
-      setGeneratedCode(formattedCode);
-      storeCode(flowKey, activeTab, formattedCode);
+      
+      // Run advanced verification and error fixing
+      if (OPENROUTER_API_KEY && activeTab === 'adk') {
+        setVerificationProgress({
+          step: 'verification',
+          progress: 50,
+          message: 'Running advanced verification and error fixing...'
+        });
+        
+        try {
+          const { AdvancedCodeVerifier } = await import('@/lib/verification/AdvancedCodeVerifier');
+          const verifier = new AdvancedCodeVerifier(OPENROUTER_API_KEY);
+          
+          const verificationResult = await verifier.verifyAndFix(formattedCode, {
+            enableLangfuseChecks: true,
+            enableMcpChecks: true,
+            enableAIFixes: true,
+            enablePatternFixes: true,
+            maxAIRetries: 2,
+            confidenceThreshold: 70,
+            onProgress: (progress) => {
+              setVerificationProgress({
+                step: 'verification',
+                progress: 50 + (progress.progress * 0.4),
+                message: progress.message
+              });
+            },
+            openRouterApiKey: OPENROUTER_API_KEY
+          });
+          
+          setAdvancedVerificationResult(verificationResult);
+          
+          // Use fixed code if verification applied fixes
+          if (verificationResult.fixedCode && verificationResult.metadata.fixesApplied > 0) {
+            const finalCode = verificationResult.fixedCode;
+            setGeneratedCode(finalCode);
+            storeCode(flowKey, activeTab, finalCode);
+            
+            // Show verification details if errors were found and fixed
+            if (verificationResult.errors.length > 0) {
+              setShowVerificationDetails(true);
+            }
+            
+            // Save version with verification metadata
+            await saveCodeVersion(finalCode, actualMethod);
+            
+            toast({
+              title: "Code Generated & Verified",
+              description: `Generated code with ${verificationResult.metadata.fixesApplied} automatic fixes applied. ${
+                verificationResult.errors.filter(e => e.category === 'langfuse').length > 0 
+                  ? 'Langfuse compatibility issues resolved.' 
+                  : ''
+              }`,
+              variant: "default"
+            });
+          } else {
+            setGeneratedCode(formattedCode);
+            storeCode(flowKey, activeTab, formattedCode);
+            await saveCodeVersion(formattedCode, actualMethod);
+          }
+          
+        } catch (verificationError) {
+          console.warn('Advanced verification failed, using original code:', verificationError);
+          setGeneratedCode(formattedCode);
+          storeCode(flowKey, activeTab, formattedCode);
+          await saveCodeVersion(formattedCode, actualMethod);
+        }
+      } else {
+        setGeneratedCode(formattedCode);
+        storeCode(flowKey, activeTab, formattedCode);
+        await saveCodeVersion(formattedCode, actualMethod);
+      }
+      
       setIsFirstGeneration(false);
       setVerificationProgress(null);
-      
-      // Save version to Supabase
-      await saveCodeVersion(formattedCode, actualMethod);
       
       console.log('Initial code generation completed successfully');
     } catch (error) {
@@ -866,6 +1143,8 @@ export function CodeGenerationModal({
     setError(null);
     setSandboxOutput('');
     setVerificationProgress(null);
+    setAdvancedVerificationResult(null);
+    setShowVerificationDetails(false);
     
     try {
       let generatedCode: string;
@@ -906,12 +1185,70 @@ export function CodeGenerationModal({
       }
 
       const formattedCode = formatCodeForDisplay(generatedCode);
-      setGeneratedCode(formattedCode);
-      storeCode(flowKey, activeTab, formattedCode);
-      setVerificationProgress(null);
       
-      // Save new version to Supabase
-      await saveCodeVersion(formattedCode, actualMethod);
+      // Run advanced verification and error fixing
+      if (OPENROUTER_API_KEY && activeTab === 'adk') {
+        setVerificationProgress({
+          step: 'verification',
+          progress: 50,
+          message: 'Running advanced verification and error fixing...'
+        });
+        
+        try {
+          const { AdvancedCodeVerifier } = await import('@/lib/verification/AdvancedCodeVerifier');
+          const verifier = new AdvancedCodeVerifier(OPENROUTER_API_KEY);
+          
+          const verificationResult = await verifier.verifyAndFix(formattedCode, {
+            enableLangfuseChecks: true,
+            enableMcpChecks: true,
+            enableAIFixes: true,
+            enablePatternFixes: true,
+            maxAIRetries: 2,
+            confidenceThreshold: 70,
+            onProgress: (progress) => {
+              setVerificationProgress({
+                step: 'verification',
+                progress: 50 + (progress.progress * 0.4),
+                message: progress.message
+              });
+            },
+            openRouterApiKey: OPENROUTER_API_KEY
+          });
+          
+          setAdvancedVerificationResult(verificationResult);
+          
+          // Use fixed code if verification applied fixes
+          if (verificationResult.fixedCode && verificationResult.metadata.fixesApplied > 0) {
+            const finalCode = verificationResult.fixedCode;
+            setGeneratedCode(finalCode);
+            storeCode(flowKey, activeTab, finalCode);
+            
+            // Show verification details if errors were found and fixed
+            if (verificationResult.errors.length > 0) {
+              setShowVerificationDetails(true);
+            }
+            
+            // Save version with verification metadata
+            await saveCodeVersion(finalCode, actualMethod);
+          } else {
+            setGeneratedCode(formattedCode);
+            storeCode(flowKey, activeTab, formattedCode);
+            await saveCodeVersion(formattedCode, actualMethod);
+          }
+          
+        } catch (verificationError) {
+          console.warn('Advanced verification failed, using original code:', verificationError);
+          setGeneratedCode(formattedCode);
+          storeCode(flowKey, activeTab, formattedCode);
+          await saveCodeVersion(formattedCode, actualMethod);
+        }
+      } else {
+        setGeneratedCode(formattedCode);
+        storeCode(flowKey, activeTab, formattedCode);
+        await saveCodeVersion(formattedCode, actualMethod);
+      }
+      
+      setVerificationProgress(null);
       
       const features = [];
       if (mcpEnabled) features.push('MCP tools');
@@ -919,9 +1256,14 @@ export function CodeGenerationModal({
       if (hasLangfuseNodes) features.push('Langfuse analytics');
       if (hasMemoryNodes) features.push('Mem0 memory');
       
+      // Enhanced toast message with verification info
+      const verificationInfo = advancedVerificationResult && advancedVerificationResult.metadata.fixesApplied > 0
+        ? ` (${advancedVerificationResult.metadata.fixesApplied} fixes applied)`
+        : '';
+      
       toast({
         title: "Code regenerated",
-        description: `The code has been regenerated successfully${features.length > 0 ? ` with ${features.join(', ')}` : ''} using ${actualMethod} method.`
+        description: `The code has been regenerated successfully${features.length > 0 ? ` with ${features.join(', ')}` : ''} using ${actualMethod} method${verificationInfo}.`
       });
       
       console.log('Code regeneration completed successfully');
@@ -1180,6 +1522,15 @@ __all__ = ["root_agent"]`;
               {/* Verification Progress Display */}
               <div className="flex-shrink-0">
                 <VerificationProgressComponent progress={verificationProgress} />
+              </div>
+
+              {/* Advanced Verification Results Display */}
+              <div className="flex-shrink-0">
+                <AdvancedVerificationDisplay 
+                  result={advancedVerificationResult}
+                  show={showVerificationDetails}
+                  onToggle={() => setShowVerificationDetails(!showVerificationDetails)}
+                />
               </div>
 
               {/* Detection Status Display */}

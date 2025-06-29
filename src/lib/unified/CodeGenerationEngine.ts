@@ -5,6 +5,8 @@ import { TemplateEngine } from './TemplateEngine';
 import { GenerationCoordinator } from './GenerationCoordinator';
 import { verifyAndFixCode, type VerificationProgress, type VerificationResult } from '../codeVerification';
 import { UnifiedVerification, type UnifiedVerificationResult } from './UnifiedVerification';
+import { AdvancedCodeVerifier } from '../verification/AdvancedCodeVerifier';
+import type { VerificationResult as AdvancedVerificationResult } from '../verification/types';
 
 // Main generation types
 export type GenerationMethod = 'ai' | 'template' | 'auto';
@@ -20,7 +22,9 @@ export interface GenerationRequest {
 
 export interface GenerationOptions {
   enableVerification?: boolean;
+  enableAdvancedVerification?: boolean;
   enableOptimization?: boolean;
+  openRouterApiKey?: string;
   onProgress?: (progress: GenerationProgress) => void;
   abortSignal?: AbortSignal;
 }
@@ -38,12 +42,20 @@ export interface GenerationResult {
   mode: GenerationMode;
   configuration: any;
   verification?: UnifiedVerificationResult;
+  advancedVerification?: AdvancedVerificationResult;
   metadata: {
     generatedAt: Date;
     features: string[];
     performance: {
       generationTime: number;
       verificationTime?: number;
+      advancedVerificationTime?: number;
+    };
+    errorsFixes?: {
+      langfuseErrorsFixed: number;
+      mcpErrorsFixed: number;
+      totalErrorsFixed: number;
+      verificationMethod: 'ai' | 'pattern' | 'hybrid' | 'none';
     };
   };
 }
@@ -57,12 +69,14 @@ export class CodeGenerationEngine {
   private templateEngine: TemplateEngine;
   private coordinator: GenerationCoordinator;
   private verification: UnifiedVerification;
+  private advancedVerifier: AdvancedCodeVerifier;
 
-  constructor() {
+  constructor(openRouterApiKey?: string) {
     this.extractor = new ConfigurationExtractor();
     this.templateEngine = new TemplateEngine();
     this.coordinator = new GenerationCoordinator();
     this.verification = new UnifiedVerification();
+    this.advancedVerifier = new AdvancedCodeVerifier(openRouterApiKey);
   }
 
   /**
@@ -102,6 +116,9 @@ export class CodeGenerationEngine {
 
       // Step 4: Verify and optimize code if enabled
       let verification: UnifiedVerificationResult | undefined;
+      let advancedVerification: AdvancedVerificationResult | undefined;
+      let advancedVerificationTime = 0;
+      
       if (request.options?.enableVerification !== false) {
         this.reportProgress(request, 'verifying', 80, 'Verifying and fixing code...');
         
@@ -115,7 +132,7 @@ export class CodeGenerationEngine {
             enableQualityChecks: true,
             generateSupportFiles: true,
             onProgress: (progress: VerificationProgress) => {
-              this.reportProgress(request, 'verification', 80 + (progress.progress * 0.15), progress.message);
+              this.reportProgress(request, 'verification', 80 + (progress.progress * 0.1), progress.message);
             },
             abortSignal: request.options?.abortSignal
           }
@@ -126,11 +143,63 @@ export class CodeGenerationEngine {
         }
       }
 
+      // Step 4.5: Advanced AI-powered verification and error fixing
+      if (request.options?.enableAdvancedVerification !== false) {
+        this.reportProgress(request, 'verifying', 90, 'Running advanced AI-powered verification...');
+        
+        const advancedVerificationStart = performance.now();
+        
+        // Update OpenRouter API key if provided
+        if (request.options?.openRouterApiKey) {
+          this.advancedVerifier.setOpenRouterApiKey(request.options.openRouterApiKey);
+        }
+        
+        advancedVerification = await this.advancedVerifier.verifyAndFix(generatedCode, {
+          enableLangfuseChecks: true,
+          enableMcpChecks: true,
+          enableAIFixes: !!request.options?.openRouterApiKey,
+          enablePatternFixes: true,
+          maxAIRetries: 2,
+          confidenceThreshold: 70,
+          onProgress: (progress) => {
+            this.reportProgress(request, 'verification', 90 + (progress.progress * 0.05), progress.message);
+          },
+          abortSignal: request.options?.abortSignal,
+          openRouterApiKey: request.options?.openRouterApiKey
+        });
+        
+        advancedVerificationTime = performance.now() - advancedVerificationStart;
+        
+        // Use the fixed code from advanced verification if it's better
+        if (advancedVerification.fixedCode && advancedVerification.metadata.fixesApplied > 0) {
+          generatedCode = advancedVerification.fixedCode;
+          this.reportProgress(request, 'verifying', 95, `Applied ${advancedVerification.metadata.fixesApplied} advanced fixes`);
+        }
+      }
+
       // Step 5: Prepare result
-      this.reportProgress(request, 'finalizing', 95, 'Finalizing code generation...');
+      this.reportProgress(request, 'finalizing', 97, 'Finalizing code generation...');
       
       const endTime = performance.now();
       const generationTime = endTime - startTime;
+      
+      // Calculate error fixing metadata
+      let errorsFixes = undefined;
+      if (advancedVerification) {
+        const langfuseErrorsFixed = advancedVerification.errors.filter(e => 
+          e.category === 'langfuse' && e.fixed
+        ).length;
+        const mcpErrorsFixed = advancedVerification.errors.filter(e => 
+          e.category === 'mcp' && e.fixed
+        ).length;
+        
+        errorsFixes = {
+          langfuseErrorsFixed,
+          mcpErrorsFixed,
+          totalErrorsFixed: advancedVerification.metadata.fixesApplied,
+          verificationMethod: advancedVerification.metadata.verificationMethod
+        };
+      }
       
       const result: GenerationResult = {
         code: generatedCode,
@@ -138,13 +207,16 @@ export class CodeGenerationEngine {
         mode,
         configuration,
         verification,
+        advancedVerification,
         metadata: {
           generatedAt: new Date(),
           features: this.extractFeatures(configuration),
           performance: {
             generationTime,
-            verificationTime: verification ? endTime - startTime : undefined
-          }
+            verificationTime: verification ? endTime - startTime : undefined,
+            advancedVerificationTime: advancedVerificationTime > 0 ? advancedVerificationTime : undefined
+          },
+          errorsFixes
         }
       };
 
@@ -299,6 +371,32 @@ export class CodeGenerationEngine {
   }
 
   /**
+   * Set OpenRouter API key for AI-powered error fixing
+   */
+  setOpenRouterApiKey(apiKey: string): void {
+    this.advancedVerifier.setOpenRouterApiKey(apiKey);
+  }
+
+  /**
+   * Get verification capabilities
+   */
+  getVerificationCapabilities(): {
+    basicVerification: boolean;
+    advancedVerification: boolean;
+    langfuseErrorDetection: boolean;
+    mcpErrorDetection: boolean;
+    aiPoweredFixes: boolean;
+  } {
+    return {
+      basicVerification: true,
+      advancedVerification: true,
+      langfuseErrorDetection: true,
+      mcpErrorDetection: true,
+      aiPoweredFixes: this.advancedVerifier !== null
+    };
+  }
+
+  /**
    * Get available generation modes for a flow with metadata
    */
   getAvailableModes(nodes: Node<BaseNodeData>[]): {
@@ -371,4 +469,5 @@ export class CodeGenerationEngine {
 }
 
 // Export a singleton instance for use throughout the application
+// Note: OpenRouter API key can be set later via setOpenRouterApiKey()
 export const codeGenerationEngine = new CodeGenerationEngine();

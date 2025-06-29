@@ -1,5 +1,7 @@
 import type { UnifiedConfiguration, MCPConfig, LangfuseConfig, MemoryConfig, EventHandlingConfig } from './ConfigurationExtractor';
 import type { GenerationMode } from './CodeGenerationEngine';
+import { AdvancedCodeVerifier } from '../verification/AdvancedCodeVerifier';
+import type { VerificationResult } from '../verification/types';
 
 // Bridge interface for template compatibility
 export interface ExtractedNodeData {
@@ -18,6 +20,11 @@ export interface ExtractedNodeData {
  * Comprehensive template generation with robust error handling and graceful degradation
  */
 export class TemplateEngine {
+  private advancedVerifier: AdvancedCodeVerifier;
+
+  constructor(openRouterApiKey?: string) {
+    this.advancedVerifier = new AdvancedCodeVerifier(openRouterApiKey);
+  }
 
   /**
    * Generate code from template based on configuration and mode
@@ -51,6 +58,112 @@ export class TemplateEngine {
       default:
         return this.generateBasicAgentTemplate(nodeData);
     }
+  }
+
+  /**
+   * Generate and verify template code with advanced error fixing
+   */
+  async generateAndVerifyTemplate(
+    configuration: UnifiedConfiguration,
+    mode: GenerationMode,
+    options?: {
+      enableVerification?: boolean;
+      enableAIFixes?: boolean;
+      openRouterApiKey?: string;
+      onProgress?: (progress: { step: string; progress: number; message: string }) => void;
+    }
+  ): Promise<{
+    code: string;
+    verification?: VerificationResult;
+    metadata: {
+      generationTime: number;
+      verificationTime?: number;
+      errorsFixed: number;
+      langfuseErrorsFixed: number;
+    };
+  }> {
+    const startTime = performance.now();
+    
+    // Step 1: Generate template code
+    options?.onProgress?.({
+      step: 'template-generation',
+      progress: 20,
+      message: `Generating ${mode} template...`
+    });
+    
+    let generatedCode = await this.generateFromTemplate(configuration, mode);
+    const generationTime = performance.now() - startTime;
+    
+    let verification: VerificationResult | undefined;
+    let verificationTime = 0;
+    
+    // Step 2: Verify and fix if enabled
+    if (options?.enableVerification !== false) {
+      options?.onProgress?.({
+        step: 'verification',
+        progress: 60,
+        message: 'Verifying template code and fixing errors...'
+      });
+      
+      const verificationStart = performance.now();
+      
+      // Update API key if provided
+      if (options?.openRouterApiKey) {
+        this.advancedVerifier.setOpenRouterApiKey(options.openRouterApiKey);
+      }
+      
+      verification = await this.advancedVerifier.verifyAndFix(generatedCode, {
+        enableLangfuseChecks: true,
+        enableMcpChecks: true,
+        enableAIFixes: options?.enableAIFixes !== false,
+        enablePatternFixes: true,
+        maxAIRetries: 1, // Templates are usually simpler, so fewer retries needed
+        confidenceThreshold: 80,
+        onProgress: (progress) => {
+          options?.onProgress?.({
+            step: 'verification',
+            progress: 60 + (progress.progress * 0.3),
+            message: progress.message
+          });
+        },
+        openRouterApiKey: options?.openRouterApiKey
+      });
+      
+      verificationTime = performance.now() - verificationStart;
+      
+      // Use fixed code if available
+      if (verification.fixedCode && verification.metadata.fixesApplied > 0) {
+        generatedCode = verification.fixedCode;
+        options?.onProgress?.({
+          step: 'verification',
+          progress: 90,
+          message: `Applied ${verification.metadata.fixesApplied} fixes to template code`
+        });
+      }
+    }
+    
+    options?.onProgress?.({
+      step: 'complete',
+      progress: 100,
+      message: 'Template generation and verification completed'
+    });
+    
+    // Calculate metadata
+    const errorsFixed = verification?.metadata.fixesApplied || 0;
+    const langfuseErrorsFixed = verification?.errors.filter(e => 
+      e.category === 'langfuse' && e.fixed
+    ).length || 0;
+    
+    return {
+      code: generatedCode,
+      verification,
+      metadata: {
+        generationTime,
+        verificationTime: verificationTime > 0 ? verificationTime : undefined,
+        errorsFixed,
+        langfuseErrorsFixed
+      }
+    };
   }
 
   /**
@@ -1584,6 +1697,30 @@ MEM0_HOST=https://api.mem0.ai`;
       isValid: errors.length === 0,
       errors,
       warnings
+    };
+  }
+
+  /**
+   * Set OpenRouter API key for AI-powered error fixing
+   */
+  setOpenRouterApiKey(apiKey: string): void {
+    this.advancedVerifier.setOpenRouterApiKey(apiKey);
+  }
+
+  /**
+   * Get verification capabilities for templates
+   */
+  getTemplateVerificationCapabilities(): {
+    langfuseErrorDetection: boolean;
+    mcpErrorDetection: boolean;
+    patternBasedFixes: boolean;
+    aiPoweredFixes: boolean;
+  } {
+    return {
+      langfuseErrorDetection: true,
+      mcpErrorDetection: true,
+      patternBasedFixes: true,
+      aiPoweredFixes: this.advancedVerifier !== null
     };
   }
 }
