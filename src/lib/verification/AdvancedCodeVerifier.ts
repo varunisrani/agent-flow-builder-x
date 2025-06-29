@@ -7,6 +7,7 @@ import type {
   AIFixRequest
 } from './types';
 import { LangfuseErrorCatalog } from './LangfuseErrorCatalog';
+import { EventHandlingErrorCatalog } from './EventHandlingErrorCatalog';
 import { OpenRouterFixingService } from './OpenRouterFixingService';
 
 /**
@@ -60,18 +61,35 @@ export class AdvancedCodeVerifier {
         allErrors.push(...mcpErrors);
       }
 
+      // Phase 3.5: Event Handling Error Detection
+      if (options.enableEventHandlingChecks !== false) {
+        this.reportProgress(options, 'detecting', 50, 'Detecting event handling compatibility issues...');
+        
+        const eventHandlingErrors = EventHandlingErrorCatalog.detectErrors(currentCode);
+        allErrors.push(...eventHandlingErrors);
+        
+        this.reportProgress(options, 'detecting', 55, `Found ${eventHandlingErrors.length} event handling issues`);
+      }
+
       // Phase 4: Pattern-based Fixes
       if (options.enablePatternFixes !== false && allErrors.length > 0) {
-        this.reportProgress(options, 'fixing', 55, 'Applying pattern-based fixes...');
+        this.reportProgress(options, 'fixing', 60, 'Applying pattern-based fixes...');
         
         const patternFixResult = this.applyPatternFixes(currentCode, allErrors);
-        currentCode = patternFixResult.fixedCode;
-        appliedFixes.push(...patternFixResult.appliedFixes);
+        if (patternFixResult.fixedCode !== currentCode) {
+          currentCode = patternFixResult.fixedCode;
+          appliedFixes.push(...patternFixResult.appliedFixes);
+          
+          this.reportProgress(options, 'fixing', 65, `Applied ${patternFixResult.appliedFixes.length} pattern-based fixes`);
+        }
         
         // Update error statuses
         patternFixResult.fixedErrorIds.forEach(errorId => {
           const error = allErrors.find(e => e.id === errorId);
-          if (error) error.fixed = true;
+          if (error) {
+            error.fixed = true;
+            error.fixedCode = currentCode;
+          }
         });
       }
 
@@ -80,7 +98,7 @@ export class AdvancedCodeVerifier {
         const unfixedErrors = allErrors.filter(e => !e.fixed && e.severity === 'error');
         
         if (unfixedErrors.length > 0) {
-          this.reportProgress(options, 'fixing', 70, `Applying AI fixes for ${unfixedErrors.length} remaining errors...`);
+          this.reportProgress(options, 'fixing', 75, `Applying AI fixes for ${unfixedErrors.length} remaining errors...`);
           
           const aiFixResult = await this.applyAIFixes(currentCode, unfixedErrors, options);
           if (aiFixResult.success) {
@@ -101,10 +119,11 @@ export class AdvancedCodeVerifier {
       }
 
       // Phase 6: Final Validation
-      this.reportProgress(options, 'validating', 85, 'Running final validation...');
+      this.reportProgress(options, 'validating', 90, 'Running final validation...');
       
       const finalErrors = this.detectBasicErrors(currentCode);
       const validationResult = this.validateFixedCode(code, currentCode, allErrors);
+      
 
       // Phase 7: Complete
       this.reportProgress(options, 'complete', 100, 'Verification completed successfully!');
@@ -115,21 +134,39 @@ export class AdvancedCodeVerifier {
       // Build result
       const errors = allErrors.filter(e => e.severity === 'error');
       const warnings = allErrors.filter(e => e.severity === 'warning');
-      const fixedErrors = allErrors.filter(e => e.fixed);
+      const fixedErrors = allErrors.filter(e => e.fixed && e.severity === 'error');
+      const fixedWarnings = allErrors.filter(e => e.fixed && e.severity === 'warning');
+      const totalFixed = fixedErrors.length + fixedWarnings.length;
       
       const langfuseErrorsFound = allErrors.filter(e => e.category === 'langfuse').length;
       const mcpErrorsFound = allErrors.filter(e => e.category === 'mcp').length;
+      const eventHandlingErrorsFound = allErrors.filter(e => e.category === 'event-handling').length;
       const aiFixesApplied = this.fixAttempts.filter(a => a.method === 'ai' && a.success).length;
       const patternFixesApplied = this.fixAttempts.filter(a => a.method === 'pattern' && a.success).length;
 
       // Calculate overall confidence
       const totalErrors = errors.length;
-      const totalFixed = fixedErrors.length;
-      let confidence = totalErrors === 0 ? 100 : Math.floor((totalFixed / totalErrors) * 100);
+      const totalWarnings = warnings.length;
+      const totalIssues = totalErrors + totalWarnings;
+      
+      let confidence = 100; // Start with perfect confidence
+      
+      if (totalIssues > 0) {
+        // Calculate fix rate
+        const fixRate = totalFixed / totalIssues;
+        confidence = Math.floor(fixRate * 100);
+        
+        // Penalize unfixed errors more than unfixed warnings
+        const unfixedErrors = errors.filter(e => !e.fixed).length;
+        const unfixedWarnings = warnings.filter(w => !w.fixed).length;
+        confidence -= (unfixedErrors * 15) + (unfixedWarnings * 5);
+      }
       
       // Adjust confidence based on validation
       if (!validationResult.syntaxValid) confidence -= 20;
       if (!validationResult.structurePreserved) confidence -= 15;
+      
+      // Ensure confidence is between 0 and 100
       confidence = Math.max(0, Math.min(100, confidence));
 
       return {
@@ -142,10 +179,11 @@ export class AdvancedCodeVerifier {
         originalCode: code,
         metadata: {
           verificationTime,
-          fixesApplied: fixedErrors.length,
+          fixesApplied: totalFixed,
           errorTypesFound: [...new Set(allErrors.map(e => e.type))],
           langfuseErrorsFound,
           mcpErrorsFound,
+          eventHandlingErrorsFound,
           aiFixesApplied,
           patternFixesApplied,
           verificationMethod: this.determineVerificationMethod(patternFixesApplied, aiFixesApplied),
@@ -180,6 +218,7 @@ export class AdvancedCodeVerifier {
           errorTypesFound: ['VERIFICATION_SYSTEM_ERROR'],
           langfuseErrorsFound: 0,
           mcpErrorsFound: 0,
+          eventHandlingErrorsFound: 0,
           aiFixesApplied: 0,
           patternFixesApplied: 0,
           verificationMethod: 'hybrid',
@@ -328,6 +367,21 @@ export class AdvancedCodeVerifier {
       });
     }
 
+    // Apply Event Handling fixes
+    const eventHandlingErrors = errors.filter(e => e.category === 'event-handling');
+    if (eventHandlingErrors.length > 0) {
+      const eventHandlingFixResult = EventHandlingErrorCatalog.applyFixes(fixedCode, eventHandlingErrors);
+      fixedCode = eventHandlingFixResult.fixedCode;
+      appliedFixes.push(...eventHandlingFixResult.appliedFixes);
+      
+      // Mark fixed errors
+      eventHandlingErrors.forEach(error => {
+        if (eventHandlingFixResult.unfixedErrors.every(ue => ue.id !== error.id)) {
+          fixedErrorIds.push(error.id);
+        }
+      });
+    }
+
     // Apply basic pattern fixes
     const basicFixes = this.applyBasicPatternFixes(fixedCode, errors);
     fixedCode = basicFixes.fixedCode;
@@ -461,7 +515,7 @@ export class AdvancedCodeVerifier {
     if (code.includes('mem0') || code.includes('Memory')) {
       integrations.push('mem0');
     }
-    if (code.includes('logging') || code.includes('event_handler')) {
+    if (code.includes('EventHandler') || code.includes('event_logger') || code.includes('event_history')) {
       integrations.push('event-handling');
     }
     
@@ -518,6 +572,10 @@ export class AdvancedCodeVerifier {
     // Add Langfuse-specific suggestions
     const langfuseRecommendations = LangfuseErrorCatalog.getRecommendations(code);
     suggestions.push(...langfuseRecommendations);
+
+    // Add Event Handling-specific suggestions
+    const eventHandlingRecommendations = EventHandlingErrorCatalog.getRecommendations(code);
+    suggestions.push(...eventHandlingRecommendations);
     
     return suggestions;
   }

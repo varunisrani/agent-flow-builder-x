@@ -9,7 +9,8 @@ from dotenv import load_dotenv
 from google.adk.agents import LlmAgent
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
-from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
+from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioConnectionParams
+from mcp import StdioServerParameters
 from google.genai import types
 
 # Load environment variables from multiple possible locations
@@ -24,38 +25,25 @@ if 'GOOGLE_API_KEY' not in os.environ:
     # Don't exit here - let the agent continue without full functionality
 
 # Set the Smithery API key from environment variable (optional for basic testing)
-smithery_api_key = os.getenv("SMITHERY_API_KEY")
-use_mcp = smithery_api_key is not None
+use_mcp = True  # Enable MCP tools by default
 
 print(f"🔧 MCP Configuration:")
 print(f"   SMITHERY_API_KEY set: {use_mcp}")
 print(f"   Will use MCP tools: {use_mcp}")
 
-# MCP toolset configuration for @yokingma/time-mcp (only if API key is available)
+# MCP toolset configuration for @dandeliongold/mcp-time (only if API key is available)
 time_mcp_toolset = None
 if use_mcp:
     print("   Initializing time_mcp_toolset...")
     time_mcp_toolset = MCPToolset(
-        connection_params=StdioServerParameters(
-            command="npx",
-            args=["-y","@smithery/cli@latest","run","--key",smithery_api_key],
-            env={"NODE_OPTIONS":"--no-warnings --experimental-fetch","SMITHERY_API_KEY":smithery_api_key}
+            connection_params=StdioConnectionParams(
+                server_params=StdioServerParameters(
+                    command="npx",
+                    args=["-y", "@dandeliongold/mcp-time"],
+                    env={"NODE_OPTIONS":"--no-warnings --experimental-fetch","SMITHERY_API_KEY":os.getenv('SMITHERY_API_KEY')}
+                )
+            )
         )
-    )
-else:
-    print("   Skipping time_mcp_toolset (no API key)")
-
-# MCP toolset configuration for @yokingma/time-mcp (only if API key is available)
-time_mcp_toolset = None
-if use_mcp:
-    print("   Initializing time_mcp_toolset...")
-    time_mcp_toolset = MCPToolset(
-        connection_params=StdioServerParameters(
-            command="npx",
-            args=["-y","@smithery/cli@latest","run","--key",smithery_api_key],
-            env={"NODE_OPTIONS":"--no-warnings --experimental-fetch","SMITHERY_API_KEY":smithery_api_key}
-        )
-    )
 else:
     print("   Skipping time_mcp_toolset (no API key)")
 
@@ -65,7 +53,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('agent_events.log'),
+        logging.FileHandler('github_agent_events.log'),
         logging.StreamHandler()
     ]
 )
@@ -178,14 +166,14 @@ event_handler = EventHandler()
 
 # Create the LlmAgent with event handling capabilities
 root_agent = LlmAgent(
-    name="time_agent",
+    name="github_agent",
     model="gemini-2.0-flash",
     description="An LlmAgent that provides the current time by integrating with the MCP time tool.",
     instruction="""You are an agent that can use Smithery MCP to perform operations. Use the Smithery MCP tool to interact with external systems and APIs.
 
 Available functions through MCP (when SMITHERY_API_KEY is set):
-- @yokingma/time-mcp tools for MCP client for @yokingma/time-mcp operations
-- @yokingma/time-mcp tools for MCP tool for @yokingma/time-mcp operations
+- @dandeliongold/mcp-time tools for MCP client for @dandeliongold/mcp-time operations
+- @dandeliongold/mcp-time tools for MCP tool for @dandeliongold/mcp-time operations
 
 When MCP is not available, the agent operates in basic mode without external tools and gracefully degrades functionality.
 
@@ -202,17 +190,17 @@ IMPORTANT RULES:
 4. Gracefully handle scenarios when MCP tools are unavailable
 5. Events are logged with timestamps and user context
 6. Error handling includes automatic error event logging""",
-    tools=[time_mcp_toolset, time_mcp_toolset if time_mcp_toolset and time_mcp_toolset else []]
+    tools=[time_mcp_toolset] if time_mcp_toolset else []
 )
 
 # Session service and runner setup
 session_service = InMemorySessionService()
-runner = Runner(agent=root_agent, session_service=session_service, app_name="time_agent")
+runner = Runner(agent=root_agent, session_service=session_service, app_name="github_agent")
 
 async def main():
     # Create a session
     user_id = "user"
-    session = await session_service.create_session(app_name="time_agent", user_id=user_id)
+    session = await session_service.create_session(app_name="github_agent", user_id=user_id)
     session_id = session.id
 
     # Test message

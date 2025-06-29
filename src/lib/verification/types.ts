@@ -1,7 +1,7 @@
 export interface VerificationError {
   id: string;
   type: string;
-  category: 'langfuse' | 'mcp' | 'syntax' | 'runtime' | 'import' | 'security' | 'compatibility';
+  category: 'langfuse' | 'mcp' | 'event-handling' | 'syntax' | 'runtime' | 'import' | 'security' | 'compatibility';
   severity: 'error' | 'warning' | 'info';
   message: string;
   line?: number;
@@ -37,6 +37,7 @@ export interface VerificationResult {
     errorTypesFound: string[];
     langfuseErrorsFound: number;
     mcpErrorsFound: number;
+    eventHandlingErrorsFound: number;
     aiFixesApplied: number;
     patternFixesApplied: number;
     verificationMethod: 'ai' | 'pattern' | 'hybrid';
@@ -65,6 +66,26 @@ export interface LangfuseErrorPattern {
   };
 }
 
+export interface EventHandlingErrorPattern {
+  id: string;
+  name: string;
+  pattern: RegExp;
+  description: string;
+  severity: 'error' | 'warning';
+  version: string; // Version this error applies to
+  autoFixable: boolean;
+  fix?: {
+    search: RegExp;
+    replace: string;
+    description: string;
+    confidenceScore: number;
+  };
+  examples: {
+    problematic: string;
+    fixed: string;
+  };
+}
+
 export interface CodeFixAttempt {
   id: string;
   method: 'ai' | 'pattern';
@@ -80,6 +101,7 @@ export interface CodeFixAttempt {
 export interface VerificationOptions {
   enableLangfuseChecks?: boolean;
   enableMcpChecks?: boolean;
+  enableEventHandlingChecks?: boolean;
   enableAIFixes?: boolean;
   enablePatternFixes?: boolean;
   maxAIRetries?: number;

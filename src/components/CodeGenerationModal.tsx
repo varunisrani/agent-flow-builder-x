@@ -114,7 +114,8 @@ const AdvancedVerificationDisplay: React.FC<{
 
   const langfuseErrors = errorsByCategory.langfuse || [];
   const mcpErrors = errorsByCategory.mcp || [];
-  const otherErrors = Object.entries(errorsByCategory).filter(([cat]) => !['langfuse', 'mcp'].includes(cat));
+  const eventHandlingErrors = errorsByCategory['event-handling'] || [];
+  const otherErrors = Object.entries(errorsByCategory).filter(([cat]) => !['langfuse', 'mcp', 'event-handling'].includes(cat));
 
   const getErrorIcon = (severity: string) => {
     switch (severity) {
@@ -163,7 +164,7 @@ const AdvancedVerificationDisplay: React.FC<{
       {show && (
         <div className="p-4 space-y-4">
           {/* Summary Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-3 bg-gray-50 rounded-lg">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 p-3 bg-gray-50 rounded-lg">
             <div className="text-center">
               <div className="text-lg font-bold text-gray-800">{result.errors.length}</div>
               <div className="text-xs text-gray-600">Total Issues</div>
@@ -173,8 +174,12 @@ const AdvancedVerificationDisplay: React.FC<{
               <div className="text-xs text-gray-600">Fixed</div>
             </div>
             <div className="text-center">
-              <div className="text-lg font-bold text-red-600">{langfuseErrors.length}</div>
-              <div className="text-xs text-gray-600">Langfuse Issues</div>
+              <div className="text-lg font-bold text-purple-600">{langfuseErrors.length}</div>
+              <div className="text-xs text-gray-600">Langfuse</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-orange-600">{eventHandlingErrors.length}</div>
+              <div className="text-xs text-gray-600">Event Handling</div>
             </div>
             <div className="text-center">
               <div className="text-lg font-bold text-blue-600">{result.metadata.verificationMethod}</div>
@@ -236,6 +241,39 @@ const AdvancedVerificationDisplay: React.FC<{
                               <span className="text-xs text-gray-500">({error.confidenceScore}% confidence)</span>
                             )}
                           </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Event Handling Errors Section */}
+          {eventHandlingErrors.length > 0 && (
+            <div className="border border-orange-200 rounded-lg p-3 bg-orange-50">
+              <h4 className="text-sm font-medium text-orange-800 mb-2 flex items-center gap-2">
+                ⚡ Event Handling Issues ({eventHandlingErrors.length})
+              </h4>
+              <div className="space-y-2">
+                {eventHandlingErrors.map((error, index) => (
+                  <div key={index} className="bg-white p-2 rounded border border-orange-200">
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs mt-0.5">{getErrorIcon(error.severity)}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium text-orange-800">{error.type.replace(/-/g, ' ')}</div>
+                        <div className="text-xs text-orange-600 mt-1">{error.message}</div>
+                        {error.fixed && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <span className="text-xs text-green-600">✅ Fixed</span>
+                            {error.confidenceScore && (
+                              <span className="text-xs text-gray-500">({error.confidenceScore}% confidence)</span>
+                            )}
+                          </div>
+                        )}
+                        {error.fixDescription && (
+                          <div className="text-xs text-gray-600 mt-1 italic">{error.fixDescription}</div>
                         )}
                       </div>
                     </div>
@@ -1581,8 +1619,9 @@ Please return ONLY the fixed Python code without any explanations or markdown fo
       switch (category) {
         case 'langfuse': return 'border-purple-200 bg-purple-50';
         case 'mcp': return 'border-blue-200 bg-blue-50';
+        case 'event-handling': return 'border-orange-200 bg-orange-50';
         case 'syntax': return 'border-red-200 bg-red-50';
-        case 'security': return 'border-orange-200 bg-orange-50';
+        case 'security': return 'border-yellow-200 bg-yellow-50';
         default: return 'border-gray-200 bg-gray-50';
       }
     };

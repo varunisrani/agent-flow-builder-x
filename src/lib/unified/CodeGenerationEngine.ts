@@ -54,6 +54,7 @@ export interface GenerationResult {
     errorsFixes?: {
       langfuseErrorsFixed: number;
       mcpErrorsFixed: number;
+      eventHandlingErrorsFixed: number;
       totalErrorsFixed: number;
       verificationMethod: 'ai' | 'pattern' | 'hybrid' | 'none';
     };
@@ -157,6 +158,7 @@ export class CodeGenerationEngine {
         advancedVerification = await this.advancedVerifier.verifyAndFix(generatedCode, {
           enableLangfuseChecks: true,
           enableMcpChecks: true,
+          enableEventHandlingChecks: true,
           enableAIFixes: !!request.options?.openRouterApiKey,
           enablePatternFixes: true,
           maxAIRetries: 2,
@@ -192,10 +194,14 @@ export class CodeGenerationEngine {
         const mcpErrorsFixed = advancedVerification.errors.filter(e => 
           e.category === 'mcp' && e.fixed
         ).length;
+        const eventHandlingErrorsFixed = advancedVerification.errors.filter(e => 
+          e.category === 'event-handling' && e.fixed
+        ).length;
         
         errorsFixes = {
           langfuseErrorsFixed,
           mcpErrorsFixed,
+          eventHandlingErrorsFixed,
           totalErrorsFixed: advancedVerification.metadata.fixesApplied,
           verificationMethod: advancedVerification.metadata.verificationMethod
         };

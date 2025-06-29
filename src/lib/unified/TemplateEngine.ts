@@ -80,6 +80,7 @@ export class TemplateEngine {
       verificationTime?: number;
       errorsFixed: number;
       langfuseErrorsFixed: number;
+      eventHandlingErrorsFixed: number;
     };
   }> {
     const startTime = performance.now();
@@ -115,6 +116,7 @@ export class TemplateEngine {
       verification = await this.advancedVerifier.verifyAndFix(generatedCode, {
         enableLangfuseChecks: true,
         enableMcpChecks: true,
+        enableEventHandlingChecks: true,
         enableAIFixes: options?.enableAIFixes !== false,
         enablePatternFixes: true,
         maxAIRetries: 1, // Templates are usually simpler, so fewer retries needed
@@ -153,6 +155,9 @@ export class TemplateEngine {
     const langfuseErrorsFixed = verification?.errors.filter(e => 
       e.category === 'langfuse' && e.fixed
     ).length || 0;
+    const eventHandlingErrorsFixed = verification?.errors.filter(e => 
+      e.category === 'event-handling' && e.fixed
+    ).length || 0;
     
     return {
       code: generatedCode,
@@ -161,7 +166,8 @@ export class TemplateEngine {
         generationTime,
         verificationTime: verificationTime > 0 ? verificationTime : undefined,
         errorsFixed,
-        langfuseErrorsFixed
+        langfuseErrorsFixed,
+        eventHandlingErrorsFixed
       }
     };
   }
