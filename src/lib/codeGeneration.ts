@@ -1997,6 +1997,8 @@ if (!apiKey) {
   return generateADKCode(nodes, _edges, dedupedConfig);
 }
 
+// Note: Variable declarations moved below for proper initialization order
+
 
   // Prepare node data for the AI prompt
   const nodeData = nodes.map(node => ({
@@ -2029,256 +2031,36 @@ if (!apiKey) {
   
   console.log(`🔍 Feature Detection: MCP=${hasMCP}, Langfuse=${hasLangfuse}, Memory=${hasMemory}, Events=${hasEventHandling}, Active=${activeFeatures}, Multi=${isMultiFeature}`);
 
-  // Create comprehensive system prompt based on detected node types with smart routing
-  let systemPrompt;
-  
-  if (isMultiFeature) {
-    // Multi-feature agent (Langfuse + Memory + Event Handling combinations)
-    systemPrompt = `You are an expert Python developer specializing in Google ADK (Agent Development Kit) with multiple advanced features integration.
-
-    GENERATE A MULTI-FEATURE AGENT COMBINING ALL DETECTED FEATURES:
-    ${hasLangfuse ? '✓ Langfuse Analytics Integration' : ''}
-    ${hasMemory ? '✓ Mem0 Memory Integration' : ''}
-    ${hasEventHandling ? '✓ Event Handling System' : ''}
-    ${hasMCP ? '✓ MCP (Model Context Protocol) Tools' : ''}
-
-    CRITICAL: Create ONE comprehensive agent that integrates ALL features seamlessly.
-
-    MULTI-FEATURE TEMPLATE STRUCTURE:
-    """Agent Name - Multi-Feature Agent"""
-    import os
-    import asyncio
-    import json
-    from dotenv import load_dotenv
-    from google.adk.agents import LlmAgent
-    from google.adk.runners import Runner
-    from google.adk.sessions import InMemorySessionService
-    from google.genai import types
-    ${hasMCP ? 'from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters' : ''}
-    ${hasLangfuse ? 'from langfuse import Langfuse' : ''}
-    ${hasMemory ? 'from mem0 import Memory' : ''}
-    ${hasEventHandling ? 'from typing import Dict, List, Callable, Any\nfrom enum import Enum\nfrom datetime import datetime' : ''}
-
-    # Load environment variables
-    # Load environment variables from multiple possible locations
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env')) 
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
-load_dotenv()  # Also load from current working directory
-
-    # Check for required API keys
-    if 'GOOGLE_API_KEY' not in os.environ:
-        print("Warning: GOOGLE_API_KEY not set. Please set it to use the Gemini model.")
-        # Don't exit here - let the agent continue without full functionality
-
-    INTEGRATION REQUIREMENTS:
-    1. Initialize ALL detected features with proper environment variable checks
-    2. Create unified setup functions that work together
-    3. Integrate all features into the main agent instruction
-    4. Include all feature functions in __all__ export
-    5. Add proper tracking/memory/event calls in main() function
-    6. Use exact LlmAgent parameter order: name, model, description, instruction, tools
-    7. Ensure all features work together harmoniously
-
-    SPECIFIC INTEGRATION PATTERNS:
-    
-    ${hasMCP ? `# MCP Integration (if MCP detected)
-    smithery_api_key = os.getenv("SMITHERY_API_KEY")
-    if not smithery_api_key:
-        raise ValueError("SMITHERY_API_KEY environment variable is not set")
-    
-    # Create MCP toolsets for each package
-    toolset_name = MCPToolset(
-        connection_params=StdioServerParameters(
-            command="command",
-            args=["args", "--key", smithery_api_key],
-            env={"NODE_OPTIONS": "--no-warnings --experimental-fetch", "SMITHERY_API_KEY": smithery_api_key}
-        )
-    )` : ''}
-
-    ${hasLangfuse ? `# Langfuse Integration (if Analytics detected)
-    langfuse = None
-    if os.environ.get('LANGFUSE_PUBLIC_KEY') and os.environ.get('LANGFUSE_SECRET_KEY'):
-        langfuse = Langfuse(
-            public_key=os.environ.get('LANGFUSE_PUBLIC_KEY'),
-            secret_key=os.environ.get('LANGFUSE_SECRET_KEY'),
-            host=os.environ.get('LANGFUSE_HOST', 'https://cloud.langfuse.com')
-        )
-        print("✓ Langfuse analytics initialized")
-    
-    def track_conversation(conversation_id, user_id, metadata):
-        if langfuse:
-            langfuse.track_event(
-                event_name="conversation_interaction",
-                properties={
-                    "conversation_id": conversation_id,
-                    "user_id": user_id,
-                    **metadata
-                }
-            )` : ''}
-
-    ${hasMemory ? `# Memory Integration (if Memory detected)
-    memory = None
-    if os.environ.get('MEM0_API_KEY'):
-        os.environ["MEM0_API_KEY"] = os.environ.get('MEM0_API_KEY')
-        memory = Memory()
-        print("✓ Mem0 memory initialized")
-    
-    def add_to_memory(user_message: str, assistant_response: str, user_id: str = "default_user", metadata: dict = None):
-        if not memory:
-            return []
-        try:
-            conversation = [
-                {"role": "user", "content": user_message},
-                {"role": "assistant", "content": assistant_response}
-            ]
-            result = memory.add(conversation, user_id=user_id, metadata=metadata or {})
-            return result
-        except Exception as e:
-            print(f"Failed to add to memory: {e}")
-            return []
-    
-    def search_memory(query: str, user_id: str = "default_user"):
-        if not memory:
-            return []
-        try:
-            results = memory.search(query, user_id=user_id)
-            return results
-        except Exception as e:
-            print(f"Failed to search memory: {e}")
-            return []` : ''}
-
-    ${hasEventHandling ? `# Event Handling Integration (if Events detected)
-    class EventType(Enum):
-        USER_MESSAGE = "user_message"
-        AGENT_RESPONSE = "agent_response"
-        TOOL_CALL = "tool_call"
-        ERROR = "error"
-    
-    class EventHandler:
-        def __init__(self):
-            self.listeners = {}
-            self.event_history = []
-        
-        def emit_event(self, event_type: EventType, data: Dict[str, Any]):
-            event = {"type": event_type.value, "data": data, "timestamp": datetime.now()}
-            self.event_history.append(event)
-            print(f"Event: {event_type.value} - {data}")
-    
-    event_handler = EventHandler()` : ''}
-
-    CRITICAL MAIN FUNCTION INTEGRATION:
-    In the main() function, ensure you:
-    ${hasLangfuse ? '- Call track_conversation() for session start, user messages, and agent responses' : ''}
-    ${hasMemory ? '- Call search_memory() before agent responses and add_to_memory() after responses' : ''}
-    ${hasEventHandling ? '- Call event_handler.emit_event() at key interaction points' : ''}
-
-    CRITICAL: This is a COMBINED agent - integrate ALL features into ONE cohesive system.`;
-  } else if (hasMCP) {
-    // Single MCP agent
-    systemPrompt = `You are an expert Python developer specializing in Google ADK (Agent Development Kit) with MCP (Model Context Protocol) integration using Smithery.
-
-    GENERATE CODE EXACTLY LIKE THIS TEMPLATE PATTERN:
-
-    """Agent Name - MCP Agent"""
-    import os
-    import asyncio
-    from dotenv import load_dotenv
-    from google.adk.agents import LlmAgent
-    from google.adk.runners import Runner
-    from google.adk.sessions import InMemorySessionService
-    from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
-    from google.genai import types
-
-    # Load environment variables
-    # Load environment variables from multiple possible locations
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env')) 
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
-load_dotenv()  # Also load from current working directory
-
-    # Check for required API keys
-    if 'GOOGLE_API_KEY' not in os.environ:
-        print("Warning: GOOGLE_API_KEY not set. Please set it to use the Gemini model.")
-        # Don't exit here - let the agent continue without full functionality
-
-    # Set the Smithery API key from environment variable
-    smithery_api_key = os.getenv("SMITHERY_API_KEY")
-    if not smithery_api_key:
-        raise ValueError("SMITHERY_API_KEY environment variable is not set")
-
-    # MCP toolset configuration
-    toolset_name = MCPToolset(
-        connection_params=StdioServerParameters(
-            command="command_here",
-            args=["args", "here", "--key", smithery_api_key],
-            env={"NODE_OPTIONS": "--no-warnings --experimental-fetch", "SMITHERY_API_KEY": smithery_api_key}
-        )
-    )
-
-    # Create the LlmAgent with MCP tools
-    root_agent = LlmAgent(
-        name="agent_name",
-        model="gemini-2.0-flash",
-        description="Agent description",
-        instruction="""Agent instruction with available functions""",
-        tools=[toolset_name]
-    )
-
-    CRITICAL REQUIREMENTS:
-    - Follow this EXACT structure and pattern
-    - Use exact import order and initialization pattern
-    - Include proper environment variable validation
-    - Include proper MCP toolset configuration with Smithery API key
-    - Use exact LlmAgent parameter order: name, model, description, instruction, tools
-    - Include async main() function with proper session handling
-    - Always include __all__ = ["root_agent"] export`;
-  } else {
-    // Basic agent
-    systemPrompt = `You are an expert Python developer specializing in Google ADK (Agent Development Kit).
-
-    GENERATE CODE EXACTLY LIKE THIS TEMPLATE PATTERN:
-
-    """Agent Name - Basic Agent"""
-    import os
-    import asyncio
-    from dotenv import load_dotenv
-    from google.adk.agents import LlmAgent
-    from google.adk.runners import Runner
-    from google.adk.sessions import InMemorySessionService
-    from google.genai import types
-
-    # Load environment variables
-    # Load environment variables from multiple possible locations
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env')) 
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
-load_dotenv()  # Also load from current working directory
-
-    # Check for Google AI API key
-    if 'GOOGLE_API_KEY' not in os.environ:
-        print("Warning: GOOGLE_API_KEY not set. Please set it to use the Gemini model.")
-        # Don't exit here - let the agent continue without full functionality
-
-    # Create the LlmAgent with the required parameters
-    root_agent = LlmAgent(
-        name="agent_name",
-        model="gemini-2.0-flash",
-        description="Agent description",
-        instruction="""Agent instruction""",
-        tools=[]
-    )
-
-    CRITICAL REQUIREMENTS:
-    - Follow this EXACT import structure and pattern
-    - Use proper environment variable validation
-    - Use exact LlmAgent parameter order: name, model, description, instruction, tools
-    - Include async main() function with proper session handling
-    - Always include __all__ = ["root_agent"] export`;
-  }
-
-  // Multi-feature integration is now handled in the unified system prompt above
-  // No need for individual feature additions since we use smart routing
+  console.log('🔍 AI Generation Debug:', {
+    agentNodes: agentNodes.length,
+    mcpNodes: mcpNodes.length,
+    hasLangfuse,
+    hasMemory, 
+    hasEventHandling,
+    mcpEnabled,
+    nodeTypes: nodes.map(n => n.data.type),
+    mcpConfigLength: dedupedConfig?.length || 0,
+    langfuseConfig: langfuseConfig ? 'detected' : 'null',
+    memoryConfig: memoryConfig ? 'detected' : 'null',
+    eventHandlingConfig: eventHandlingConfig ? 'detected' : 'null',
+    langfuseNodes: nodes.filter(n => n.data.type === 'langfuse').map(n => ({ 
+      id: n.id, 
+      enabled: n.data.langfuseEnabled,
+      publicKey: !!n.data.langfusePublicKey,
+      secretKey: !!n.data.langfuseSecretKey
+    })),
+    memoryNodes: nodes.filter(n => n.data.type === 'memory').map(n => ({ 
+      id: n.id, 
+      enabled: n.data.memoryEnabled,
+      apiKey: !!n.data.memoryApiKey,
+      userId: n.data.memoryUserId
+    })),
+    eventHandlingNodes: nodes.filter(n => n.data.type === 'event-handling').map(n => ({ 
+      id: n.id, 
+      enabled: n.data.eventHandlingEnabled,
+      types: n.data.eventTypes
+    }))
+  });
 
   // Extract comprehensive MCP configuration details for the prompt
   const mcpDetails = dedupedConfig ? dedupedConfig.map((cfg, idx) => {
@@ -2292,50 +2074,230 @@ load_dotenv()  # Also load from current working directory
     };
   }) : [];
 
-  const userPrompt = `Generate Google ADK agent code with these specifications:
+  // NOW create system prompt after mcpDetails is available
+  // Extract actual values from nodes for direct injection
+  const agentName = agentNodes.length > 0 ? (agentNodes[0].data.label?.replace(/[^a-zA-Z0-9_]/g, '_') || 'ai_agent') : 'ai_agent';
+  const agentDescription = agentNodes.length > 0 ? (agentNodes[0].data.description || 'AI-generated agent for task automation') : 'AI-generated agent for task automation';
+  const agentInstruction = agentNodes.length > 0 ? (agentNodes[0].data.instruction || agentNodes[0].data.prompt || 'You are a helpful assistant that can assist users with various tasks.') : 'You are a helpful assistant that can assist users with various tasks.';
+  
+  let systemPrompt = `You are a code generation expert. Generate EXACTLY the Python code I specify.
 
-🔍 **FEATURE DETECTION SUMMARY:**
-- Active Features: ${activeFeatures} (${isMultiFeature ? 'MULTI-FEATURE AGENT' : 'Single Feature Agent'})
-- Features: ${[hasMCP && 'MCP', hasLangfuse && 'Langfuse', hasMemory && 'Memory', hasEventHandling && 'Events'].filter(Boolean).join(', ') || 'Basic Agent'}
-${isMultiFeature ? '⚠️ CRITICAL: Generate ONE combined agent integrating ALL features together' : ''}
+CRITICAL: Generate ONLY Python code, no explanations, no markdown formatting.
 
-**AGENT DETAILS:**
-- Name: ${agentNodes.length > 0 ? (agentNodes[0].data.label || 'search_agent') : 'search_agent'}
-- Description: ${agentNodes.length > 0 ? (agentNodes[0].data.description || 'AI agent for task automation') : 'AI agent for task automation'}
-- Instructions: ${agentNodes.length > 0 ? (agentNodes[0].data.instruction || agentNodes[0].data.prompt || 'Use available tools to help users') : 'Use available tools to help users'}
+Generate a Google ADK agent with these EXACT specifications:
+- Agent name: "${agentName}"
+- Agent description: "${agentDescription}"  
+- Agent instruction: "${agentInstruction}"
+- Model: "gemini-2.0-flash"`;
 
-${mcpEnabled ? `**MCP TOOLS:** ${mcpDetails.map(detail => `${detail.package}`).join(', ')}
-MCP Configuration Details:
-${mcpDetails.map((detail, idx) => `Tool ${idx + 1}: ${detail.package}
-- Command: ${detail.command}  
-- Args: ${detail.args.join(' ')}
-- Environment: ${Object.keys(detail.envVars).join(', ')}`).join('\n')}` : '**MCP TOOLS:** None'}
+  // Add feature configurations
+  systemPrompt += `
+- Memory (Mem0): ${hasMemory ? 'YES' : 'NO'}`;
+  if (hasMemory && memoryConfig) {
+    systemPrompt += `
+  - Memory Type: ${memoryConfig.memoryType}
+  - User ID: ${memoryConfig.userId}
+  - Host: ${memoryConfig.host}`;
+  }
 
-${eventHandlingConfig ? `**EVENT HANDLING:** ✓ Enabled
-- Types: ${eventHandlingConfig.eventTypes.join(', ')}
-- Middleware: ${eventHandlingConfig.middleware.join(', ')}
-- History: ${eventHandlingConfig.historyEnabled ? 'Yes' : 'No'}` : '**EVENT HANDLING:** ✗ Disabled'}
+  systemPrompt += `
+- Langfuse Analytics: ${hasLangfuse ? 'YES' : 'NO'}`;
+  if (hasLangfuse && langfuseConfig) {
+    systemPrompt += `
+  - Project: ${langfuseConfig.projectName}
+  - Host: ${langfuseConfig.host}`;
+  }
 
-${memoryConfig ? `**MEMORY (MEM0):** ✓ Enabled  
-- Type: ${memoryConfig.memoryType}
-- User: ${memoryConfig.userId}
-- Host: ${memoryConfig.host}` : '**MEMORY (MEM0):** ✗ Disabled'}
+  systemPrompt += `
+- Event Handling: ${hasEventHandling ? 'YES' : 'NO'}`;
+  if (hasEventHandling && eventHandlingConfig) {
+    systemPrompt += `
+  - Event Types: ${eventHandlingConfig.eventTypes.join(', ')}
+  - History Enabled: ${eventHandlingConfig.historyEnabled}`;
+  }
 
-${langfuseConfig ? `**ANALYTICS (LANGFUSE):** ✓ Enabled
-- Project: ${langfuseConfig.projectName} 
-- Host: ${langfuseConfig.host}` : '**ANALYTICS (LANGFUSE):** ✗ Disabled'}
+  systemPrompt += `
+- MCP Tools: ${(mcpEnabled && mcpDetails.length > 0) ? 'YES' : 'NO'}`;
+  if (mcpEnabled && mcpDetails.length > 0) {
+    const mcpDetail = mcpDetails[0];
+    systemPrompt += `
+  - MCP Command: "${mcpDetail.command}"
+  - MCP Args: ${JSON.stringify(mcpDetail.args)}
+  - MCP Environment: ${JSON.stringify(mcpDetail.envVars)}`;
+  }
 
-**CRITICAL REQUIREMENTS:**
-1. Follow the EXACT template patterns shown in system prompt
-2. Use exact import structure and initialization patterns
-3. Include proper environment variable validation
-4. Generate ONE MCPToolset per unique package (no duplicates)
-5. Include async main() function with proper session handling
-6. Export all required functions in __all__ list
-7. Add proper error handling and logging statements
-${isMultiFeature ? '8. 🚨 CRITICAL: Combine ALL enabled features into ONE cohesive agent\n9. 🚨 CRITICAL: Initialize ALL features in proper order\n10. 🚨 CRITICAL: Include ALL feature functions in main() execution flow' : ''}
+  systemPrompt += `
 
-Generate ONLY the complete Python code following the template patterns.`;
+Generate code following this EXACT structure:`;
+
+  // Determine agent type based on enabled features
+  const agentTypeLabel = isMultiFeature ? 'Multi-Feature Agent' : 
+                        (hasMemory ? 'Memory Agent' : 
+                         hasLangfuse ? 'Analytics Agent' : 
+                         hasEventHandling ? 'Event-Driven Agent' :
+                         (mcpEnabled && mcpDetails.length > 0) ? 'MCP Agent' : 'Basic Agent');
+
+  systemPrompt += `
+
+"""${agentName} - ${agentTypeLabel}"""
+import os
+import asyncio
+from dotenv import load_dotenv
+from google.adk.agents import LlmAgent
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.genai import types`;
+
+  // Add feature-specific imports
+  if (hasMemory) {
+    systemPrompt += `
+from mem0 import Memory`;
+  }
+  
+  if (hasLangfuse) {
+    systemPrompt += `
+from langfuse import Langfuse`;
+  }
+  
+  if (hasEventHandling) {
+    systemPrompt += `
+from typing import Dict, List, Any
+from enum import Enum
+from datetime import datetime`;
+  }
+  
+  if (mcpEnabled && mcpDetails.length > 0) {
+    systemPrompt += `
+from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters`;
+  }
+
+  systemPrompt += `
+
+# Load environment variables
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env')) 
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
+load_dotenv()
+
+# Check for required API keys
+if 'GOOGLE_API_KEY' not in os.environ:
+    print("Warning: GOOGLE_API_KEY not set. Please set it to use the Gemini model.")`;
+
+  // Add feature-specific initialization code
+  if (hasMemory) {
+    systemPrompt += `
+
+# Initialize Mem0 Memory
+memory = None
+if os.getenv('MEM0_API_KEY'):
+    memory = Memory()
+    print("✓ Mem0 memory initialized")`;
+  }
+
+  if (hasLangfuse) {
+    systemPrompt += `
+
+# Initialize Langfuse Analytics
+langfuse = None
+if os.getenv('LANGFUSE_PUBLIC_KEY') and os.getenv('LANGFUSE_SECRET_KEY'):
+    langfuse = Langfuse(
+        public_key=os.getenv('LANGFUSE_PUBLIC_KEY'),
+        secret_key=os.getenv('LANGFUSE_SECRET_KEY'),
+        host=os.getenv('LANGFUSE_HOST', 'https://cloud.langfuse.com')
+    )
+    print("✓ Langfuse analytics initialized")`;
+  }
+
+  if (hasEventHandling) {
+    systemPrompt += `
+
+# Event Handling System
+class EventType(Enum):
+    USER_MESSAGE = "user_message"
+    AGENT_RESPONSE = "agent_response"
+    TOOL_CALL = "tool_call"
+    ERROR = "error"
+
+event_history = []
+
+def emit_event(event_type: EventType, data: dict, user_id: str = "default_user"):
+    event = {
+        "timestamp": datetime.now().isoformat(),
+        "event_type": event_type.value,
+        "user_id": user_id,
+        "data": data
+    }
+    event_history.append(event)
+    print(f"📡 Event: {event_type.value} for user {user_id}")
+    return event`;
+  }
+
+  if (mcpEnabled && mcpDetails.length > 0) {
+    const mcpDetail = mcpDetails[0];
+    systemPrompt += `
+
+# Set the Smithery API key from environment variable
+smithery_api_key = os.getenv("SMITHERY_API_KEY")
+if not smithery_api_key:
+    raise ValueError("SMITHERY_API_KEY environment variable is not set")
+
+# MCP toolset configuration
+toolset = MCPToolset(
+    connection_params=StdioServerParameters(
+        command="${mcpDetail.command}",
+        args=${JSON.stringify(mcpDetail.args)},
+        env=${JSON.stringify(mcpDetail.envVars)}
+    )
+)`;
+  }
+
+  // Create the agent with appropriate tools
+  const toolsArray = mcpEnabled && mcpDetails.length > 0 ? '[toolset]' : '[]';
+  
+  systemPrompt += `
+
+# Create the LlmAgent${isMultiFeature ? ' with multiple features' : ''}
+root_agent = LlmAgent(
+    name="${agentName}",
+    model="gemini-2.0-flash",
+    description="${agentDescription}",
+    instruction="""${agentInstruction}""",
+    tools=${toolsArray}
+)
+
+async def main():
+    session_service = InMemorySessionService()
+    runner = Runner(agent=root_agent, session_service=session_service, app_name="${agentName}")
+    
+    try:
+        await runner.run()
+    except Exception as e:
+        print(f"Error occurred: {e}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
+__all__ = ["root_agent"]`;
+
+  // Add feature-specific helper functions to __all__ if needed
+  const allExports = ['root_agent'];
+  if (hasEventHandling) {
+    allExports.push('emit_event', 'EventType', 'event_history');
+  }
+  if (hasMemory) {
+    allExports.push('memory');
+  }
+  if (hasLangfuse) {
+    allExports.push('langfuse');
+  }
+  
+  if (allExports.length > 1) {
+    const lastLine = `__all__ = ["root_agent"]`;
+    const newLastLine = `__all__ = ${JSON.stringify(allExports)}`;
+    systemPrompt = systemPrompt.replace(lastLine, newLastLine);
+  }
+
+  const userPrompt = `Generate the exact code structure I provided in the system prompt. Use those EXACT values and structure.`;
 
   try {
     const response = await fetch(`${OPENROUTER_API_BASE}/chat/completions`, {
