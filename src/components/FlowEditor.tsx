@@ -20,7 +20,7 @@ import {
   NodeMouseHandler
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { PlusCircle, Zap, Code, Save, ArrowLeft, Sparkles } from 'lucide-react';
+import { PlusCircle, Zap, Code, Save, ArrowLeft, Sparkles, FileText } from 'lucide-react';
 import { Button } from './ui/button.js';
 import { toast } from '../hooks/use-toast.js';
 import { useNavigate } from 'react-router-dom';
@@ -29,6 +29,7 @@ import { FloatingUndoRedoControls } from './UndoRedoControls';
 
 import BaseNode, { BaseNodeData } from './nodes/BaseNode.js';
 import { CodeGenerationModal } from './CodeGenerationModal.js';
+import { PromptManagementModal } from './PromptManagementModal.js';
 import { saveProjectNodesAndEdges } from '@/services/projectService.js';
 import { generateADKCode, MCPConfig } from '@/lib/codeGeneration';
 
@@ -93,6 +94,7 @@ export function FlowEditor({
 }: FlowEditorProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [codeModalOpen, setCodeModalOpen] = useState(false);
+  const [promptModalOpen, setPromptModalOpen] = useState(false);
   const [codeOutput, setCodeOutput] = useState<string>('');
   const reactFlowInstance = useReactFlow();
   const navigate = useNavigate();
@@ -344,6 +346,20 @@ export function FlowEditor({
             </span>
           </div>
         </Panel>
+
+        {/* Prompt Management Panel */}
+        <Panel position="bottom-right" className="m-4" style={{ bottom: 180 }}>
+          <div className="bg-gradient-to-tr from-zinc-300/10 via-gray-400/10 to-transparent from-zinc-300/5 via-gray-400/5 backdrop-blur-xl rounded-xl border-[2px] border-white/10 p-3 shadow-2xl hover:border-purple-400/30 hover:border-purple-400/30 transition-all duration-300 group">
+            <Button 
+              className="flex items-center gap-2 bg-gradient-to-tr from-zinc-300/20 via-gray-400/20 to-transparent from-zinc-300/10 via-gray-400/10 border-[2px] border-white/10 hover:border-purple-400/30 hover:border-purple-400/30 text-white hover:bg-gradient-to-tr hover:from-zinc-300/30 hover:via-purple-400/20 hover:to-transparent hover:from-zinc-300/10 hover:via-purple-400/10 transition-all duration-300"
+              variant="outline"
+              onClick={() => setPromptModalOpen(true)}
+            >
+              <FileText className="w-4 h-4 group-hover:scale-110 transition-transform duration-300" />
+              <span>Manage Prompts</span>
+            </Button>
+          </div>
+        </Panel>
         
         {/* Enhanced User Guide Panel - Fixed positioning */}
         <Panel position="bottom-left" className="m-4" style={{ bottom: 180, left: 20 }}>
@@ -386,6 +402,11 @@ export function FlowEditor({
         nodes={nodes}
         edges={edges}
         mcpConfig={mcpConfig}
+      />
+      
+      <PromptManagementModal
+        isOpen={promptModalOpen}
+        onClose={() => setPromptModalOpen(false)}
       />
     </div>
   );
