@@ -128,6 +128,9 @@ export function useFlowHistory({
     }
   }, [currentState, onNodesChange, onEdgesChange]);
 
+  // Note: We removed automatic external state syncing to avoid infinite loops.
+  // External state updates are now handled explicitly via setExternalState method.
+
   // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
@@ -166,6 +169,17 @@ export function useFlowHistory({
     setState(snapshot);
   }, [createSnapshot, currentState, setState]);
 
+  // Set external state (for template application)
+  const setExternalState = useCallback((
+    nodes: Node<BaseNodeData>[], 
+    edges: Edge[], 
+    description?: string
+  ) => {
+    console.log('setExternalState: applying', nodes.length, 'nodes and', edges.length, 'edges');
+    const snapshot = createSnapshot(nodes, edges, description || 'External state set');
+    setState(snapshot);
+  }, [createSnapshot, setState]);
+
   // Get history statistics
   const getHistoryStats = useCallback(() => {
     // Note: This would require access to the internal state of useUndoRedo
@@ -194,6 +208,7 @@ export function useFlowHistory({
     updateEdges,
     updateFlow,
     saveState,
+    setExternalState,
     
     // Utilities
     getHistoryStats,

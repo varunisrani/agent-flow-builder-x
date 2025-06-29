@@ -1,6 +1,11 @@
 import { useState } from 'react';
 import { Bot, BrainCircuit, Code, WrenchIcon, ArrowRight, Network, Server, Plug, Sparkles, BarChart3, Database, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils.js';
+import { CODE_TEMPLATES, CodeTemplateMetadata } from '@/lib/templateMetadata';
+import { applyTemplateToFlow } from '@/lib/templateToNodes';
+import { Node, Edge } from '@xyflow/react';
+import { BaseNodeData } from '@/components/nodes/BaseNode';
+import { MCPConfig } from '@/lib/codeGeneration';
 
 const nodeCategories = {
   core: [
@@ -21,22 +26,27 @@ const nodeCategories = {
   ]
 };
 
-const templates = [
-  { id: 'llm-agent', name: '🔍 Basic Search Agent', description: 'Simple AI agent that can search the web and answer questions', difficulty: 'Beginner' },
-  { id: 'analytics-agent', name: '📊 Smart Analytics Agent', description: 'AI agent with built-in performance tracking and analytics', difficulty: 'Beginner' },
-  { id: 'memory-agent', name: '🧠 Learning Agent', description: 'AI agent that remembers conversations and learns from interactions', difficulty: 'Intermediate' },
-  { id: 'full-stack-agent', name: '🚀 Complete Agent', description: 'Full-featured agent with memory, analytics, and event tracking', difficulty: 'Intermediate' },
-  { id: 'customer-service', name: '💬 Support Agent', description: 'Customer service agent with conversation memory and analytics', difficulty: 'Intermediate' },
-  { id: 'data-analyst', name: '📈 Enterprise Agent', description: 'Advanced agent with MCP tools, memory, and comprehensive monitoring', difficulty: 'Advanced' },
-];
+// Use actual code generation templates
+const templates = CODE_TEMPLATES;
 
 interface SidebarProps {
   expanded: boolean;
   onToggle: () => void;
+  onTemplateSelect?: (nodes: Node<BaseNodeData>[], edges: Edge[], mcpConfig?: MCPConfig[]) => void;
 }
 
-export function Sidebar({ expanded, onToggle }: SidebarProps) {
+export function Sidebar({ expanded, onToggle, onTemplateSelect }: SidebarProps) {
   const [activeTab, setActiveTab] = useState<'nodes' | 'templates'>('nodes');
+  
+  const handleTemplateClick = (template: CodeTemplateMetadata) => {
+    if (!onTemplateSelect) return;
+    
+    // Convert code template to nodes and edges
+    const { nodes, edges } = applyTemplateToFlow(template);
+    
+    // Call the template selection handler
+    onTemplateSelect(nodes, edges);
+  };
   
   const onDragStart = (event: React.DragEvent, nodeType: string) => {
     event.dataTransfer.setData('application/reactflow', nodeType);
@@ -228,13 +238,17 @@ export function Sidebar({ expanded, onToggle }: SidebarProps) {
             <div className="flex items-center gap-2 mb-3">
               <div className="w-1 h-4 bg-gradient-to-b from-purple-400 to-orange-200 rounded-full"></div>
               <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider">
-                Ready-to-Use Templates
+                Code Generation Templates
               </h3>
+              <div className="text-[10px] px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                ADK Ready
+              </div>
             </div>
             <div className="space-y-3">
               {templates.map((template) => (
                 <div
                   key={template.id}
+                  onClick={() => handleTemplateClick(template)}
                   className="group p-4 rounded-xl bg-gradient-to-tr from-zinc-300/5 via-gray-400/5 backdrop-blur-sm border-[2px] border-white/10 cursor-pointer hover:border-purple-400/30 hover:from-zinc-300/10 hover:via-purple-400/10 transition-all duration-300 hover:scale-105 hover:shadow-lg"
                 >
                   <div className="flex items-start justify-between mb-2">
@@ -250,9 +264,26 @@ export function Sidebar({ expanded, onToggle }: SidebarProps) {
                       {template.difficulty}
                     </span>
                   </div>
-                  <div className="text-xs text-gray-400 leading-relaxed">
+                  <div className="text-xs text-gray-400 leading-relaxed mb-2">
                     {template.description}
                   </div>
+                  {template.features && template.features.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {template.features.slice(0, 2).map((feature) => (
+                        <span
+                          key={feature}
+                          className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30"
+                        >
+                          {feature}
+                        </span>
+                      ))}
+                      {template.features.length > 2 && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                          +{template.features.length - 2}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

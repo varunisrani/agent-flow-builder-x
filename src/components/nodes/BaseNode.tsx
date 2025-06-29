@@ -6,12 +6,29 @@ import { Button } from '../ui/button.js';
 
 // Modify the interface to extend Record<string, unknown>
 export interface BaseNodeData extends Record<string, unknown> {
+  id?: string;
   label: string;
   type: 'agent' | 'tool' | 'input' | 'output' | 'model' | 'mcp-client' | 'mcp-server' | 'mcp-tool' | 'langfuse' | 'memory' | 'event-handling';
+  nodeType?: 'agent' | 'tool' | 'input' | 'output' | 'model' | 'mcp-client' | 'mcp-server' | 'mcp-tool' | 'langfuse' | 'memory' | 'event-handling';
   description?: string;
   instruction?: string;
   prompt?: string;
   modelType?: string;
+  // Agent-specific properties
+  agentName?: string;
+  agentDescription?: string;
+  agentInstruction?: string;
+  agentModel?: string;
+  // Model-specific properties
+  modelName?: string;
+  // Tool-specific properties
+  toolName?: string;
+  toolDescription?: string;
+  // Server-specific properties
+  serverName?: string;
+  serverDescription?: string;
+  // Available functions
+  availableFunctions?: string;
   mcpUrl?: string;
   mcpToolId?: string;
   mcpCommand?: string;

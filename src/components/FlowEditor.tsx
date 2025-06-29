@@ -52,6 +52,7 @@ interface FlowEditorProps {
     undo: () => void;
     redo: () => void;
     historyLength: number;
+    setExternalState: (nodes: Node<BaseNodeData>[], edges: Edge[], description?: string) => void;
   }) => void;
 }
 
@@ -107,7 +108,8 @@ export function FlowEditor({
     updateNodes,
     updateEdges,
     updateFlow,
-    saveState
+    saveState,
+    setExternalState
   } = useFlowHistory({
     initialNodes,
     initialEdges,
@@ -124,10 +126,11 @@ export function FlowEditor({
         canRedo,
         undo,
         redo,
-        historyLength: nodes.length + edges.length // Simple approximation
+        historyLength: nodes.length + edges.length, // Simple approximation
+        setExternalState
       });
     }
-  }, [canUndo, canRedo, undo, redo, nodes.length, edges.length, onHistoryChange]);
+  }, [canUndo, canRedo, undo, redo, nodes.length, edges.length, onHistoryChange, setExternalState]);
 
   // Handle node changes
   const handleNodesChange = useCallback(
@@ -155,7 +158,7 @@ export function FlowEditor({
       
       // Save to project if projectId is provided
       if (projectId) {
-        saveProjectNodesAndEdges(projectId, transformNodesForSave(nodes), newEdges);
+        saveProjectNodesAndEdges(projectId, transformNodesForSave(nodes as Node<BaseNodeData>[]), newEdges);
       }
     },
     [edges, nodes, updateEdges, projectId]
@@ -194,6 +197,7 @@ export function FlowEditor({
         data: {
           label: `New ${type.charAt(0).toUpperCase() + type.slice(1)}`,
           type: type as BaseNodeData['type'],
+          nodeType: type as BaseNodeData['type'],
           description: ''
         },
       };
@@ -203,7 +207,7 @@ export function FlowEditor({
       
       // Save to project if projectId is provided
       if (projectId) {
-        saveProjectNodesAndEdges(projectId, transformNodesForSave(updatedNodes), edges);
+        saveProjectNodesAndEdges(projectId, transformNodesForSave(updatedNodes as Node<BaseNodeData>[]), edges);
       }
     },
     [reactFlowInstance, nodes, edges, updateNodes, projectId]
@@ -230,7 +234,7 @@ export function FlowEditor({
 
   const handleSaveWorkflow = () => {
     if (projectId) {
-      saveProjectNodesAndEdges(projectId, transformNodesForSave(nodes), edges);
+      saveProjectNodesAndEdges(projectId, transformNodesForSave(nodes as Node<BaseNodeData>[]), edges);
       toast({
         title: "Workflow saved",
         description: "Your agent workflow has been saved successfully.",

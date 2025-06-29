@@ -50,6 +50,7 @@ const Index = () => {
     undo: () => void;
     redo: () => void;
     historyLength: number;
+    setExternalState: (nodes: Node<BaseNodeData>[], edges: Edge[], description?: string) => void;
   } | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -128,6 +129,11 @@ const Index = () => {
     setEdges(generatedEdges);
     setMcpConfig(mcpConfigs);
     
+    // Update FlowEditor's internal state via history controls
+    if (historyControls?.setExternalState) {
+      historyControls.setExternalState(generatedNodes, generatedEdges, 'Generated from prompt');
+    }
+    
     // Save to the current project
     if (currentProject?.id) {
       saveProjectNodesAndEdges(currentProject.id, transformNodes(generatedNodes), generatedEdges);
@@ -173,9 +179,15 @@ const Index = () => {
     templateEdges: Edge[],
     templateMcpConfig?: MCPConfig[]
   ) => {
+    // Update local state
     setNodes(templateNodes);
     setEdges(templateEdges);
     setMcpConfig(templateMcpConfig);
+    
+    // Update FlowEditor's internal state via history controls
+    if (historyControls?.setExternalState) {
+      historyControls.setExternalState(templateNodes, templateEdges, 'Template applied');
+    }
     
     // Save to the current project
     if (currentProject?.id) {
@@ -194,9 +206,15 @@ const Index = () => {
     wizardEdges: Edge[],
     wizardMcpConfig?: MCPConfig[]
   ) => {
+    // Update local state
     setNodes(wizardNodes);
     setEdges(wizardEdges);
     setMcpConfig(wizardMcpConfig);
+    
+    // Update FlowEditor's internal state via history controls
+    if (historyControls?.setExternalState) {
+      historyControls.setExternalState(wizardNodes, wizardEdges, 'Quick start wizard completed');
+    }
     
     // Save to the current project
     if (currentProject?.id) {
@@ -218,7 +236,8 @@ const Index = () => {
       position,
       data: {
         id: `${type}-${Date.now()}`,
-        type: type as any,
+        type: type as BaseNodeData['type'],
+        nodeType: type as BaseNodeData['type'],
         label: type === 'agent' ? 'My First Agent' : type === 'input' ? 'User Input' : type.charAt(0).toUpperCase() + type.slice(1),
         description: type === 'agent' ? 'A helpful AI assistant' : type === 'input' ? 'Input from user' : `${type} component`
       }
@@ -229,7 +248,7 @@ const Index = () => {
     // Save to the current project
     if (currentProject?.id) {
       const updatedNodes = [...nodes, newNode];
-      saveProjectNodesAndEdges(currentProject.id, transformNodes(updatedNodes), edges);
+      saveProjectNodesAndEdges(currentProject.id, transformNodes(updatedNodes as Node<BaseNodeData>[]), edges);
     }
   };
 
@@ -282,6 +301,7 @@ const Index = () => {
         <Sidebar 
           expanded={sidebarExpanded} 
           onToggle={() => setSidebarExpanded(!sidebarExpanded)}
+          onTemplateSelect={handleTemplateSelect}
         />
         
         <div className="flex-1 relative">
