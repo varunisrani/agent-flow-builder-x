@@ -1,16 +1,5 @@
 import { Node, Edge } from '@xyflow/react';
-
-export interface BaseNodeData {
-  id: string;
-  label: string;
-  type: 'agent' | 'tool' | 'input' | 'output' | 'model' | 'mcp-client' | 'mcp-server' | 'mcp-tool';
-  description?: string;
-  instruction?: string;
-  modelType?: string;
-  mcpUrl?: string;
-  mcpToolId?: string;
-  [key: string]: string | undefined;
-}
+import { BaseNodeData } from '@/components/nodes/BaseNode';
 
 export interface Project {
   id: string;

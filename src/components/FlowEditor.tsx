@@ -8,7 +8,6 @@ import {
   NodeTypes,
   Edge,
   addEdge,
-  Connection,
   Panel,
   useReactFlow,
   BackgroundVariant,
@@ -20,7 +19,7 @@ import {
   NodeMouseHandler
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { PlusCircle, Zap, Code, Save, ArrowLeft, Sparkles, FileText } from 'lucide-react';
+import { Code, Save, ArrowLeft, Sparkles, FileText } from 'lucide-react';
 import { Button } from './ui/button.js';
 import { toast } from '../hooks/use-toast.js';
 import { useNavigate } from 'react-router-dom';
@@ -31,7 +30,7 @@ import BaseNode, { BaseNodeData } from './nodes/BaseNode.js';
 import { CodeGenerationModal } from './CodeGenerationModal.js';
 import { PromptManagementModal } from './PromptManagementModal.js';
 import { saveProjectNodesAndEdges } from '@/services/projectService.js';
-import { generateADKCode, MCPConfig } from '@/lib/codeGeneration';
+import { MCPConfig } from '@/lib/codeGeneration';
 
 // Fix the NodeTypes type
 const nodeTypes: NodeTypes = {
@@ -95,7 +94,6 @@ export function FlowEditor({
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [codeModalOpen, setCodeModalOpen] = useState(false);
   const [promptModalOpen, setPromptModalOpen] = useState(false);
-  const [codeOutput, setCodeOutput] = useState<string>('');
   const reactFlowInstance = useReactFlow();
   const navigate = useNavigate();
 
@@ -109,8 +107,6 @@ export function FlowEditor({
     canRedo,
     updateNodes,
     updateEdges,
-    updateFlow,
-    saveState,
     setExternalState
   } = useFlowHistory({
     initialNodes,
@@ -224,9 +220,7 @@ export function FlowEditor({
   };
   
   const handleGenerateCode = () => {
-    // Generate Google ADK Python code
-    const adkCode = generateADKCode(nodes, edges, mcpConfig);
-    setCodeOutput(adkCode);
+    // Open the unified code generation modal
     setCodeModalOpen(true);
   };
 
