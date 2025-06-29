@@ -55,6 +55,7 @@ export interface GenerationResult {
       langfuseErrorsFixed: number;
       mcpErrorsFixed: number;
       eventHandlingErrorsFixed: number;
+      memoryErrorsFixed: number;
       totalErrorsFixed: number;
       verificationMethod: 'ai' | 'pattern' | 'hybrid' | 'none';
     };
@@ -155,10 +156,11 @@ export class CodeGenerationEngine {
           this.advancedVerifier.setOpenRouterApiKey(request.options.openRouterApiKey);
         }
         
+        // Get mode-specific verification options
+        const modeVerificationOptions = this.getVerificationOptionsForMode(mode);
+        
         advancedVerification = await this.advancedVerifier.verifyAndFix(generatedCode, {
-          enableLangfuseChecks: true,
-          enableMcpChecks: true,
-          enableEventHandlingChecks: true,
+          ...modeVerificationOptions,
           enableAIFixes: !!request.options?.openRouterApiKey,
           enablePatternFixes: true,
           maxAIRetries: 2,
@@ -197,11 +199,15 @@ export class CodeGenerationEngine {
         const eventHandlingErrorsFixed = advancedVerification.errors.filter(e => 
           e.category === 'event-handling' && e.fixed
         ).length;
+        const memoryErrorsFixed = advancedVerification.errors.filter(e => 
+          e.category === 'memory' && e.fixed
+        ).length;
         
         errorsFixes = {
           langfuseErrorsFixed,
           mcpErrorsFixed,
           eventHandlingErrorsFixed,
+          memoryErrorsFixed,
           totalErrorsFixed: advancedVerification.metadata.fixesApplied,
           verificationMethod: advancedVerification.metadata.verificationMethod
         };
@@ -323,6 +329,76 @@ export class CodeGenerationEngine {
     if (configuration.eventHandlingConfig) features.push('Event Handling');
     
     return features;
+  }
+
+  /**
+   * Get verification options based on generation mode
+   */
+  private getVerificationOptionsForMode(mode: GenerationMode): {
+    enableLangfuseChecks: boolean;
+    enableMcpChecks: boolean;
+    enableEventHandlingChecks: boolean;
+    enableMemoryChecks: boolean;
+  } {
+    switch (mode) {
+      case 'langfuse':
+        return {
+          enableLangfuseChecks: true,
+          enableMcpChecks: false,
+          enableEventHandlingChecks: false,
+          enableMemoryChecks: false
+        };
+      
+      case 'mcp':
+        return {
+          enableLangfuseChecks: false,
+          enableMcpChecks: true,
+          enableEventHandlingChecks: false,
+          enableMemoryChecks: false
+        };
+      
+      case 'event-handling':
+        return {
+          enableLangfuseChecks: false,
+          enableMcpChecks: false,
+          enableEventHandlingChecks: true,
+          enableMemoryChecks: false
+        };
+      
+      case 'memory':
+        return {
+          enableLangfuseChecks: false,
+          enableMcpChecks: false,
+          enableEventHandlingChecks: false,
+          enableMemoryChecks: true
+        };
+      
+      case 'standard':
+        return {
+          enableLangfuseChecks: false,
+          enableMcpChecks: false,
+          enableEventHandlingChecks: false,
+          enableMemoryChecks: false
+        };
+      
+      case 'combined':
+        // For combined mode, enable checks based on detected features
+        return {
+          enableLangfuseChecks: true,
+          enableMcpChecks: true,
+          enableEventHandlingChecks: true,
+          enableMemoryChecks: true
+        };
+      
+      default:
+        // Default to no specific checks
+        return {
+          enableLangfuseChecks: false,
+          enableMcpChecks: false,
+          enableEventHandlingChecks: false,
+          enableMemoryChecks: false
+        };
+    }
   }
 
   /**

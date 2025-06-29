@@ -27,6 +27,76 @@ export class TemplateEngine {
   }
 
   /**
+   * Get verification options based on generation mode
+   */
+  private getVerificationOptionsForMode(mode: GenerationMode): {
+    enableLangfuseChecks: boolean;
+    enableMcpChecks: boolean;
+    enableEventHandlingChecks: boolean;
+    enableMemoryChecks: boolean;
+  } {
+    switch (mode) {
+      case 'langfuse':
+        return {
+          enableLangfuseChecks: true,
+          enableMcpChecks: false,
+          enableEventHandlingChecks: false,
+          enableMemoryChecks: false
+        };
+      
+      case 'mcp':
+        return {
+          enableLangfuseChecks: false,
+          enableMcpChecks: true,
+          enableEventHandlingChecks: false,
+          enableMemoryChecks: false
+        };
+      
+      case 'event-handling':
+        return {
+          enableLangfuseChecks: false,
+          enableMcpChecks: false,
+          enableEventHandlingChecks: true,
+          enableMemoryChecks: false
+        };
+      
+      case 'memory':
+        return {
+          enableLangfuseChecks: false,
+          enableMcpChecks: false,
+          enableEventHandlingChecks: false,
+          enableMemoryChecks: true
+        };
+      
+      case 'standard':
+        return {
+          enableLangfuseChecks: false,
+          enableMcpChecks: false,
+          enableEventHandlingChecks: false,
+          enableMemoryChecks: false
+        };
+      
+      case 'combined':
+        // For combined mode, enable checks based on detected features
+        return {
+          enableLangfuseChecks: true,
+          enableMcpChecks: true,
+          enableEventHandlingChecks: true,
+          enableMemoryChecks: true
+        };
+      
+      default:
+        // Default to no specific checks
+        return {
+          enableLangfuseChecks: false,
+          enableMcpChecks: false,
+          enableEventHandlingChecks: false,
+          enableMemoryChecks: false
+        };
+    }
+  }
+
+  /**
    * Generate code from template based on configuration and mode
    */
   async generateFromTemplate(
@@ -113,10 +183,11 @@ export class TemplateEngine {
         this.advancedVerifier.setOpenRouterApiKey(options.openRouterApiKey);
       }
       
+      // Get mode-specific verification options
+      const modeVerificationOptions = this.getVerificationOptionsForMode(mode);
+      
       verification = await this.advancedVerifier.verifyAndFix(generatedCode, {
-        enableLangfuseChecks: true,
-        enableMcpChecks: true,
-        enableEventHandlingChecks: true,
+        ...modeVerificationOptions,
         enableAIFixes: options?.enableAIFixes !== false,
         enablePatternFixes: true,
         maxAIRetries: 1, // Templates are usually simpler, so fewer retries needed

@@ -115,7 +115,8 @@ const AdvancedVerificationDisplay: React.FC<{
   const langfuseErrors = errorsByCategory.langfuse || [];
   const mcpErrors = errorsByCategory.mcp || [];
   const eventHandlingErrors = errorsByCategory['event-handling'] || [];
-  const otherErrors = Object.entries(errorsByCategory).filter(([cat]) => !['langfuse', 'mcp', 'event-handling'].includes(cat));
+  const memoryErrors = errorsByCategory.memory || [];
+  const otherErrors = Object.entries(errorsByCategory).filter(([cat]) => !['langfuse', 'mcp', 'event-handling', 'memory'].includes(cat));
 
   const getErrorIcon = (severity: string) => {
     switch (severity) {
@@ -180,6 +181,10 @@ const AdvancedVerificationDisplay: React.FC<{
             <div className="text-center">
               <div className="text-lg font-bold text-orange-600">{eventHandlingErrors.length}</div>
               <div className="text-xs text-gray-600">Event Handling</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-teal-600">{memoryErrors.length}</div>
+              <div className="text-xs text-gray-600">Memory</div>
             </div>
             <div className="text-center">
               <div className="text-lg font-bold text-blue-600">{result.metadata.verificationMethod}</div>
@@ -264,6 +269,39 @@ const AdvancedVerificationDisplay: React.FC<{
                       <div className="flex-1 min-w-0">
                         <div className="text-xs font-medium text-orange-800">{error.type.replace(/-/g, ' ')}</div>
                         <div className="text-xs text-orange-600 mt-1">{error.message}</div>
+                        {error.fixed && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <span className="text-xs text-green-600">✅ Fixed</span>
+                            {error.confidenceScore && (
+                              <span className="text-xs text-gray-500">({error.confidenceScore}% confidence)</span>
+                            )}
+                          </div>
+                        )}
+                        {error.fixDescription && (
+                          <div className="text-xs text-gray-600 mt-1 italic">{error.fixDescription}</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Memory Errors Section */}
+          {memoryErrors.length > 0 && (
+            <div className="border border-teal-200 rounded-lg p-3 bg-teal-50">
+              <h4 className="text-sm font-medium text-teal-800 mb-2 flex items-center gap-2">
+                🧠 Memory Integration Issues ({memoryErrors.length})
+              </h4>
+              <div className="space-y-2">
+                {memoryErrors.map((error, index) => (
+                  <div key={index} className="bg-white p-2 rounded border border-teal-200">
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs mt-0.5">{getErrorIcon(error.severity)}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium text-teal-800">{error.type.replace(/-/g, ' ')}</div>
+                        <div className="text-xs text-teal-600 mt-1">{error.message}</div>
                         {error.fixed && (
                           <div className="flex items-center gap-1 mt-1">
                             <span className="text-xs text-green-600">✅ Fixed</span>
@@ -1087,9 +1125,29 @@ export function CodeGenerationModal({
           const { AdvancedCodeVerifier } = await import('@/lib/verification/AdvancedCodeVerifier');
           const verifier = new AdvancedCodeVerifier(OPENROUTER_API_KEY);
           
+          // Get verification options based on detected features for initial generation
+          const getInitialVerificationOptions = () => {
+            const hasMultipleFeatures = [hasLangfuseNodes, hasMcpNodes, hasEventHandlingNodes, hasMemoryNodes].filter(Boolean).length > 1;
+            if (hasMultipleFeatures) {
+              return {
+                enableLangfuseChecks: hasLangfuseNodes,
+                enableMcpChecks: hasMcpNodes,
+                enableEventHandlingChecks: hasEventHandlingNodes,
+                enableMemoryChecks: hasMemoryNodes
+              };
+            }
+            // For single features or no features, enable all for comprehensive initial check
+            return {
+              enableLangfuseChecks: true,
+              enableMcpChecks: true,
+              enableEventHandlingChecks: true,
+              enableMemoryChecks: true
+            };
+          };
+
+          const initialVerificationOptions = getInitialVerificationOptions();
           const verificationResult = await verifier.verifyAndFix(formattedCode, {
-            enableLangfuseChecks: true,
-            enableMcpChecks: true,
+            ...initialVerificationOptions,
             enableAIFixes: true,
             enablePatternFixes: true,
             maxAIRetries: 2,
@@ -1238,9 +1296,29 @@ export function CodeGenerationModal({
           const { AdvancedCodeVerifier } = await import('@/lib/verification/AdvancedCodeVerifier');
           const verifier = new AdvancedCodeVerifier(OPENROUTER_API_KEY);
           
+          // Get verification options based on detected features for regeneration
+          const getRegenerateVerificationOptions = () => {
+            const hasMultipleFeatures = [hasLangfuseNodes, hasMcpNodes, hasEventHandlingNodes, hasMemoryNodes].filter(Boolean).length > 1;
+            if (hasMultipleFeatures) {
+              return {
+                enableLangfuseChecks: hasLangfuseNodes,
+                enableMcpChecks: hasMcpNodes,
+                enableEventHandlingChecks: hasEventHandlingNodes,
+                enableMemoryChecks: hasMemoryNodes
+              };
+            }
+            // For single features or no features, enable all for comprehensive check
+            return {
+              enableLangfuseChecks: true,
+              enableMcpChecks: true,
+              enableEventHandlingChecks: true,
+              enableMemoryChecks: true
+            };
+          };
+
+          const regenerateVerificationOptions = getRegenerateVerificationOptions();
           const verificationResult = await verifier.verifyAndFix(formattedCode, {
-            enableLangfuseChecks: true,
-            enableMcpChecks: true,
+            ...regenerateVerificationOptions,
             enableAIFixes: true,
             enablePatternFixes: true,
             maxAIRetries: 2,
@@ -1405,12 +1483,72 @@ __all__ = ["root_agent"]`;
     setErrorCheckResult(null);
 
     try {
+      // Determine current mode based on detected features
+      const getVerificationOptionsForCurrentMode = () => {
+        const hasMultipleFeatures = [hasLangfuseNodes, hasMcpNodes, hasEventHandlingNodes, hasMemoryNodes].filter(Boolean).length > 1;
+        
+        if (hasMultipleFeatures) {
+          // Combined mode - enable all relevant checks
+          return {
+            enableLangfuseChecks: hasLangfuseNodes,
+            enableMcpChecks: hasMcpNodes,
+            enableEventHandlingChecks: hasEventHandlingNodes,
+            enableMemoryChecks: hasMemoryNodes
+          };
+        }
+        
+        // Single feature mode - only enable relevant check
+        if (hasEventHandlingNodes) {
+          return {
+            enableLangfuseChecks: false,
+            enableMcpChecks: false,
+            enableEventHandlingChecks: true,
+            enableMemoryChecks: false
+          };
+        }
+        
+        if (hasLangfuseNodes) {
+          return {
+            enableLangfuseChecks: true,
+            enableMcpChecks: false,
+            enableEventHandlingChecks: false,
+            enableMemoryChecks: false
+          };
+        }
+        
+        if (hasMemoryNodes) {
+          return {
+            enableLangfuseChecks: false,
+            enableMcpChecks: false,
+            enableEventHandlingChecks: false,
+            enableMemoryChecks: true
+          };
+        }
+        
+        if (hasMcpNodes) {
+          return {
+            enableLangfuseChecks: false,
+            enableMcpChecks: true,
+            enableEventHandlingChecks: false,
+            enableMemoryChecks: false
+          };
+        }
+        
+        // Default: no specific error checks for standard modes
+        return {
+          enableLangfuseChecks: false,
+          enableMcpChecks: false,
+          enableEventHandlingChecks: false,
+          enableMemoryChecks: false
+        };
+      };
+
       const verifier = new AdvancedCodeVerifier(OPENROUTER_API_KEY);
+      const modeVerificationOptions = getVerificationOptionsForCurrentMode();
       
       // Only detect errors, don't fix them yet
       const result = await verifier.verifyAndFix(generatedCode, {
-        enableLangfuseChecks: true,
-        enableMcpChecks: true,
+        ...modeVerificationOptions,
         enableAIFixes: false, // Don't auto-fix, let user decide
         enablePatternFixes: false, // Don't auto-fix, let user decide
         maxAIRetries: 0, // Skip AI detection for now, just use pattern detection
@@ -1419,7 +1557,16 @@ __all__ = ["root_agent"]`;
         }
       });
 
-      console.log('Error detection result:', result);
+      console.log('Context-aware error detection result:', {
+        detectedFeatures: {
+          langfuse: hasLangfuseNodes,
+          mcp: hasMcpNodes,
+          eventHandling: hasEventHandlingNodes,
+          memory: hasMemoryNodes
+        },
+        appliedChecks: modeVerificationOptions,
+        result
+      });
       setErrorCheckResult(result);
       
       if (result.errors.length === 0) {
@@ -1620,6 +1767,7 @@ Please return ONLY the fixed Python code without any explanations or markdown fo
         case 'langfuse': return 'border-purple-200 bg-purple-50';
         case 'mcp': return 'border-blue-200 bg-blue-50';
         case 'event-handling': return 'border-orange-200 bg-orange-50';
+        case 'memory': return 'border-teal-200 bg-teal-50';
         case 'syntax': return 'border-red-200 bg-red-50';
         case 'security': return 'border-yellow-200 bg-yellow-50';
         default: return 'border-gray-200 bg-gray-50';

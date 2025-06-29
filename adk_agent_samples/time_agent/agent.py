@@ -1,212 +1,151 @@
-"""time_agent - Event Handling Agent"""
+"""time_agent - Memory-Enabled Agent"""
 import os
 import asyncio
-import logging
 import json
-from datetime import datetime
-from typing import Dict, List, Any
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 from google.adk.agents import LlmAgent
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
-from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
 from google.genai import types
-from langfuse import Langfuse
+from mem0 import Memory
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from multiple possible locations
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env')) 
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
+load_dotenv()  # Also load from current working directory
 
 # Check for required API keys
 if 'GOOGLE_API_KEY' not in os.environ:
     print("Warning: GOOGLE_API_KEY not set. Please set it to use the Gemini model.")
-    exit(1)
+    # Don't exit here - let the agent continue without full functionality
 
-# Set the Smithery API key from environment variable
-smithery_api_key = os.getenv("SMITHERY_API_KEY")
-if not smithery_api_key:
-    raise ValueError("SMITHERY_API_KEY environment variable is not set")
+print(f"🔧 Agent Configuration:")
+print(f"   Memory enabled: {bool(os.environ.get('MEM0_API_KEY'))}")
+print(f"   Running in memory-focused mode")
 
-# MCP toolset configuration for @yokingma/time-mcp
-time_mcp_toolset = MCPToolset(
-    connection_params=StdioServerParameters(
-        command="npx",
-        args=["-y","@smithery/cli@latest","run","@yokingma/time-mcp","--key",smithery_api_key],
-        env={"NODE_OPTIONS":"--no-warnings --experimental-fetch","SMITHERY_API_KEY":smithery_api_key}
-    )
-)
-
-# Event Handling Setup
-# Configure logging for event tracking
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('agent_events.log'),
-        logging.StreamHandler()
-    ]
-)
-event_logger = logging.getLogger('agent_events')
-
-# Event Handling Class
-class EventHandler:
-    """Comprehensive event handling system for agent interactions."""
-    
-    def __init__(self):
-        self.event_history: List[Dict[str, Any]] = []
-        self.listeners = {
-            'user_message': True,
-            'agent_response': True,
-            'tool_call': True,
-            'error': True
-        }
-        self.analytics_enabled = True
-        self.history_enabled = True
-    
-    def log_event(self, event_type: str, data: Dict[str, Any], user_id: str = "default"):
-        """Log an event with comprehensive tracking."""
-        if not self.listeners.get(event_type, False):
-            return
-        
-        event = {
-            'timestamp': datetime.now().isoformat(),
-            'event_type': event_type,
-            'user_id': user_id,
-            'agent_name': 'time_agent',
-            'data': data
-        }
-        
-        # Log to file/console
-        event_logger.info(f"[{event_type.upper()}] User: {user_id} | Data: {data}")
-        
-        # Store in history if enabled
-        if self.history_enabled:
-            self.event_history.append(event)
-            # Keep only last 1000 events to prevent memory issues
-            if len(self.event_history) > 1000:
-                self.event_history = self.event_history[-1000:]
-        
-        return event
-    
-    def log_user_message(self, message: str, user_id: str = "default"):
-        """Log user message event."""
-        return self.log_event('user_message', {
-            'message': message,
-            'message_length': len(message),
-            'timestamp': datetime.now().isoformat()
-        }, user_id)
-    
-    def log_agent_response(self, response: str, user_id: str = "default"):
-        """Log agent response event."""
-        return self.log_event('agent_response', {
-            'response': response,
-            'response_length': len(response),
-            'timestamp': datetime.now().isoformat()
-        }, user_id)
-    
-    def log_tool_call(self, tool_name: str, parameters: Dict[str, Any], result: str, user_id: str = "default"):
-        """Log tool call event."""
-        return self.log_event('tool_call', {
-            'tool_name': tool_name,
-            'parameters': parameters,
-            'result': result,
-            'success': True,
-            'timestamp': datetime.now().isoformat()
-        }, user_id)
-    
-    def log_error(self, error_type: str, error_message: str, user_id: str = "default"):
-        """Log error event."""
-        return self.log_event('error', {
-            'error_type': error_type,
-            'error_message': error_message,
-            'timestamp': datetime.now().isoformat()
-        }, user_id)
-    
-    def get_event_history(self, event_type: str = None, limit: int = 100) -> List[Dict[str, Any]]:
-        """Get event history with optional filtering."""
-        if not self.history_enabled:
-            return []
-        
-        events = self.event_history
-        if event_type:
-            events = [e for e in events if e['event_type'] == event_type]
-        
-        return events[-limit:]
-    
-    def get_event_stats(self) -> Dict[str, Any]:
-        """Get event statistics."""
-        if not self.history_enabled:
-            return {}
-        
-        stats = {}
-        for event in self.event_history:
-            event_type = event['event_type']
-            stats[event_type] = stats.get(event_type, 0) + 1
-        
-        return {
-            'total_events': len(self.event_history),
-            'event_counts': stats,
-            'first_event': self.event_history[0]['timestamp'] if self.event_history else None,
-            'last_event': self.event_history[-1]['timestamp'] if self.event_history else None
-        }
-
-# Initialize event handler
-event_handler = EventHandler()
-
-# Initialize Langfuse with environment variables
-langfuse = None
-if os.environ.get('LANGFUSE_PUBLIC_KEY') and os.environ.get('LANGFUSE_SECRET_KEY'):
-    langfuse = Langfuse(
-        public_key=os.environ.get('LANGFUSE_PUBLIC_KEY'),
-        secret_key=os.environ.get('LANGFUSE_SECRET_KEY'),
-        host=os.environ.get('LANGFUSE_HOST', 'https://cloud.langfuse.com')
-    )
-    print("✓ Langfuse analytics initialized")
+# Initialize Mem0 Memory
+memory = None
+if os.environ.get('MEM0_API_KEY'):
+    os.environ["MEM0_API_KEY"] = os.environ.get('MEM0_API_KEY')
+    try:
+        memory = Memory()
+        print("✓ Mem0 memory initialized")
+    except Exception as e:
+        print(f"Failed to initialize Mem0: {e}")
+        memory = None
 else:
-    print("Warning: LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY not set. Analytics will be disabled.")
+    print("Warning: MEM0_API_KEY not set. Memory features will be disabled.")
 
-# Function to track conversations
-def track_conversation(conversation_id, user_id, metadata):
-    if langfuse:
-        langfuse.track_event(
-            event_name="conversation_interaction",
-            properties={
-                "conversation_id": conversation_id,
-                "user_id": user_id,
-                "project": "langfuse",
-                "agent_name": "time_agent",
-                **metadata
+# Memory management functions
+def add_to_memory(user_message: str, assistant_response: str, user_id: str = "default_user", metadata: dict = None):
+    """Add conversation to memory for learning and context."""
+    if not memory:
+        return []
+    
+    try:
+        conversation = [
+            {"role": "user", "content": user_message},
+            {"role": "assistant", "content": assistant_response}
+        ]
+        
+        result = memory.add(
+            conversation, 
+            user_id=user_id, 
+            metadata={
+                "agent": "time_agent",
+                "memory_type": "preferences",
+                "timestamp": json.dumps({"created": "now"}),
+                **(metadata or {})
             }
         )
+        print(f"✓ Added conversation to memory: {result}")
+        return result
+    except Exception as e:
+        print(f"Failed to add to memory: {e}")
+        return []
 
-# Create the LlmAgent with analytics tracking
+def search_memory(query: str, user_id: str = "default_user"):
+    """Search memory for relevant information."""
+    if not memory:
+        return []
+    
+    try:
+        results = memory.search(query, user_id=user_id)
+        print(f"✓ Found {len(results)} relevant memories")
+        return results
+    except Exception as e:
+        print(f"Failed to search memory: {e}")
+        return []
+
+def get_memory_context(user_message: str, user_id: str = "default_user"):
+    """Get relevant memory context for the current conversation."""
+    memories = search_memory(user_message, user_id)
+    if memories:
+        context = "\n\nRelevant context from previous conversations:\n"
+        # Handle different possible return types from Mem0
+        try:
+            # If memories is a list-like object
+            if hasattr(memories, '__iter__') and not isinstance(memories, str):
+                memory_list = list(memories)[:3]  # Convert to list and limit to top 3
+                for memory_item in memory_list:
+                    if isinstance(memory_item, dict):
+                        memory_text = memory_item.get('memory', str(memory_item))
+                    else:
+                        memory_text = str(memory_item)
+                    context += f"- {memory_text[:200]}...\n"
+            else:
+                # If memories is a single item
+                memory_text = memories.get('memory', str(memories)) if isinstance(memories, dict) else str(memories)
+                context += f"- {memory_text[:200]}...\n"
+        except Exception as e:
+            print(f"Error processing memories: {e}")
+            context += f"- Previous interaction found but could not be processed\n"
+        return context
+    return ""
+
+# Simple time functions for fallback
+def get_current_time():
+    """Get current time in ISO format."""
+    return datetime.now(timezone.utc).isoformat()
+
+def get_time_difference(time1: str, time2: str):
+    """Calculate difference between two times."""
+    try:
+        dt1 = datetime.fromisoformat(time1.replace('Z', '+00:00'))
+        dt2 = datetime.fromisoformat(time2.replace('Z', '+00:00'))
+        diff = abs((dt2 - dt1).total_seconds())
+        return f"{diff} seconds"
+    except Exception as e:
+        return f"Error calculating time difference: {e}"
+
+# Create the LlmAgent with memory capabilities
 root_agent = LlmAgent(
     name="time_agent",
     model="gemini-2.0-flash",
-    description="An LlmAgent that handles time-related queries using Google ADK's LlmAgent class.",
-    instruction="""You are an agent that can use Smithery MCP to perform operations. Use the Smithery MCP tool to interact with external systems and APIs.
+    description="A memory-enabled agent that can handle time-related queries and learns from conversations.",
+    instruction=f"""You are a time-aware agent with persistent memory capabilities using Mem0.
 
-Available functions through MCP:
-- @yokingma/time-mcp tools for MCP client for @yokingma/time-mcp operations
-- @yokingma/time-mcp tools for MCP tool for @yokingma/time-mcp operations
+MEMORY FEATURES:
+- Persistent memory across conversations using Mem0
+- Context-aware responses based on conversation history
+- Learning from user preferences and interactions
+- Memory type: preferences
 
-EVENT HANDLING FEATURES:
-- Comprehensive event tracking for all agent interactions
-- Real-time event monitoring and logging to files and console
-- Event history with filtering and analytics
-- Configurable event listeners for different event types
-
-ANALYTICS FEATURES:
-- All interactions are automatically tracked with Langfuse
-- Conversation analytics for performance monitoring
-- Error tracking and debugging support
+AVAILABLE FUNCTIONS:
+- Current time: {get_current_time()}
+- Time calculations available upon request
 
 IMPORTANT RULES:
-1. All interactions are automatically tracked through the event handling system
-2. Use available MCP tools to perform requested operations
-3. Always provide clear explanations for actions taken
-4. Events are logged with timestamps and user context
-5. Error handling includes automatic error event logging""",
-    tools=[time_mcp_toolset]
+1. Use memory context to provide personalized responses
+2. Remember user preferences and conversation history
+3. Provide helpful time-related information
+4. Always provide clear explanations for actions taken
+5. Learn from each interaction to improve future responses
+
+When users ask about time, provide accurate information and remember their preferences for future interactions.""",
+    tools=[]  # No MCP tools for now, focusing on memory
 )
 
 # Session service and runner setup
@@ -215,83 +154,43 @@ runner = Runner(agent=root_agent, session_service=session_service, app_name="tim
 
 async def main():
     # Create a session
-    user_id = "user"
+    user_id = "default_user"
     session = await session_service.create_session(app_name="time_agent", user_id=user_id)
     session_id = session.id
 
-    # Track session start
-    track_conversation(session_id, user_id, {
-        "event_type": "session_start",
-        "agent_description": "An LlmAgent that handles time-related queries using Google ADK's LlmAgent class."
-    })
-
-    # Test message
-    test_message = "Hello, agent! What time is it and how does your event handling work?"
+    # Test message with memory context
+    test_message = "Hello, what's the current time?"
+    memory_context = get_memory_context(test_message, user_id)
     
-    # Log user message event
-    event_handler.log_user_message(test_message, user_id)
+    full_message = test_message + memory_context
     
     new_message = types.Content(
         role="user",
-        parts=[types.Part(text=test_message)]
+        parts=[types.Part(text=full_message)]
     )
 
-    # Track user message
-    track_conversation(session_id, user_id, {
-        "event_type": "user_message",
-        "message": test_message
-    })
-
-    # Run the agent with comprehensive event logging
+    # Run the agent
     response_content = ""
-    try:
-        print(f"🚀 Starting agent execution with event handling...")
-        async for event in runner.run_async(
-            user_id=user_id,
-            session_id=session_id,
-            new_message=new_message
-        ):
-            print(event)
-            response_content += str(event)
-            
-            # Log each agent event
-            event_handler.log_agent_response(str(event), user_id)
-            
-            # Track agent response
-            track_conversation(session_id, user_id, {
-                "event_type": "agent_response",
-                "response": str(event)
-            })
-    except Exception as e:
-        # Log error event
-        event_handler.log_error(type(e).__name__, str(e), user_id)
-        print(f"❌ Error during agent execution: {e}")
-        raise
+    print(f"\n🤖 Running time_agent with memory...")
+    print(f"📝 User message: {test_message}")
+    if memory_context:
+        print(f"🧠 Memory context: {memory_context.strip()}")
     
-    # Print comprehensive event statistics
-    stats = event_handler.get_event_stats()
-    print(f"\n📊 Event Statistics:")
-    print(f"   Total Events: {stats.get('total_events', 0)}")
-    print(f"   Event Counts: {stats.get('event_counts', {})}")
+    async for event in runner.run_async(
+        user_id=user_id,
+        session_id=session_id,
+        new_message=new_message
+    ):
+        print(event)
+        response_content += str(event)
     
-    # Print recent events
-    recent_events = event_handler.get_event_history(limit=10)
-    print(f"\n📋 Recent Events ({len(recent_events)}):")
-    for i, event in enumerate(recent_events, 1):
-        print(f"   {i}. [{event['event_type'].upper()}] {event['timestamp']}")
-        print(f"      Data: {json.dumps(event['data'], indent=6)}")
-    
-    # Demonstrate event filtering
-    user_events = event_handler.get_event_history(event_type='user_message')
-    agent_events = event_handler.get_event_history(event_type='agent_response')
-    print(f"\n📈 Event Breakdown:")
-    print(f"   User Messages: {len(user_events)}")
-    print(f"   Agent Responses: {len(agent_events)}")
-    
-    print(f"\n✅ Event handling demonstration completed!")
-    print(f"📝 Check 'agent_events.log' for detailed event logs")
+    # Add conversation to memory
+    add_to_memory(test_message, response_content, user_id, {
+        "session_id": session_id,
+        "agent_name": "time_agent"
+    })
 
 if __name__ == "__main__":
     asyncio.run(main())
 
-__all__ = ["root_agent", "track_conversation", "event_handler", "EventHandler"]
+__all__ = ["root_agent", "add_to_memory", "search_memory", "get_memory_context"]

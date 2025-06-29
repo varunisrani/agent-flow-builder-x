@@ -8,6 +8,7 @@ import type {
 } from './types';
 import { LangfuseErrorCatalog } from './LangfuseErrorCatalog';
 import { EventHandlingErrorCatalog } from './EventHandlingErrorCatalog';
+import { MemoryErrorCatalog } from './MemoryErrorCatalog';
 import { OpenRouterFixingService } from './OpenRouterFixingService';
 
 /**
@@ -71,9 +72,19 @@ export class AdvancedCodeVerifier {
         this.reportProgress(options, 'detecting', 55, `Found ${eventHandlingErrors.length} event handling issues`);
       }
 
+      // Phase 3.6: Memory Error Detection
+      if (options.enableMemoryChecks !== false) {
+        this.reportProgress(options, 'detecting', 57, 'Detecting memory integration compatibility issues...');
+        
+        const memoryErrors = MemoryErrorCatalog.detectErrors(currentCode);
+        allErrors.push(...memoryErrors);
+        
+        this.reportProgress(options, 'detecting', 60, `Found ${memoryErrors.length} memory integration issues`);
+      }
+
       // Phase 4: Pattern-based Fixes
       if (options.enablePatternFixes !== false && allErrors.length > 0) {
-        this.reportProgress(options, 'fixing', 60, 'Applying pattern-based fixes...');
+        this.reportProgress(options, 'fixing', 65, 'Applying pattern-based fixes...');
         
         const patternFixResult = this.applyPatternFixes(currentCode, allErrors);
         if (patternFixResult.fixedCode !== currentCode) {
@@ -141,6 +152,7 @@ export class AdvancedCodeVerifier {
       const langfuseErrorsFound = allErrors.filter(e => e.category === 'langfuse').length;
       const mcpErrorsFound = allErrors.filter(e => e.category === 'mcp').length;
       const eventHandlingErrorsFound = allErrors.filter(e => e.category === 'event-handling').length;
+      const memoryErrorsFound = allErrors.filter(e => e.category === 'memory').length;
       const aiFixesApplied = this.fixAttempts.filter(a => a.method === 'ai' && a.success).length;
       const patternFixesApplied = this.fixAttempts.filter(a => a.method === 'pattern' && a.success).length;
 
@@ -152,14 +164,19 @@ export class AdvancedCodeVerifier {
       let confidence = 100; // Start with perfect confidence
       
       if (totalIssues > 0) {
-        // Calculate fix rate
+        // Calculate base confidence from fix rate
         const fixRate = totalFixed / totalIssues;
         confidence = Math.floor(fixRate * 100);
         
-        // Penalize unfixed errors more than unfixed warnings
-        const unfixedErrors = errors.filter(e => !e.fixed).length;
-        const unfixedWarnings = warnings.filter(w => !w.fixed).length;
-        confidence -= (unfixedErrors * 15) + (unfixedWarnings * 5);
+        // If we have a good fix rate, boost confidence for critical fixes
+        if (fixRate >= 0.5) {
+          // Reward fixing critical errors more than warnings
+          const fixedCriticalErrors = errors.filter(e => e.fixed && e.severity === 'error').length;
+          const fixedWarnings = warnings.filter(w => w.fixed).length;
+          
+          // Add bonus points for fixing critical issues
+          confidence += Math.min(20, fixedCriticalErrors * 5 + fixedWarnings * 2);
+        }
       }
       
       // Adjust confidence based on validation
@@ -184,6 +201,7 @@ export class AdvancedCodeVerifier {
           langfuseErrorsFound,
           mcpErrorsFound,
           eventHandlingErrorsFound,
+          memoryErrorsFound,
           aiFixesApplied,
           patternFixesApplied,
           verificationMethod: this.determineVerificationMethod(patternFixesApplied, aiFixesApplied),
@@ -219,6 +237,7 @@ export class AdvancedCodeVerifier {
           langfuseErrorsFound: 0,
           mcpErrorsFound: 0,
           eventHandlingErrorsFound: 0,
+          memoryErrorsFound: 0,
           aiFixesApplied: 0,
           patternFixesApplied: 0,
           verificationMethod: 'hybrid',
@@ -382,6 +401,21 @@ export class AdvancedCodeVerifier {
       });
     }
 
+    // Apply Memory fixes
+    const memoryErrors = errors.filter(e => e.category === 'memory');
+    if (memoryErrors.length > 0) {
+      const memoryFixResult = MemoryErrorCatalog.applyFixes(fixedCode, memoryErrors);
+      fixedCode = memoryFixResult.fixedCode;
+      appliedFixes.push(...memoryFixResult.appliedFixes);
+      
+      // Mark fixed errors
+      memoryErrors.forEach(error => {
+        if (memoryFixResult.unfixedErrors.every(ue => ue.id !== error.id)) {
+          fixedErrorIds.push(error.id);
+        }
+      });
+    }
+
     // Apply basic pattern fixes
     const basicFixes = this.applyBasicPatternFixes(fixedCode, errors);
     fixedCode = basicFixes.fixedCode;
@@ -518,6 +552,9 @@ export class AdvancedCodeVerifier {
     if (code.includes('EventHandler') || code.includes('event_logger') || code.includes('event_history')) {
       integrations.push('event-handling');
     }
+    if (code.includes('Memory') || code.includes('mem0') || code.includes('MEM0_API_KEY')) {
+      integrations.push('memory');
+    }
     
     return integrations;
   }
@@ -576,6 +613,10 @@ export class AdvancedCodeVerifier {
     // Add Event Handling-specific suggestions
     const eventHandlingRecommendations = EventHandlingErrorCatalog.getRecommendations(code);
     suggestions.push(...eventHandlingRecommendations);
+
+    // Add Memory-specific suggestions
+    const memoryRecommendations = MemoryErrorCatalog.getRecommendations(code);
+    suggestions.push(...memoryRecommendations);
     
     return suggestions;
   }

@@ -1,7 +1,7 @@
 export interface VerificationError {
   id: string;
   type: string;
-  category: 'langfuse' | 'mcp' | 'event-handling' | 'syntax' | 'runtime' | 'import' | 'security' | 'compatibility';
+  category: 'langfuse' | 'mcp' | 'event-handling' | 'memory' | 'syntax' | 'runtime' | 'import' | 'security' | 'compatibility';
   severity: 'error' | 'warning' | 'info';
   message: string;
   line?: number;
@@ -38,6 +38,7 @@ export interface VerificationResult {
     langfuseErrorsFound: number;
     mcpErrorsFound: number;
     eventHandlingErrorsFound: number;
+    memoryErrorsFound: number;
     aiFixesApplied: number;
     patternFixesApplied: number;
     verificationMethod: 'ai' | 'pattern' | 'hybrid';
@@ -102,6 +103,7 @@ export interface VerificationOptions {
   enableLangfuseChecks?: boolean;
   enableMcpChecks?: boolean;
   enableEventHandlingChecks?: boolean;
+  enableMemoryChecks?: boolean;
   enableAIFixes?: boolean;
   enablePatternFixes?: boolean;
   maxAIRetries?: number;
@@ -155,6 +157,26 @@ export interface AIFixRequest {
     maxRetries: number;
     preserveStructure: boolean;
     fixOnlyErrors: boolean;
+  };
+}
+
+export interface MemoryErrorPattern {
+  id: string;
+  name: string;
+  pattern: RegExp;
+  description: string;
+  severity: 'error' | 'warning';
+  version: string; // Version this error applies to
+  autoFixable: boolean;
+  fix?: {
+    search: RegExp;
+    replace: string;
+    description: string;
+    confidenceScore: number;
+  };
+  examples: {
+    problematic: string;
+    fixed: string;
   };
 }
 
