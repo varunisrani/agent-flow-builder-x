@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button.js';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.js';
 import { BaseNodeData } from './nodes/BaseNode.js';
-import { Copy, AlertCircle, Loader2, Play, Code, Sparkles } from 'lucide-react';
+import { Copy, AlertCircle, Loader2, Play, Code, Sparkles, History, Clock, Eye, EyeOff } from 'lucide-react';
 import { toast } from '@/hooks/use-toast.js';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -19,6 +19,9 @@ import { generateMCPCode, MCPConfig, dedupeConfigs, generateCodeWithAI } from '@
 import { VerificationProgress as VerificationProgressType, VerificationResult } from '@/lib/codeVerification';
 import { extractNodeData } from '@/lib/nodeDataExtraction';
 import { generateTemplateFromNodeData } from '@/lib/templateGeneration';
+import { CodeVersionService, CodeVersion } from '@/services/codeVersionService';
+import { SupabaseProjectService } from '@/services/supabaseProjectService';
+import { getCurrentProject } from '@/services/projectService';
 
 // Type definition for generation methods
 type GenerationMethod = 'ai' | 'template';
@@ -779,6 +782,221 @@ export function CodeGenerationModal({
   const [verificationProgress, setVerificationProgress] = useState<VerificationProgressType | null>(null);
   // const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null); // Commented out - unused
   const [generationMethod, setGenerationMethod] = useState<GenerationMethod>('template');
+  
+  // Version management state
+  const [codeVersions, setCodeVersions] = useState<CodeVersion[]>([]);
+  const [currentVersion, setCurrentVersion] = useState<CodeVersion | null>(null);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [versionLoading, setVersionLoading] = useState(false);
+  const [expandedVersions, setExpandedVersions] = useState<Set<string>>(new Set());
+
+  // Helper function to toggle version code expansion
+  const toggleVersionExpansion = (versionId: string) => {
+    setExpandedVersions(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(versionId)) {
+        newSet.delete(versionId);
+      } else {
+        newSet.add(versionId);
+      }
+      return newSet;
+    });
+  };
+
+  // Helper function to copy version code
+  const copyVersionCode = async (code: string, versionNumber: number) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      toast({
+        title: "Code copied",
+        description: `Version v${versionNumber} code copied to clipboard`,
+        variant: "default",
+      });
+    } catch (error) {
+      console.error('Failed to copy code:', error);
+      toast({
+        title: "Copy failed",
+        description: "Failed to copy code to clipboard",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Helper function to get or create Supabase project for current local project
+  const getOrCreateSupabaseProject = async (localProject: any) => {
+    try {
+      // Check if we already have a mapping stored
+      const mappingKey = `supabase-project-${localProject.id}`;
+      const existingSupabaseId = localStorage.getItem(mappingKey);
+      
+      if (existingSupabaseId) {
+        // Verify the project still exists
+        const existing = await SupabaseProjectService.getProjectById(existingSupabaseId);
+        if (existing) {
+          return existing;
+        } else {
+          // Cleanup invalid mapping
+          localStorage.removeItem(mappingKey);
+        }
+      }
+
+      // Create new Supabase project
+      console.log('Creating Supabase project for local project:', localProject.name);
+      const supabaseProject = await SupabaseProjectService.createProject({
+        name: localProject.name || 'Untitled Project',
+        description: localProject.description || 'Project created from Agent Flow Builder',
+        nodes: localProject.nodes || [],
+        edges: localProject.edges || []
+      });
+
+      // Store the mapping for future use
+      localStorage.setItem(mappingKey, supabaseProject.id);
+      console.log('Created Supabase project:', supabaseProject.id);
+      
+      return supabaseProject;
+    } catch (error) {
+      console.error('Failed to get/create Supabase project:', error);
+      throw error;
+    }
+  };
+
+  // Helper function to save code version
+  const saveCodeVersion = async (code: string, method: GenerationMethod) => {
+    try {
+      const currentProject = getCurrentProject();
+      if (!currentProject?.id) {
+        console.warn('No current project found, skipping version save');
+        toast({
+          title: "Version save skipped",
+          description: "No project selected. Versions will be saved when you have an active project.",
+          variant: "default",
+        });
+        return;
+      }
+
+      // Get or create corresponding Supabase project
+      const supabaseProject = await getOrCreateSupabaseProject(currentProject);
+
+      // Detect integrations for metadata
+      const integrations = [];
+      if (hasLangfuseNodes) integrations.push('langfuse');
+      if (hasMemoryNodes) integrations.push('mem0');
+      if (hasMcpNodes) integrations.push('mcp');
+      if (hasEventHandlingNodes) integrations.push('event-handling');
+
+      const metadata = {
+        integrations,
+        template_type: activeTab,
+        generation_framework: activeTab,
+        mcp_enabled: mcpEnabled,
+        has_specialized_features: hasSpecializedFeatures,
+        local_project_id: currentProject.id // Store reference to local project
+      };
+
+      console.log('Saving code version...', { project_id: supabaseProject.id, method, integrations });
+
+      const version = await CodeVersionService.createCodeVersion({
+        project_id: supabaseProject.id,
+        code_content: code,
+        generation_method: method,
+        flow_snapshot: { nodes, edges },
+        metadata
+      });
+
+      setCurrentVersion(version);
+      
+      // Refresh version list
+      await loadVersionHistory();
+
+      console.log('Code version saved successfully:', version);
+      
+      toast({
+        title: "Version saved",
+        description: `Code version v${version.version} saved successfully with ${method === 'ai' ? 'AI generation' : 'template'}.`,
+        variant: "default",
+      });
+    } catch (error) {
+      console.error('Failed to save code version:', error);
+      toast({
+        title: "Version save failed",
+        description: `Failed to save code version: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Load version history
+  const loadVersionHistory = async () => {
+    try {
+      const currentProject = getCurrentProject();
+      if (!currentProject?.id) {
+        console.log('No current project found, skipping version history load');
+        setCodeVersions([]);
+        return;
+      }
+
+      setVersionLoading(true);
+      console.log('Loading version history for local project:', currentProject.id);
+      
+      // Check if we have a mapped Supabase project
+      const mappingKey = `supabase-project-${currentProject.id}`;
+      const supabaseProjectId = localStorage.getItem(mappingKey);
+      
+      if (!supabaseProjectId) {
+        console.log('No Supabase project mapping found, no versions available yet');
+        setCodeVersions([]);
+        setVersionLoading(false);
+        return;
+      }
+
+      console.log('Loading version history for Supabase project:', supabaseProjectId);
+      const versions = await CodeVersionService.getProjectVersions(supabaseProjectId);
+      setCodeVersions(versions);
+      
+      console.log(`Loaded ${versions.length} versions`);
+      
+      // Set current version to the latest if none selected
+      if (!currentVersion && versions.length > 0) {
+        setCurrentVersion(versions[0]); // versions are ordered by version desc
+      }
+    } catch (error) {
+      console.error('Failed to load version history:', error);
+      toast({
+        title: "Failed to load versions",
+        description: `Could not load version history: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: "destructive",
+      });
+      setCodeVersions([]);
+    } finally {
+      setVersionLoading(false);
+    }
+  };
+
+  // Restore a specific version
+  const restoreVersion = async (version: CodeVersion) => {
+    try {
+      console.log('Restoring version:', version.version);
+      
+      setGeneratedCode(version.code_content);
+      setCurrentVersion(version);
+      
+      // Store in localStorage for consistency
+      const flowKey = getFlowKey(nodes, edges);
+      storeCode(flowKey, activeTab, version.code_content);
+
+      toast({
+        title: "Version Restored",
+        description: `Successfully restored to version v${version.version} (${version.generation_method === 'ai' ? 'AI generated' : 'Template'})`,
+      });
+    } catch (error) {
+      console.error('Failed to restore version:', error);
+      toast({
+        title: "Restore Failed",
+        description: `Failed to restore version v${version.version}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: "destructive"
+      });
+    }
+  };
 
   // Check if there are MCP nodes in the diagram or if MCP is explicitly enabled
   const hasMcpNodes = nodes.some(node => 
@@ -816,6 +1034,13 @@ export function CodeGenerationModal({
     const recommended = getRecommendedMethod();
     setGenerationMethod(recommended);
   }, [hasSpecializedFeatures]);
+
+  // Load version history when modal opens
+  useEffect(() => {
+    if (open) {
+      loadVersionHistory();
+    }
+  }, [open]);
 
   // Debug logging for integrations detection
   console.log('Integrations detection:', {
@@ -916,6 +1141,9 @@ export function CodeGenerationModal({
       setIsFirstGeneration(false);
       setVerificationProgress(null);
       
+      // Save version to Supabase
+      await saveCodeVersion(formattedCode, actualMethod);
+      
       console.log('Initial code generation completed successfully');
     } catch (error) {
       console.error('Error generating initial code:', error);
@@ -993,6 +1221,9 @@ export function CodeGenerationModal({
       setGeneratedCode(formattedCode);
       storeCode(flowKey, activeTab, formattedCode);
       setVerificationProgress(null);
+      
+      // Save new version to Supabase
+      await saveCodeVersion(formattedCode, actualMethod);
       
       const features = [];
       if (mcpEnabled) features.push('MCP tools');
@@ -1158,7 +1389,7 @@ __all__ = ["root_agent"]`;
         </DialogHeader>
 
         <div className="flex-1 flex flex-col overflow-hidden">
-          <Tabs defaultValue="adk" value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+          <Tabs defaultValue="adk" value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
             <TabsList className="flex-shrink-0 bg-gradient-to-tr from-zinc-300/20 via-gray-400/20 to-transparent from-zinc-300/10 via-gray-400/10 backdrop-blur-sm border-[2px] border-white/10 p-1 mx-6 mt-4">
             <TabsTrigger 
               value="adk" 
@@ -1180,8 +1411,8 @@ __all__ = ["root_agent"]`;
             </TabsTrigger>
           </TabsList>
           
-          <TabsContent value={activeTab} className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex-1 flex flex-col overflow-hidden px-6">
+          <TabsContent value={activeTab} className="flex-1 flex flex-col overflow-y-auto">
+            <div className="flex-1 flex flex-col px-6 pb-6">
               {activeTab === 'adk' && (
                 <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <div className="flex items-center gap-2">
@@ -1250,7 +1481,7 @@ __all__ = ["root_agent"]`;
               </div>
             )}
             
-            <div className="flex-1 flex flex-col min-h-0">
+            <div className="flex flex-col space-y-4">
               {error && (
                 <div className="mb-4 p-3 bg-red-50 bg-red-950/30 border border-red-200 border-red-800 rounded-lg text-red-800 text-red-300 text-sm flex items-center gap-2 flex-shrink-0">
                   <AlertCircle className="h-4 w-4" />
@@ -1287,8 +1518,207 @@ __all__ = ["root_agent"]`;
                 </div>
               )}
 
+              {/* Version Management Section - Always Visible */}
+              <div className="flex-shrink-0 mb-4">
+                <div className="flex items-center justify-between p-3 bg-gray-800/30 rounded-lg border border-gray-700/50">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <History className="h-4 w-4 text-purple-400" />
+                      <span className="text-sm font-medium text-gray-200">Version History</span>
+                    </div>
+                    {codeVersions.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <span className="bg-purple-500/20 text-purple-300 px-2 py-1 rounded text-xs font-medium">
+                          {codeVersions.length} version{codeVersions.length !== 1 ? 's' : ''}
+                        </span>
+                        {currentVersion && (
+                          <span className="bg-blue-500/20 text-blue-300 px-2 py-1 rounded text-xs">
+                            Current: v{currentVersion.version}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 hover:text-purple-200"
+                    onClick={() => setShowVersionHistory(!showVersionHistory)}
+                    disabled={versionLoading}
+                  >
+                    {showVersionHistory ? 'Hide History' : 'Show History'}
+                  </Button>
+                </div>
+
+                {/* Version History Panel */}
+                {showVersionHistory && (
+                  <div className="mt-3 p-4 rounded-lg bg-gray-800/50 border border-gray-700">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-medium text-gray-200 flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-purple-400" />
+                        Code Versions
+                      </h3>
+                      {versionLoading && (
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="h-3 w-3 animate-spin text-purple-400" />
+                          <span className="text-xs text-gray-400">Loading...</span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {!versionLoading && codeVersions.length === 0 ? (
+                      <div className="text-center py-6 text-sm text-gray-400">
+                        <div className="mb-2">No versions saved yet</div>
+                        <div className="text-xs text-gray-500">Generate code to create your first version automatically</div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-96 overflow-y-auto">
+                        {codeVersions.map((version) => {
+                          const isExpanded = expandedVersions.has(version.id);
+                          const isActive = currentVersion?.id === version.id;
+                          
+                          return (
+                            <div
+                              key={version.id}
+                              className={`rounded border transition-all ${
+                                isActive
+                                  ? 'bg-purple-500/20 border-purple-500/50 text-purple-200 shadow-sm'
+                                  : 'bg-gray-700/50 border-gray-600 text-gray-300'
+                              }`}
+                            >
+                              {/* Version Header */}
+                              <div className="p-3">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-mono bg-gray-600 px-2 py-1 rounded">
+                                      v{version.version}
+                                    </span>
+                                    <span className="text-xs">
+                                      {version.generation_method === 'ai' ? '🤖 AI Generated' : '📋 Template'}
+                                    </span>
+                                    {version.metadata?.integrations && version.metadata.integrations.length > 0 && (
+                                      <div className="flex gap-1">
+                                        {version.metadata.integrations.map((integration: string) => (
+                                          <span key={integration} className="text-xs bg-blue-500/20 text-blue-300 px-1 rounded">
+                                            {integration}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <span className="text-xs text-gray-400">
+                                    {new Date(version.created_at).toLocaleDateString('en-US', { 
+                                      month: 'short', 
+                                      day: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit' 
+                                    })}
+                                  </span>
+                                </div>
+                                
+                                {isActive && (
+                                  <div className="mt-1 text-xs text-purple-300 flex items-center gap-1">
+                                    <span className="w-1 h-1 bg-purple-400 rounded-full"></span>
+                                    Currently active
+                                  </div>
+                                )}
+
+                                {/* Action Buttons */}
+                                <div className="flex items-center gap-2 mt-3">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      restoreVersion(version);
+                                    }}
+                                    className="h-7 px-2 text-xs bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/30"
+                                  >
+                                    <Play className="h-3 w-3 mr-1" />
+                                    Restore
+                                  </Button>
+                                  
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      copyVersionCode(version.code_content, version.version);
+                                    }}
+                                    className="h-7 px-2 text-xs bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                                  >
+                                    <Copy className="h-3 w-3 mr-1" />
+                                    Copy
+                                  </Button>
+                                  
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleVersionExpansion(version.id);
+                                    }}
+                                    className="h-7 px-2 text-xs bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30"
+                                  >
+                                    {isExpanded ? (
+                                      <>
+                                        <EyeOff className="h-3 w-3 mr-1" />
+                                        Hide Code
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Eye className="h-3 w-3 mr-1" />
+                                        View Code
+                                      </>
+                                    )}
+                                  </Button>
+                                </div>
+                              </div>
+
+                              {/* Expandable Code Section */}
+                              {isExpanded && (
+                                <div className="border-t border-gray-600 bg-gray-800/30">
+                                  <div className="p-3">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="text-xs font-medium text-gray-400">Code Preview</span>
+                                      <span className="text-xs text-gray-500">
+                                        {version.code_content.split('\n').length} lines
+                                      </span>
+                                    </div>
+                                    <div className="relative rounded-lg border border-gray-600 overflow-hidden">
+                                      <div className="max-h-60 overflow-y-auto">
+                                        <SyntaxHighlighter
+                                          language="python"
+                                          style={vscDarkPlus}
+                                          showLineNumbers={true}
+                                          customStyle={{
+                                            fontSize: '11px',
+                                            margin: 0,
+                                            padding: '12px',
+                                            backgroundColor: '#1a1a1a',
+                                            border: 'none'
+                                          }}
+                                          lineProps={{ style: { wordBreak: 'break-all', whiteSpace: 'pre-wrap' } }}
+                                          wrapLines={true}
+                                        >
+                                          {version.code_content}
+                                        </SyntaxHighlighter>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {loading ? (
-                <div className="flex-1 flex items-center justify-center gap-3 bg-gradient-to-br from-gray-900/50 to-gray-800/50 rounded-xl text-gray-200 min-h-[200px]">
+                <div className="flex items-center justify-center gap-3 bg-gradient-to-br from-gray-900/50 to-gray-800/50 rounded-xl text-gray-200 h-[400px]">
                   <Loader2 className="h-6 w-6 animate-spin text-purple-400" />
                   <div className="text-center">
                     <div className="text-sm font-medium">{verificationProgress ? verificationProgress.message : "Generating your agent code..."}</div>
@@ -1296,8 +1726,8 @@ __all__ = ["root_agent"]`;
                   </div>
                 </div>
               ) : (
-                <div className="flex-1 flex flex-col min-h-0">
-                  <div className="flex-1 relative rounded-xl border border-gray-700 min-h-0 max-h-[600px]">
+                <div className="flex flex-col">
+                  <div className="relative rounded-xl border border-gray-700 h-[500px]">
                     <div className="h-full overflow-hidden">
                       <CodeHighlighter code={generatedCode} />
                     </div>
@@ -1339,6 +1769,7 @@ __all__ = ["root_agent"]`;
                       <SandboxOutput output={sandboxOutput} />
                     </div>
                   )}
+
                 </div>
               )}
             </div>

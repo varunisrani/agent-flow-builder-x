@@ -16,6 +16,7 @@ export type Database = {
           created_at: string | null
           id: string
           image_url: string
+          pg_name: string
           sort_order: number
         }
         Insert: {
@@ -24,6 +25,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           image_url: string
+          pg_name: string
           sort_order?: number
         }
         Update: {
@@ -32,6 +34,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           image_url?: string
+          pg_name?: string
           sort_order?: number
         }
         Relationships: [
@@ -47,6 +50,7 @@ export type Database = {
       accommodations: {
         Row: {
           address: string
+          brochure_link: string | null
           code: string
           contact: string
           created_at: string | null
@@ -55,11 +59,14 @@ export type Database = {
           features: string[]
           id: string
           main_image: string
+          maps_link: string | null
           name: string
+          pg_category: string
           updated_at: string | null
         }
         Insert: {
           address: string
+          brochure_link?: string | null
           code: string
           contact: string
           created_at?: string | null
@@ -68,11 +75,14 @@ export type Database = {
           features?: string[]
           id?: string
           main_image: string
+          maps_link?: string | null
           name: string
+          pg_category: string
           updated_at?: string | null
         }
         Update: {
           address?: string
+          brochure_link?: string | null
           code?: string
           contact?: string
           created_at?: string | null
@@ -81,7 +91,9 @@ export type Database = {
           features?: string[]
           id?: string
           main_image?: string
+          maps_link?: string | null
           name?: string
+          pg_category?: string
           updated_at?: string | null
         }
         Relationships: []
@@ -265,6 +277,83 @@ export type Database = {
           },
         ]
       }
+      chats: {
+        Row: {
+          created_at: string
+          id: string
+          messages: Json
+          svg_code: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          messages: Json
+          svg_code?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          messages?: Json
+          svg_code?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      code_versions: {
+        Row: {
+          code_content: string
+          created_at: string | null
+          flow_snapshot: Json | null
+          generation_method: string | null
+          id: string
+          is_active: boolean | null
+          metadata: Json | null
+          project_id: string | null
+          user_id: string | null
+          version: number
+        }
+        Insert: {
+          code_content: string
+          created_at?: string | null
+          flow_snapshot?: Json | null
+          generation_method?: string | null
+          id?: string
+          is_active?: boolean | null
+          metadata?: Json | null
+          project_id?: string | null
+          user_id?: string | null
+          version: number
+        }
+        Update: {
+          code_content?: string
+          created_at?: string | null
+          flow_snapshot?: Json | null
+          generation_method?: string | null
+          id?: string
+          is_active?: boolean | null
+          metadata?: Json | null
+          project_id?: string | null
+          user_id?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "code_versions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crew_site_pages: {
         Row: {
           chunk_number: number
@@ -346,6 +435,39 @@ export type Database = {
           template_name?: string
           template_type?: string
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      customers: {
+        Row: {
+          address: string | null
+          address_field: string | null
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          phone: string
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          address_field?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          phone: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          address_field?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          phone?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -653,6 +775,170 @@ export type Database = {
           },
         ]
       }
+      inventory: {
+        Row: {
+          additional_notes: string | null
+          additional_sale_notes: string | null
+          battery_health: number | null
+          brand: string
+          color: string | null
+          condition: string
+          created_at: string
+          customer_address: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          exchange_old_phone: boolean | null
+          id: string
+          imei: string
+          inward_by: string | null
+          model: string
+          payment_method: string | null
+          purchase_date: string
+          purchase_price: number
+          quantity: number | null
+          sale_date: string | null
+          sale_price: number
+          sold_date: string | null
+          status: string
+          supplier_id: string | null
+          updated_at: string
+          variant: string | null
+          venue: string | null
+          warranty_months: number | null
+        }
+        Insert: {
+          additional_notes?: string | null
+          additional_sale_notes?: string | null
+          battery_health?: number | null
+          brand: string
+          color?: string | null
+          condition?: string
+          created_at?: string
+          customer_address?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          exchange_old_phone?: boolean | null
+          id?: string
+          imei: string
+          inward_by?: string | null
+          model: string
+          payment_method?: string | null
+          purchase_date: string
+          purchase_price: number
+          quantity?: number | null
+          sale_date?: string | null
+          sale_price: number
+          sold_date?: string | null
+          status?: string
+          supplier_id?: string | null
+          updated_at?: string
+          variant?: string | null
+          venue?: string | null
+          warranty_months?: number | null
+        }
+        Update: {
+          additional_notes?: string | null
+          additional_sale_notes?: string | null
+          battery_health?: number | null
+          brand?: string
+          color?: string | null
+          condition?: string
+          created_at?: string
+          customer_address?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          exchange_old_phone?: boolean | null
+          id?: string
+          imei?: string
+          inward_by?: string | null
+          model?: string
+          payment_method?: string | null
+          purchase_date?: string
+          purchase_price?: number
+          quantity?: number | null
+          sale_date?: string | null
+          sale_price?: number
+          sold_date?: string | null
+          status?: string
+          supplier_id?: string | null
+          updated_at?: string
+          variant?: string | null
+          venue?: string | null
+          warranty_months?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoices: {
+        Row: {
+          created_at: string
+          customer_id: string | null
+          discount: number | null
+          due_date: string | null
+          id: string
+          invoice_date: string
+          invoice_id: string
+          sale_id: string | null
+          status: string
+          subtotal: number
+          tax_amount: number | null
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id?: string | null
+          discount?: number | null
+          due_date?: string | null
+          id?: string
+          invoice_date?: string
+          invoice_id: string
+          sale_id?: string | null
+          status?: string
+          subtotal: number
+          tax_amount?: number | null
+          total_amount: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string | null
+          discount?: number | null
+          due_date?: string | null
+          id?: string
+          invoice_date?: string
+          invoice_id?: string
+          sale_id?: string | null
+          status?: string
+          subtotal?: number
+          tax_amount?: number | null
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       login: {
         Row: {
           created_at: string
@@ -815,6 +1101,39 @@ export type Database = {
         }
         Relationships: []
       }
+      projects: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          flow_data: Json | null
+          id: string
+          name: string
+          starred: boolean | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          flow_data?: Json | null
+          id?: string
+          name: string
+          starred?: boolean | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          flow_data?: Json | null
+          id?: string
+          name?: string
+          starred?: boolean | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       residents: {
         Row: {
           created_at: string
@@ -951,6 +1270,78 @@ export type Database = {
         }
         Relationships: []
       }
+      sales: {
+        Row: {
+          additional_sale_notes: string | null
+          created_at: string
+          customer_address: string | null
+          customer_id: string | null
+          discount: number | null
+          exchange_old_phone: boolean | null
+          final_amount: number
+          id: string
+          imei_serial: string | null
+          inventory_id: string | null
+          payment_method: string
+          sale_date: string
+          sale_id: string
+          sale_price: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          additional_sale_notes?: string | null
+          created_at?: string
+          customer_address?: string | null
+          customer_id?: string | null
+          discount?: number | null
+          exchange_old_phone?: boolean | null
+          final_amount: number
+          id?: string
+          imei_serial?: string | null
+          inventory_id?: string | null
+          payment_method: string
+          sale_date?: string
+          sale_id: string
+          sale_price: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          additional_sale_notes?: string | null
+          created_at?: string
+          customer_address?: string | null
+          customer_id?: string | null
+          discount?: number | null
+          exchange_old_phone?: boolean | null
+          final_amount?: number
+          id?: string
+          imei_serial?: string | null
+          inventory_id?: string | null
+          payment_method?: string
+          sale_date?: string
+          sale_id?: string
+          sale_price?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_inventory_id_fkey"
+            columns: ["inventory_id"]
+            isOneToOne: false
+            referencedRelation: "inventory"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       site_pages: {
         Row: {
           chunk_number: number
@@ -986,6 +1377,130 @@ export type Database = {
           url?: string
         }
         Relationships: []
+      }
+      suppliers: {
+        Row: {
+          address: string | null
+          contact_person: string | null
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          contact_person?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          contact_person?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      svg_storage: {
+        Row: {
+          content: string
+          created_at: string | null
+          data_url: string | null
+          id: string
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          data_url?: string | null
+          id?: string
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          data_url?: string | null
+          id?: string
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          customer_id: string | null
+          id: string
+          inventory_id: string | null
+          quantity: number
+          supplier_id: string | null
+          transaction_date: string
+          transaction_id: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          customer_id?: string | null
+          id?: string
+          inventory_id?: string | null
+          quantity?: number
+          supplier_id?: string | null
+          transaction_date?: string
+          transaction_id: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          customer_id?: string | null
+          id?: string
+          inventory_id?: string | null
+          quantity?: number
+          supplier_id?: string | null
+          transaction_date?: string
+          transaction_id?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_inventory_id_fkey"
+            columns: ["inventory_id"]
+            isOneToOne: false
+            referencedRelation: "inventory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       users: {
         Row: {
@@ -1037,6 +1552,10 @@ export type Database = {
       binary_quantize: {
         Args: { "": string } | { "": unknown }
         Returns: unknown
+      }
+      get_next_version: {
+        Args: { p_project_id: string }
+        Returns: number
       }
       halfvec_avg: {
         Args: { "": number[] }
