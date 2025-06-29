@@ -10,19 +10,21 @@ import {
 } from '@/components/ui/dialog.js';
 import { Button } from '@/components/ui/button.js';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs.js';
+import { Checkbox } from '@/components/ui/checkbox';
 import { BaseNodeData } from './nodes/BaseNode.js';
 import { Copy, AlertCircle, Loader2, Play, Code, Sparkles, History, Clock, Eye, EyeOff } from 'lucide-react';
 import { toast } from '@/hooks/use-toast.js';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { generateMCPCode, MCPConfig, dedupeConfigs, generateCodeWithAI } from '@/lib/codeGeneration';
-import { VerificationProgress as VerificationProgressType, VerificationResult } from '@/lib/codeVerification';
+import { VerificationProgress as VerificationProgressType } from '@/lib/codeVerification';
 import { extractNodeData } from '@/lib/nodeDataExtraction';
 import { generateTemplateFromNodeData } from '@/lib/templateGeneration';
 import { CodeVersionService, CodeVersion } from '@/services/codeVersionService';
 import { SupabaseProjectService } from '@/services/supabaseProjectService';
 import { getCurrentProject } from '@/services/projectService';
 import type { VerificationResult as AdvancedVerificationResult, VerificationError } from '@/lib/verification/types';
+import { AdvancedCodeVerifier } from '@/lib/verification/AdvancedCodeVerifier';
 
 // Type definition for generation methods
 type GenerationMethod = 'ai' | 'template';
@@ -1350,7 +1352,372 @@ __all__ = ["root_agent"]`;
     }
   };
 
+  // Handle manual error checking
+  const handleCheckForErrors = async () => {
+    if (!generatedCode.trim()) {
+      toast({
+        title: "No code to check",
+        description: "Please generate some code first before checking for errors.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsCheckingErrors(true);
+    setErrorCheckResult(null);
+
+    try {
+      const verifier = new AdvancedCodeVerifier(OPENROUTER_API_KEY);
+      
+      // Only detect errors, don't fix them yet
+      const result = await verifier.verifyAndFix(generatedCode, {
+        enableLangfuseChecks: true,
+        enableMcpChecks: true,
+        enableAIFixes: false, // Don't auto-fix, let user decide
+        enablePatternFixes: false, // Don't auto-fix, let user decide
+        maxAIRetries: 0, // Skip AI detection for now, just use pattern detection
+        onProgress: (progress) => {
+          console.log('Error checking progress:', progress);
+        }
+      });
+
+      console.log('Error detection result:', result);
+      setErrorCheckResult(result);
+      
+      if (result.errors.length === 0) {
+        toast({
+          title: "No errors found! ✅",
+          description: "Your code looks good! No issues were detected.",
+          variant: "default",
+        });
+      } else {
+        const autoFixableCount = result.errors.filter(error => error.autoFixable).length;
+        const langfuseErrors = result.errors.filter(error => error.category === 'langfuse').length;
+        
+        toast({
+          title: `Found ${result.errors.length} issue(s) 🔍`,
+          description: `${autoFixableCount} can be auto-fixed. ${langfuseErrors} Langfuse compatibility issues detected.`,
+          variant: "default",
+        });
+        
+        setShowErrorDialog(true);
+        // Initialize all auto-fixable errors as selected by default
+        const initialPendingFixes = result.errors
+          .filter(error => error.autoFixable)
+          .map(error => ({ errorId: error.id, shouldFix: true })); // Auto-select for user convenience
+        setPendingErrorFixes(initialPendingFixes);
+      }
+    } catch (error) {
+      console.error('Error checking failed:', error);
+      toast({
+        title: "Error checking failed",
+        description: `Failed to check code for errors: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsCheckingErrors(false);
+    }
+  };
+
+  // Handle applying error fixes based on user decisions
+  const handleApplyErrorFixes = async () => {
+    if (!errorCheckResult || pendingErrorFixes.length === 0) {
+      setShowErrorDialog(false);
+      return;
+    }
+
+    const fixesToApply = pendingErrorFixes.filter(fix => fix.shouldFix);
+    
+    if (fixesToApply.length === 0) {
+      setShowErrorDialog(false);
+      toast({
+        title: "No fixes selected",
+        description: "No errors were selected for fixing.",
+        variant: "default",
+      });
+      return;
+    }
+
+    setIsCheckingErrors(true);
+    
+    try {
+      // Get only the errors user wants to fix
+      const selectedErrors = errorCheckResult.errors.filter(error => 
+        fixesToApply.some(fix => fix.errorId === error.id)
+      );
+
+      console.log('Selected errors for fixing:', selectedErrors);
+
+      // Use AI to fix the code with the specific errors
+      if (!OPENROUTER_API_KEY) {
+        toast({
+          title: "OpenRouter API Key Missing",
+          description: "OpenRouter API key is required for AI-powered error fixing. Please check your environment variables.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Create a detailed fixing prompt
+      const errorDescriptions = selectedErrors.map(error => 
+        `- ${error.type}: ${error.message}${error.line ? ` (Line ${error.line})` : ''}`
+      ).join('\n');
+
+      const fixingPrompt = `Fix the following errors in this Python Google ADK agent code:
+
+ERRORS TO FIX:
+${errorDescriptions}
+
+ORIGINAL CODE:
+\`\`\`python
+${generatedCode}
+\`\`\`
+
+REQUIREMENTS:
+1. Fix only the specified errors
+2. Maintain all existing functionality
+3. Keep the code structure intact
+4. Ensure Langfuse 3.0+ compatibility
+5. Use proper error handling
+
+Please return ONLY the fixed Python code without any explanations or markdown formatting.`;
+
+      console.log('Sending AI fixing request...');
+
+      const response = await fetch(`${OPENROUTER_API_BASE}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : 'https://localhost',
+          'X-Title': 'Agent Flow Builder - Error Fixing'
+        },
+        body: JSON.stringify({
+          model: 'openai/gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an expert Python developer specializing in Google ADK agents and error fixing. Your task is to fix specific errors while preserving all functionality. Return ONLY the corrected code without explanations.'
+            },
+            {
+              role: 'user',
+              content: fixingPrompt
+            }
+          ],
+          temperature: 0.1,
+          max_tokens: 4000
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`OpenRouter API error: ${response.status} ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      const fixedCode = result.choices?.[0]?.message?.content;
+
+      if (!fixedCode) {
+        throw new Error('No fixed code received from AI');
+      }
+
+      console.log('AI fixed code received');
+
+      // Clean up the code (remove any potential markdown formatting)
+      const cleanedCode = fixedCode
+        .replace(/```python\n?/g, '')
+        .replace(/```\n?/g, '')
+        .trim();
+
+      // Verify the fix worked by checking if it's actually different
+      if (cleanedCode === generatedCode) {
+        toast({
+          title: "No changes needed",
+          description: "AI determined that no changes were needed for the selected errors.",
+          variant: "default",
+        });
+      } else {
+        setGeneratedCode(cleanedCode);
+        
+        // Save the fixed version
+        await saveCodeVersion(cleanedCode, 'template');
+        
+        toast({
+          title: "Errors fixed successfully!",
+          description: `AI has fixed ${selectedErrors.length} error(s) in your code. The code has been updated and saved.`,
+          variant: "default",
+        });
+
+        console.log('Code successfully fixed and updated');
+      }
+
+    } catch (error) {
+      console.error('Error fixing failed:', error);
+      toast({
+        title: "Error fixing failed",
+        description: `Failed to fix errors: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsCheckingErrors(false);
+      setShowErrorDialog(false);
+      setPendingErrorFixes([]);
+    }
+  };
+
+  // Error Check Dialog Component
+  const ErrorCheckDialog = () => {
+    if (!errorCheckResult || !showErrorDialog) return null;
+
+    const getErrorIcon = (severity: string) => {
+      switch (severity) {
+        case 'error': return '🔴';
+        case 'warning': return '🟡';
+        case 'info': return '🔵';
+        default: return '⚪';
+      }
+    };
+
+    const getCategoryColor = (category: string) => {
+      switch (category) {
+        case 'langfuse': return 'border-purple-200 bg-purple-50';
+        case 'mcp': return 'border-blue-200 bg-blue-50';
+        case 'syntax': return 'border-red-200 bg-red-50';
+        case 'security': return 'border-orange-200 bg-orange-50';
+        default: return 'border-gray-200 bg-gray-50';
+      }
+    };
+
+    const autoFixableErrors = errorCheckResult.errors.filter(error => error.autoFixable);
+
+    return (
+      <Dialog open={showErrorDialog} onOpenChange={setShowErrorDialog}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-orange-500" />
+              Found {errorCheckResult.errors.length} Issue(s) in Your Code
+            </DialogTitle>
+            <DialogDescription>
+              AI has detected some issues in your code. Review the errors below and select which ones you'd like AI to fix automatically. Issues are pre-selected for your convenience.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto space-y-4 py-4">
+            {/* Summary */}
+            <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-red-600">{errorCheckResult.errors.filter(e => e.severity === 'error').length}</div>
+                <div className="text-sm text-gray-600">Errors</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-yellow-600">{errorCheckResult.errors.filter(e => e.severity === 'warning').length}</div>
+                <div className="text-sm text-gray-600">Warnings</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">{autoFixableErrors.length}</div>
+                <div className="text-sm text-gray-600">Auto-fixable</div>
+              </div>
+            </div>
+
+            {/* Error List */}
+            <div className="space-y-3">
+              {errorCheckResult.errors.map((error) => (
+                <div key={error.id} className={`border rounded-lg p-4 ${getCategoryColor(error.category)}`}>
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 mt-1">
+                      <span className="text-lg">{getErrorIcon(error.severity)}</span>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h4 className="font-medium text-gray-900">{error.type.replace(/-/g, ' ').replace(/_/g, ' ')}</h4>
+                          <p className="text-sm text-gray-600 mt-1">{error.message}</p>
+                          <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                            <span className="capitalize">Category: {error.category}</span>
+                            <span className="capitalize">Severity: {error.severity}</span>
+                            {error.line && <span>Line: {error.line}</span>}
+                          </div>
+                        </div>
+                        {error.autoFixable && (
+                          <div className="flex items-center space-x-2 ml-4">
+                            <Checkbox
+                              id={`fix-${error.id}`}
+                              checked={pendingErrorFixes.some(fix => fix.errorId === error.id && fix.shouldFix)}
+                              onCheckedChange={(checked) => {
+                                setPendingErrorFixes(prev => {
+                                  const existing = prev.find(fix => fix.errorId === error.id);
+                                  if (existing) {
+                                    return prev.map(fix => 
+                                      fix.errorId === error.id 
+                                        ? { ...fix, shouldFix: checked as boolean }
+                                        : fix
+                                    );
+                                  } else {
+                                    return [...prev, { errorId: error.id, shouldFix: checked as boolean }];
+                                  }
+                                });
+                              }}
+                            />
+                            <label htmlFor={`fix-${error.id}`} className="text-sm font-medium text-green-700 cursor-pointer">
+                              Fix this error
+                            </label>
+                          </div>
+                        )}
+                      </div>
+                      {error.fixDescription && (
+                        <div className="mt-2 p-2 bg-white rounded border text-xs text-gray-600">
+                          <strong>How it will be fixed:</strong> {error.fixDescription}
+                        </div>
+                      )}
+                      {error.originalCode && (
+                        <div className="mt-2 p-2 bg-gray-800 rounded text-xs">
+                          <div className="text-gray-400 mb-1">Original code:</div>
+                          <code className="text-green-400">{error.originalCode}</code>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <DialogFooter className="border-t pt-4">
+            <div className="flex items-center justify-between w-full">
+              <div className="text-sm text-gray-600">
+                {pendingErrorFixes.filter(fix => fix.shouldFix).length} of {autoFixableErrors.length} errors selected for fixing
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setShowErrorDialog(false)}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleApplyErrorFixes}
+                  disabled={pendingErrorFixes.filter(fix => fix.shouldFix).length === 0 || isCheckingErrors}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  {isCheckingErrors ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      AI is fixing errors...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Apply AI Fixes ({pendingErrorFixes.filter(fix => fix.shouldFix).length})
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[98vw] max-w-7xl h-[95vh] max-h-[95vh] sm:w-[95vw] sm:h-[90vh] sm:max-h-[90vh] lg:max-w-6xl bg-gradient-to-br from-zinc-300/10 via-purple-400/10 to-transparent from-zinc-300/5 via-purple-400/10 backdrop-blur-xl border-[2px] border-white/10 shadow-2xl p-0 overflow-hidden flex flex-col">
         <DialogHeader className="flex-shrink-0 pb-4 border-b-[2px] border-white/10 bg-gradient-to-r from-purple-500/5 via-pink-500/5 to-transparent from-purple-400/5 via-orange-200/5 px-6 pt-6">
@@ -1868,6 +2235,20 @@ __all__ = ["root_agent"]`;
             <Button variant="outline" onClick={() => onOpenChange(false)} size="sm">
               Close
             </Button>
+            <Button
+              onClick={handleCheckForErrors}
+              disabled={loading || isExecuting || isCheckingErrors || !generatedCode.trim()}
+              variant="outline"
+              size="sm"
+              className="relative"
+            >
+              {isCheckingErrors ? (
+                <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+              ) : (
+                <AlertCircle className="mr-2 h-3 w-3" />
+              )}
+              {isCheckingErrors ? 'Checking...' : 'Check for Errors'}
+            </Button>
             <div className="flex gap-2">
               <Button
                 onClick={() => handleRegenerate('ai')}
@@ -1909,5 +2290,7 @@ __all__ = ["root_agent"]`;
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    <ErrorCheckDialog />
+    </>
   );
 }
