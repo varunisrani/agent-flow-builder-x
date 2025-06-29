@@ -15,6 +15,7 @@ import path from 'path';
 import { exec } from 'child_process';
 import os from 'os';
 import util from 'util';
+import { checkRateLimit, validateApiKey, sanitizeInput, getClientId } from '@/lib/security';
 
 const execAsync = util.promisify(exec);
 const mkdir = util.promisify(fs.mkdir);
@@ -25,9 +26,51 @@ const exists = (path: string) => fs.promises.access(path).then(() => true).catch
 const HOME_DIR = os.homedir();
 const AGENTS_BASE_DIR = path.join(HOME_DIR, '.agent-flow-builder', 'agents');
 
+/**
+ * Validate and sanitize path to prevent directory traversal
+ */
+function validatePath(userPath: string, baseDir: string): string {
+  // Remove any path traversal attempts
+  const cleanPath = userPath.replace(/\.\./g, '').replace(/[<>:"|?*]/g, '');
+  
+  // Resolve the path and ensure it's within the base directory
+  const resolvedPath = path.resolve(baseDir, cleanPath);
+  
+  if (!resolvedPath.startsWith(path.resolve(baseDir))) {
+    throw new Error('Invalid path: Directory traversal detected');
+  }
+  
+  return resolvedPath;
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  // Security headers
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Rate limiting
+  const clientId = getClientId(req);
+  const rateLimit = checkRateLimit(clientId, 20, 15); // 20 requests per 15 minutes
+  
+  res.setHeader('X-RateLimit-Limit', '20');
+  res.setHeader('X-RateLimit-Remaining', rateLimit.remaining.toString());
+  res.setHeader('X-RateLimit-Reset', Math.ceil(rateLimit.resetTime / 1000).toString());
+  
+  if (!rateLimit.allowed) {
+    return res.status(429).json({ 
+      error: 'Rate limit exceeded. Please try again later.' 
+    });
+  }
+
+  // API key validation (optional but recommended)
+  const apiKey = req.headers['x-api-key'] || req.headers['authorization']?.replace('Bearer ', '');
+  if (!validateApiKey(apiKey)) {
+    return res.status(401).json({ error: 'Invalid or missing API key' });
   }
 
   try {
@@ -38,9 +81,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Missing required parameters' });
     }
 
-    // Determine final directory path - use provided dirPath or build from agentName
-    const finalDirPath = dirPath || path.join(AGENTS_BASE_DIR, agentName);
-    console.log(`Using directory path: ${finalDirPath}`);
+    // Input validation and sanitization
+    const sanitizedAgentName = agentName ? sanitizeInput(agentName, 100) : '';
+    const sanitizedCode = code ? sanitizeInput(code, 500000) : ''; // Max 500KB
+    const sanitizedAgentPyContent = agentPyContent ? sanitizeInput(agentPyContent, 500000) : '';
+    const sanitizedInitPyContent = initPyContent ? sanitizeInput(initPyContent, 10000) : '';
+
+    // Validate agent name contains only safe characters
+    if (sanitizedAgentName && !/^[a-zA-Z0-9_-]+$/.test(sanitizedAgentName)) {
+      return res.status(400).json({ error: 'Agent name can only contain letters, numbers, underscores, and hyphens' });
+    }
+
+    // Determine final directory path with security validation
+    let finalDirPath: string;
+    if (dirPath) {
+      // Validate user-provided path
+      finalDirPath = validatePath(dirPath, AGENTS_BASE_DIR);
+    } else {
+      // Use sanitized agent name
+      finalDirPath = validatePath(sanitizedAgentName, AGENTS_BASE_DIR);
+    }
+    
+    console.log(`Using validated directory path: ${finalDirPath}`);
     
     // Create base directory if it doesn't exist
     const baseDir = path.dirname(finalDirPath);
@@ -59,12 +121,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const agentFilePath = path.join(finalDirPath, 'agent.py');
     const initFilePath = path.join(finalDirPath, '__init__.py');
     
-    // Write agent.py file
-    await writeFile(agentFilePath, agentPyContent || code);
+    // Write agent.py file with sanitized content
+    await writeFile(agentFilePath, sanitizedAgentPyContent || sanitizedCode);
     console.log(`Created agent file: ${agentFilePath}`);
     
     // Write a simple __init__.py that imports the agent
-    await writeFile(initFilePath, initPyContent || 'from .agent import root_agent');
+    await writeFile(initFilePath, sanitizedInitPyContent || 'from .agent import root_agent');
     console.log(`Created init file: ${initFilePath}`);
     
     // Create .env file with necessary API keys
@@ -80,7 +142,7 @@ GOOGLE_API_KEY=your_google_api_key_here
 `;
 
     // Check if code contains specific features and add relevant env vars
-    const agentCodeContent = agentPyContent || code;
+    const agentCodeContent = sanitizedAgentPyContent || sanitizedCode;
     
     if (agentCodeContent.includes('SMITHERY_API_KEY') || agentCodeContent.includes('MCPToolset')) {
       envContent += `# MCP (Model Context Protocol) via Smithery

@@ -293,7 +293,7 @@ export class LangfuseService {
     try {
       console.log('Testing Langfuse connection...');
       console.log('Base URL:', this.baseUrl);
-      console.log('Public Key:', this.config.publicKey?.substring(0, 10) + '...');
+      console.log('Public Key configured:', !!this.config.publicKey);
       
       const response = await fetch(`${this.baseUrl}/api/public/traces?limit=1`, {
         headers: this.getAuthHeaders(),
@@ -320,15 +320,16 @@ export class LangfuseService {
   async debugAuth(): Promise<void> {
     console.log('=== Langfuse Debug Info ===');
     console.log('Base URL:', this.baseUrl);
-    console.log('Public Key:', this.config.publicKey);
-    console.log('Secret Key starts with:', this.config.secretKey?.substring(0, 6) + '...');
+    console.log('Public Key configured:', !!this.config.publicKey);
+    console.log('Secret Key configured:', !!this.config.secretKey);
     
     const headers = this.getAuthHeaders();
-    console.log('Auth Headers:', headers);
+    // Only log header keys, not values
+    console.log('Auth Headers configured:', Object.keys(headers));
     
     // Test basic auth encoding
     const credentials = btoa(`${this.config.publicKey}:${this.config.secretKey}`);
-    console.log('Base64 credentials:', credentials.substring(0, 20) + '...');
+    console.log('Base64 credentials configured:', !!credentials);
     
     await this.testConnection();
   }

@@ -169,7 +169,7 @@ app.post('/api/execute', async (req, res) => {
     // Create ADK config file
     console.log('📝 Creating ADK config file...');
     await sbx.files.write('workspace/adk.config.json', JSON.stringify({
-      "api_key": "AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY"
+      "api_key": process.env.GOOGLE_API_KEY || process.env.ADK_API_KEY || ""
     }, null, 2));
     console.log('✅ ADK config file created');
     
@@ -180,9 +180,9 @@ app.post('/api/execute', async (req, res) => {
     console.log('⚡ Starting agent with ADK web command...');
     
     try {
-      // Create a .env file with the Google ADK API key
-      await sbx.files.write('workspace/.env', `GOOGLE_API_KEY=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY
-ADK_API_KEY=AIzaSyB6ibSXYT7Xq7rSzHmq7MH76F95V3BCIJY
+      // Create a .env file with environment variables from process.env
+      await sbx.files.write('workspace/.env', `GOOGLE_API_KEY=${process.env.GOOGLE_API_KEY || ''}
+ADK_API_KEY=${process.env.ADK_API_KEY || process.env.GOOGLE_API_KEY || ''}
 `);
       
       // Create a startup script that properly detaches the process and binds to 0.0.0.0

@@ -2,11 +2,35 @@ import 'dotenv/config';
 import express from 'express';
 import bodyParser from 'body-parser';
 import cors from 'cors';
+import helmet from 'helmet';
 import { Sandbox } from '@e2b/code-interpreter';
 
 // Create Express server
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Security middleware - must be early in the middleware chain
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdn.jsdelivr.net"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "https:", "wss:"],
+      frameSrc: ["'none'"],
+      objectSrc: ["'none'"],
+      baseSrc: ["'self'"]
+    }
+  },
+  crossOriginEmbedderPolicy: false, // Disable for compatibility with iframe embedding
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  }
+}));
 
 // Helper function to set CORS headers consistently
 const setCorsHeaders = (req, res) => {
@@ -23,14 +47,22 @@ const setCorsHeaders = (req, res) => {
   // Log origin for debugging
   console.log(`CORS request from origin: ${origin || 'undefined'}, path: ${req.path}, method: ${req.method}`);
   
-  // In production or if the origin is in our list, we'll allow it
-  if (origin && (process.env.NODE_ENV === 'production' || allowedOrigins.includes(origin))) {
+  // Check if origin is in our allowlist
+  if (origin && allowedOrigins.includes(origin)) {
     res.header('Access-Control-Allow-Origin', origin);
     console.log(`Setting Access-Control-Allow-Origin: ${origin}`);
+  } else if (!origin) {
+    // Allow requests with no origin (like mobile apps, curl, etc.) only in development
+    if (process.env.NODE_ENV !== 'production') {
+      res.header('Access-Control-Allow-Origin', '*');
+      console.log('Setting Access-Control-Allow-Origin: * (development only)');
+    } else {
+      console.log('Blocking request with no origin in production');
+      return; // Don't set CORS headers for requests with no origin in production
+    }
   } else {
-    // If origin is not in our list or undefined, use wildcard
-    res.header('Access-Control-Allow-Origin', '*');
-    console.log('Setting Access-Control-Allow-Origin: * (wildcard)');
+    console.log(`Blocking unauthorized origin: ${origin}`);
+    return; // Don't set CORS headers for unauthorized origins
   }
   
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -38,12 +70,9 @@ const setCorsHeaders = (req, res) => {
   res.header('Access-Control-Allow-Credentials', 'true');
 };
 
-// CORS middleware with proper configuration
+// CORS middleware with secure configuration
 app.use(cors({
   origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps, curl, etc.)
-    if (!origin) return callback(null, true);
-    
     const allowedOrigins = [
       'http://localhost:8080', 
       'https://cogentx.dev', 
@@ -53,22 +82,20 @@ app.use(cors({
       'https://agent-flow-builder-api.onrender.com'
     ];
     
-    // In production, allow all origins
-    if (process.env.NODE_ENV === 'production') {
-      callback(null, true);
-      return;
+    // Allow requests with no origin only in development
+    if (!origin && process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
     }
     
     // Check if the origin is in our allowed list
-    if (allowedOrigins.includes(origin)) {
+    if (origin && allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      // Allow all origins if not explicitly listed
-      callback(null, true);
+      callback(new Error('Not allowed by CORS policy'));
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'Origin'],
+  allowedHeaders: ['X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'Origin', 'X-API-Key'],
   credentials: true,
   preflightContinue: false,
   optionsSuccessStatus: 204
@@ -86,9 +113,30 @@ app.use((req, res, next) => {
   next();
 });
 
-// Middleware
-app.use(bodyParser.json({ limit: '50mb' }));
-app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
+// Middleware with reasonable limits
+app.use(bodyParser.json({ 
+  limit: '10mb',
+  verify: (req, res, buf) => {
+    // Additional validation could be added here
+    if (buf.length === 0) {
+      throw new Error('Empty request body');
+    }
+  }
+}));
+app.use(bodyParser.urlencoded({ 
+  limit: '10mb', 
+  extended: true,
+  parameterLimit: 100 // Limit number of parameters
+}));
+
+// Request validation middleware
+app.use((req, res, next) => {
+  // Validate Content-Type for POST/PUT requests
+  if (['POST', 'PUT'].includes(req.method) && !req.is('application/json')) {
+    return res.status(400).json({ error: 'Content-Type must be application/json' });
+  }
+  next();
+});
 
 // Execute code in sandbox endpoint
 app.post('/api/execute', async (req, res) => {
@@ -243,7 +291,7 @@ app.post('/api/execute', async (req, res) => {
     // Create ADK config file
     console.log('📝 Creating ADK config file...');
     await sbx.files.write('workspace/adk.config.json', JSON.stringify({
-      "api_key": "AIzaSyDKYSA-rs_GE5mCqA9b1yw8NFWH9fSn-Vc"
+      "api_key": process.env.GOOGLE_API_KEY || process.env.ADK_API_KEY || ""
     }, null, 2));
     console.log('✅ ADK config file created');
     
@@ -254,10 +302,10 @@ app.post('/api/execute', async (req, res) => {
     console.log('⚡ Starting agent with ADK web command...');
     
     try {
-      // Create a .env file with the Google ADK API key and Smithery API key
-      await sbx.files.write('workspace/.env', `GOOGLE_API_KEY=AIzaSyDKYSA-rs_GE5mCqA9b1yw8NFWH9fSn-Vc
-ADK_API_KEY=AIzaSyDKYSA-rs_GE5mCqA9b1yw8NFWH9fSn-Vc
-SMITHERY_API_KEY=10f9abbc-518d-44c0-845a-27aac70347b3
+      // Create a .env file with environment variables from process.env
+      await sbx.files.write('workspace/.env', `GOOGLE_API_KEY=${process.env.GOOGLE_API_KEY || ''}
+ADK_API_KEY=${process.env.ADK_API_KEY || process.env.GOOGLE_API_KEY || ''}
+SMITHERY_API_KEY=${process.env.SMITHERY_API_KEY || ''}
 `);
       
       // Create a Python script to check if port is open
