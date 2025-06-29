@@ -5,17 +5,15 @@ import {
   ArrowLeft, 
   Sparkles, 
   Bot, 
-  MessageSquare, 
   BarChart3, 
-  Briefcase, 
-  Users, 
-  FileText,
-  ShoppingCart,
-  Headphones,
-  BookOpen,
   X,
   CheckCircle,
-  Zap
+  Zap,
+  Code,
+  Settings,
+  Database,
+  Activity,
+  Layers
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -24,6 +22,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { BaseNodeData } from '@/components/nodes/BaseNode';
 import { MCPConfig } from '@/lib/codeGeneration';
+import { CODE_TEMPLATES, CodeTemplateMetadata } from '@/lib/templateMetadata';
+import { applyTemplateToFlow } from '@/lib/templateToNodes';
 
 interface UseCase {
   id: string;
@@ -32,58 +32,44 @@ interface UseCase {
   icon: React.ReactNode;
   category: string;
   example: string;
+  difficulty: string;
+  estimatedTime: string;
+  features: string[];
+  template: CodeTemplateMetadata;
 }
 
-const useCases: UseCase[] = [
-  {
-    id: 'customer-support',
-    title: 'Customer Support',
-    description: 'Help customers with inquiries and issues',
-    icon: <Headphones className="w-6 h-6" />,
-    category: 'customer-service',
-    example: 'A friendly agent that answers product questions and resolves complaints'
-  },
-  {
-    id: 'content-creation',
-    title: 'Content Creation',
-    description: 'Generate blogs, articles, and marketing content',
-    icon: <FileText className="w-6 h-6" />,
-    category: 'creative',
-    example: 'An AI writer that creates engaging blog posts and social media content'
-  },
-  {
-    id: 'data-analysis',
-    title: 'Data Analysis',
-    description: 'Analyze data and generate insights',
-    icon: <BarChart3 className="w-6 h-6" />,
-    category: 'analytics',
-    example: 'An analyst that processes spreadsheets and creates charts'
-  },
-  {
-    id: 'sales-assistant',
-    title: 'Sales Assistant',
-    description: 'Qualify leads and recommend products',
-    icon: <ShoppingCart className="w-6 h-6" />,
-    category: 'business',
-    example: 'A sales agent that understands customer needs and suggests solutions'
-  },
-  {
-    id: 'research-helper',
-    title: 'Research Helper',
-    description: 'Gather information and summarize findings',
-    icon: <BookOpen className="w-6 h-6" />,
-    category: 'technical',
-    example: 'A researcher that finds reliable sources and creates summaries'
-  },
-  {
-    id: 'personal-assistant',
-    title: 'Personal Assistant',
-    description: 'Help with scheduling and task management',
-    icon: <Users className="w-6 h-6" />,
-    category: 'business',
-    example: 'An assistant that manages your calendar and prioritizes tasks'
-  }
-];
+// Map template IDs to icons and examples
+const templateIconMap: Record<string, React.ReactNode> = {
+  'basic-agent': <Bot className="w-6 h-6" />,
+  'mcp-agent': <Settings className="w-6 h-6" />,
+  'langfuse-agent': <BarChart3 className="w-6 h-6" />,
+  'memory-agent': <Database className="w-6 h-6" />,
+  'event-handling-agent': <Activity className="w-6 h-6" />,
+  'combined-agent': <Layers className="w-6 h-6" />
+};
+
+const templateExampleMap: Record<string, string> = {
+  'basic-agent': 'A simple, efficient agent perfect for getting started with Google ADK',
+  'mcp-agent': 'An advanced agent with dynamic tool access via Model Context Protocol',
+  'langfuse-agent': 'A smart agent with built-in analytics and performance tracking',
+  'memory-agent': 'An intelligent agent that remembers context and user preferences',
+  'event-handling-agent': 'A comprehensive agent with detailed logging and monitoring',
+  'combined-agent': 'A full-featured agent combining all available capabilities'
+};
+
+// Convert CODE_TEMPLATES to UseCase format
+const useCases: UseCase[] = CODE_TEMPLATES.map((template) => ({
+  id: template.id,
+  title: template.name,
+  description: template.description,
+  icon: templateIconMap[template.id] || <Code className="w-6 h-6" />,
+  category: template.category.toLowerCase().replace(' ', '-'),
+  example: templateExampleMap[template.id] || template.description,
+  difficulty: template.difficulty,
+  estimatedTime: template.estimatedTime,
+  features: template.features,
+  template: template
+}));
 
 interface QuickStartWizardProps {
   onComplete: (nodes: Node<BaseNodeData>[], edges: Edge[], mcpConfig?: MCPConfig[]) => void;
@@ -119,32 +105,65 @@ export function QuickStartWizard({ onComplete, onClose }: QuickStartWizardProps)
 
   const handleUseCaseSelect = (useCase: UseCase) => {
     setSelectedUseCase(useCase);
-    // Auto-populate based on use case
-    setAgentName(useCase.title + ' Agent');
-    setAgentDescription(useCase.description);
-    setAgentInstructions(getDefaultInstructions(useCase.id));
+    // Auto-populate based on template
+    const agentNode = useCase.template.nodes.find(node => node.type === 'agent');
+    if (agentNode?.data) {
+      setAgentName(agentNode.data.agentName || useCase.title);
+      setAgentDescription(agentNode.data.agentDescription || useCase.description);
+      setAgentInstructions(agentNode.data.agentInstruction || getDefaultInstructions(useCase.id));
+    } else {
+      setAgentName(useCase.title);
+      setAgentDescription(useCase.description);
+      setAgentInstructions(getDefaultInstructions(useCase.id));
+    }
   };
 
   const getDefaultInstructions = (useCaseId: string): string => {
     switch (useCaseId) {
-      case 'customer-support':
-        return 'You are a helpful customer support agent. Respond professionally and empathetically to customer inquiries. If you cannot resolve an issue, escalate it appropriately. Always maintain a positive and helpful tone.';
-      case 'content-creation':
-        return 'You are a skilled content writer. Create engaging, well-researched content that provides value to readers. Adapt your writing style to match the target audience and maintain consistent quality.';
-      case 'data-analysis':
-        return 'You are an expert data analyst. Examine data carefully to identify patterns, trends, and insights. Present your findings clearly with actionable recommendations and supporting evidence.';
-      case 'sales-assistant':
-        return 'You are a professional sales assistant. Focus on understanding customer needs and providing relevant solutions. Build trust through helpful guidance rather than pushy sales tactics.';
-      case 'research-helper':
-        return 'You are a thorough research assistant. Gather information from reliable sources, verify facts, and present comprehensive summaries. Always cite your sources and acknowledge limitations.';
-      case 'personal-assistant':
-        return 'You are an efficient personal assistant. Help with organization, scheduling, and task management. Be proactive in identifying potential issues and suggesting solutions.';
+      case 'basic-agent':
+        return 'You are a helpful AI assistant. Provide clear and accurate responses to user queries. Maintain a professional and friendly tone in all interactions.';
+      case 'mcp-agent':
+        return 'You are an AI assistant with access to MCP tools. Use available tools to help users accomplish their tasks efficiently. Be proactive in suggesting tool usage when appropriate.';
+      case 'langfuse-agent':
+        return 'You are an AI assistant with comprehensive analytics tracking. All interactions are monitored for performance optimization. Provide helpful responses while maintaining data quality.';
+      case 'memory-agent':
+        return 'You are an AI assistant with memory. Remember user preferences and conversation context to provide personalized responses. Use your memory to build better relationships with users.';
+      case 'event-handling-agent':
+        return 'You are an AI assistant with detailed event tracking. All interactions are logged and monitored for analysis. Provide comprehensive responses while maintaining proper logging.';
+      case 'combined-agent':
+        return 'You are an advanced AI assistant with comprehensive capabilities including tools, analytics, memory, and event tracking. Leverage all available features to provide the best possible assistance.';
       default:
         return 'You are a helpful AI assistant. Provide accurate, useful information and assistance to users. Be professional, friendly, and responsive to their specific needs.';
     }
   };
 
-  const generateAgentFlow = (): { nodes: Node<BaseNodeData>[], edges: Edge[] } => {
+  const generateAgentFlow = (): { nodes: Node<BaseNodeData>[], edges: Edge[], mcpConfig?: MCPConfig[] } => {
+    if (selectedUseCase?.template) {
+      // Use the template's nodes and edges, but update agent data with user customizations
+      const { nodes, edges } = applyTemplateToFlow(selectedUseCase.template);
+      
+      // Update the agent node with custom data
+      const updatedNodes = nodes.map(node => {
+        if (node.data?.type === 'agent') {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              label: agentName,
+              agentName: agentName,
+              agentDescription: agentDescription,
+              agentInstruction: agentInstructions,
+              description: agentDescription
+            }
+          };
+        }
+        return node;
+      });
+      
+      return { nodes: updatedNodes, edges };
+    }
+
+    // Fallback to simple flow if no template
     const nodes: Node<BaseNodeData>[] = [
       {
         id: 'input-1',
@@ -166,7 +185,9 @@ export function QuickStartWizard({ onComplete, onClose }: QuickStartWizardProps)
           type: 'agent',
           label: agentName,
           description: agentDescription,
-          instruction: agentInstructions
+          agentName: agentName,
+          agentDescription: agentDescription,
+          agentInstruction: agentInstructions
         }
       },
       {
@@ -182,124 +203,17 @@ export function QuickStartWizard({ onComplete, onClose }: QuickStartWizardProps)
       }
     ];
 
-    // Add use case specific nodes
-    if (selectedUseCase) {
-      switch (selectedUseCase.id) {
-        case 'customer-support':
-          nodes.push({
-            id: 'tool-1',
-            type: 'baseNode',
-            position: { x: 350, y: 350 },
-            data: {
-              id: 'tool-1',
-              type: 'tool',
-              label: 'Knowledge Base',
-              description: 'Company knowledge base search'
-            }
-          });
-          break;
-        case 'content-creation':
-          nodes.push({
-            id: 'tool-1',
-            type: 'baseNode',
-            position: { x: 350, y: 350 },
-            data: {
-              id: 'tool-1',
-              type: 'tool',
-              label: 'Research Tool',
-              description: 'Web research for content'
-            }
-          });
-          break;
-        case 'data-analysis':
-          nodes.push({
-            id: 'tool-1',
-            type: 'baseNode',
-            position: { x: 350, y: 350 },
-            data: {
-              id: 'tool-1',
-              type: 'tool',
-              label: 'Data Processor',
-              description: 'Data analysis and visualization'
-            }
-          });
-          break;
-        case 'sales-assistant':
-          nodes.push({
-            id: 'tool-1',
-            type: 'baseNode',
-            position: { x: 300, y: 120 },
-            data: {
-              id: 'tool-1',
-              type: 'tool',
-              label: 'CRM Integration',
-              description: 'Customer data lookup'
-            }
-          });
-          nodes.push({
-            id: 'tool-2',
-            type: 'baseNode',
-            position: { x: 300, y: 280 },
-            data: {
-              id: 'tool-2',
-              type: 'tool',
-              label: 'Product Catalog',
-              description: 'Product information and pricing'
-            }
-          });
-          break;
-        case 'research-helper':
-          nodes.push({
-            id: 'tool-1',
-            type: 'baseNode',
-            position: { x: 350, y: 350 },
-            data: {
-              id: 'tool-1',
-              type: 'tool',
-              label: 'Web Search',
-              description: 'Internet research capability'
-            }
-          });
-          break;
-        case 'personal-assistant':
-          nodes.push({
-            id: 'memory-1',
-            type: 'baseNode',
-            position: { x: 350, y: 350 },
-            data: {
-              id: 'memory-1',
-              type: 'memory',
-              label: 'Personal Context',
-              description: 'Remember user preferences and history'
-            }
-          });
-          break;
-      }
-    }
-
     const edges: Edge[] = [
       { id: 'e1', source: 'input-1', target: 'agent-1', type: 'smoothstep' },
       { id: 'e2', source: 'agent-1', target: 'output-1', type: 'smoothstep' }
     ];
 
-    // Add edges for additional nodes
-    if (nodes.length > 3) {
-      if (selectedUseCase?.id === 'sales-assistant') {
-        edges.push(
-          { id: 'e3', source: 'tool-1', target: 'agent-1', type: 'smoothstep' },
-          { id: 'e4', source: 'tool-2', target: 'agent-1', type: 'smoothstep' }
-        );
-      } else {
-        edges.push({ id: 'e3', source: nodes[3].id, target: 'agent-1', type: 'smoothstep' });
-      }
-    }
-
     return { nodes, edges };
   };
 
   const handleComplete = () => {
-    const { nodes, edges } = generateAgentFlow();
-    onComplete(nodes, edges);
+    const { nodes, edges, mcpConfig } = generateAgentFlow();
+    onComplete(nodes, edges, mcpConfig);
     onClose();
   };
 
@@ -431,6 +345,25 @@ export function QuickStartWizard({ onComplete, onClose }: QuickStartWizardProps)
                             <p className="text-gray-400 text-xs mt-2 italic">
                               {useCase.example}
                             </p>
+                            <div className="flex items-center gap-2 mt-2">
+                              <div className="text-xs text-purple-400">
+                                {useCase.difficulty} • {useCase.estimatedTime}
+                              </div>
+                            </div>
+                            {useCase.features.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {useCase.features.slice(0, 2).map((feature) => (
+                                  <span key={feature} className="text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full">
+                                    {feature}
+                                  </span>
+                                ))}
+                                {useCase.features.length > 2 && (
+                                  <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full">
+                                    +{useCase.features.length - 2}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
                           {selectedUseCase?.id === useCase.id && (
                             <CheckCircle className="w-5 h-5 text-purple-400 flex-shrink-0" />
