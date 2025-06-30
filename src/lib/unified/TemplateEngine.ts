@@ -1574,19 +1574,13 @@ __all__ = ["root_agent"]`;
   generateRequirements(config: UnifiedConfiguration): string {
     const requirements = [
       'google-adk',
-      'python-dotenv'
+      'python-dotenv',
+      'mem0',
+      'langfuse'
     ];
 
     if (config.mcpConfigs && config.mcpConfigs.length > 0) {
       requirements.push('mcp');
-    }
-
-    if (config.langfuseConfig) {
-      requirements.push('langfuse');
-    }
-
-    if (config.memoryConfig) {
-      requirements.push('mem0ai');
     }
 
     return requirements.join('\n');
